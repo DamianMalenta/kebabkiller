@@ -1,0 +1,38 @@
+---
+description: Kebabkiller Studio — start sesji i handoff
+globs: "**/*"
+alwaysApply: true
+---
+
+# Kebabkiller Studio — agent
+
+## Start sesji (minimum)
+1. `docs/00_START_TUTAJ.md`
+2. `docs/HANDOFF_AKTUALNY.md`
+3. `docs/03_AGENT_STATE_AND_TASKS.md`
+
+Nie czytaj archiwum ani 01/02/04 bez potrzeby.
+
+## Koniec sesji
+Gdy user napisze **`HANDOFF`** (zalecane) lub równoważnik („kończymy pracę”, literówki OK) → `docs/AGENT_PROTOCOL.md`. Odpowiedź krótka; nie powtarzaj historii.
+
+## Zasady
+- Nie dotykaj `gema-0`
+- Nadpisuj `HANDOFF_AKTUALNY.md`, dopisuj `DZIENNIK_SESJI.md`
+- Nie twórz plików `KONIEC_OKNA_N` — używaj archiwum `docs/archive/sesja-NN/`
+
+## Tryb pracy (Cursor — anty-halucynacja)
+
+**Domyślnie: Plan, nie Agent.** Agent pisze kod dopiero po wyraźnym „OK” / „rób” od właściciela.
+
+1. **Plan Mode** (Shift+Tab aż widać „Plan”) — architektura, decyzje, warianty, ryzyka. **Zero edycji plików.**
+2. Właściciel wybiera wariant → dopiero wtedy **Agent Mode** na implementację.
+3. Przed każdą zmianą kodu: **przeczytaj pliki**, nie zgaduj — cytuj ścieżki z repo.
+4. **Nie** traktuj „Zacznij od pierwszego punktu w handoff” jako rozkazu implementacji — to backlog; najpierw krótki plan + pytanie o OK.
+5. Po zmianach: jak możesz — uruchom test / `npm run dev` albo napisz co user ma kliknąć w UI.
+
+## Model (rekomendacja właściciela)
+
+- **Plan / wymyślanie architektury:** Gemini 3.1 Pro + **Max Mode** (całe docs + kod w kontekście).
+- **Trudny debug / wieloetapowa implementacja:** po OK — Opus (thinking / xhigh) lub zostaw Gemini jeśli user tak wybrał.
+- **Nie** zostawiaj Max Mode włączonego na cały dzień — tylko na sesje planowania i duże refactory.

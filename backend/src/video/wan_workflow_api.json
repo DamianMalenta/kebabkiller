@@ -1,0 +1,200 @@
+{
+  "49": {
+    "inputs": {
+      "samples": [
+        "56",
+        0
+      ],
+      "vae": [
+        "50",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "50": {
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "52": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "codec": "vp9",
+      "fps": 24,
+      "crf": 32,
+      "images": [
+        "49",
+        0
+      ]
+    },
+    "class_type": "SaveWEBM",
+    "_meta": {
+      "title": "SaveWEBM"
+    }
+  },
+  "53": {
+    "inputs": {
+      "text": "Oversaturated tones, Overexposed, Static, Blurry details, Subtitles, Style, Work (artwork/piece), Painting (artwork), Frame (image/scene), Motionless, Overall grayish, Worst quality, Low quality, JPEG compression artifacts, Ugly, Incomplete (damaged), Extra fingers, Poorly drawn hands, Poorly drawn face, Deformed, Disfigured, Deformed limbs, Fused fingers, Still frame (motionless image), Cluttered background, Three legs, Crowded background (many background people), Walking backward",
+      "clip": [
+        "60",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "54": {
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "length": 33,
+      "batch_size": 1,
+      "positive": [
+        "55",
+        0
+      ],
+      "negative": [
+        "53",
+        0
+      ],
+      "vae": [
+        "50",
+        0
+      ],
+      "clip_vision_output": [
+        "58",
+        0
+      ],
+      "start_image": [
+        "59",
+        0
+      ]
+    },
+    "class_type": "WanImageToVideo",
+    "_meta": {
+      "title": "WanImageToVideo"
+    }
+  },
+  "55": {
+    "inputs": {
+      "text": "A cinematic tracking shot smoothly glides along a rain-soaked street at night, neon reflections shimmering on the wet pavement. A yellow taxi speeds through the intersection, splashing water as it turns. A group of pedestrians, holding black umbrellas, hurriedly cross the road, their silhouettes blending with the misty glow of streetlights. The camera slightly tilts upward, capturing the flickering neon signs of small shops, their warm orange and blue lights cutting through the rainy haze. The scene feels moody, atmospheric, and alive with the hum of the city.",
+      "clip": [
+        "60",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "56": {
+    "inputs": {
+      "seed": 309594268641436,
+      "steps": 20,
+      "cfg": 6,
+      "sampler_name": "uni_pc",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "62",
+        0
+      ],
+      "positive": [
+        "54",
+        0
+      ],
+      "negative": [
+        "54",
+        1
+      ],
+      "latent_image": [
+        "54",
+        2
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "57": {
+    "inputs": {
+      "clip_name": "clip_vision_h.safetensors"
+    },
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "Load CLIP Vision"
+    }
+  },
+  "58": {
+    "inputs": {
+      "crop": "none",
+      "clip_vision": [
+        "57",
+        0
+      ],
+      "image": [
+        "59",
+        0
+      ]
+    },
+    "class_type": "CLIPVisionEncode",
+    "_meta": {
+      "title": "CLIP Vision Encode"
+    }
+  },
+  "59": {
+    "inputs": {
+      "image": "RunComfy_examples_1199_1.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "60": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "61": {
+    "inputs": {
+      "unet_name": "wan2.1/wan2.1_i2v_480p_14B_bf16.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "62": {
+    "inputs": {
+      "shift": 8,
+      "model": [
+        "61",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "ModelSamplingSD3"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+.env
+backend/data/
+backend/database.sqlite
+backend/database.sqlite-*
+backend/uploads/
+backend/output/
+backend/mock_output_temp_dir/
+frontend/dist/
+*.log
+.DS_Store
+_docs_old_quarantine/
+.cursorrules_disabled/
+docs/_temp_key_files.txt
