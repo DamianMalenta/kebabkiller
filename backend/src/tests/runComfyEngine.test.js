@@ -1,4 +1,7 @@
-import { jest, describe, test, expect, beforeAll, beforeEach } from '@jest/globals';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals';
 import {
   buildRunComfyWorkflow,
   createRunComfyEngine,
@@ -7,24 +10,16 @@ import {
   WEBM_OUTPUT_NODE_ID,
   WEBP_OUTPUT_NODE_ID,
 } from '../video/runComfyEngine.js';
+import { mockRunComfyFetch } from './helpers/runComfyFetchMock.js';
 
-// Mock the network fetch call
-global.fetch = jest.fn(() =>
-  Promise.resolve({
-    ok: true,
-    text: () => Promise.resolve(JSON.stringify({
-      request_id: 'mock_request_123',
-      status_url: 'https://mock.api.runcomfy.com/status/mock_request_123',
-      result_url: 'https://mock.api.runcomfy.com/result/mock_request_123',
-    })),
-  })
-);
-
-// We won't mock `fs` or `path` to avoid ES Module read-only errors. 
-// We will test using real files located in the project's folder.
+const RUNCOMFY_CONFIG = {
+  RUNCOMFY_ENDPOINT: 'https://mock.api.runcomfy.com/prod/v2/deployments/mock-deploy/inference',
+  RUNCOMFY_API_KEY: 'mock_api_key',
+  UPLOADS_DIR: os.tmpdir(),
+};
 
 describe('buildRunComfyWorkflow', () => {
-  test('sends workflow_api_json without node 51 and with quality-first params', () => {
+  test('submits workflow_api_json without node 51 and with WAN_QUALITY params', () => {
     const payload = buildRunComfyWorkflow('job-1', 'user prompt', {
       positive_prompt: 'director positive',
       negative_prompt: 'director negative',
@@ -48,6 +43,11 @@ describe('buildRunComfyWorkflow', () => {
       startFrame: { type: 'base64', data: 'data:image/png;base64,abc' },
     });
     expect(payload.workflow_api_json['59'].inputs.image).toBe('data:image/png;base64,abc');
+  });
+
+  test('template does not ship node 51 WEBP saver', () => {
+    const payload = buildRunComfyWorkflow('job-3', 'prompt', {}, {});
+    expect(Object.keys(payload.workflow_api_json)).not.toContain(WEBP_OUTPUT_NODE_ID);
   });
 });
 
@@ -76,153 +76,66 @@ describe('pickRunComfyMedia', () => {
   });
 });
 
-describe('runComfyEngine', () => {
-  let runComfy;
-  const mockOutputDir = './mock_output_temp_dir'; // local directory
-  const mockConfig = {
-    RUNCOMFY_ENDPOINT: 'https://mock.api.runcomfy.com/prod/v2/deployments/mock-deploy/inference',
-    RUNCOMFY_API_KEY: 'mock_api_key',
-  };
-
-  beforeAll(() => {
-    runComfy = createRunComfyEngine(mockOutputDir, mockConfig);
-  });
+describe('createRunComfyEngine.render', () => {
+  let outputDir;
 
   beforeEach(() => {
-    global.fetch.mockReset();
-    global.fetch.mockImplementation((url) => {
-      const urlStr = String(url);
-      if (urlStr.includes('/inference')) {
-        return Promise.resolve({
-          ok: true,
-          text: () => Promise.resolve(JSON.stringify({
-            request_id: 'mock_request_123',
-            status_url: 'https://mock.api.runcomfy.com/status/mock_request_123',
-            result_url: 'https://mock.api.runcomfy.com/result/mock_request_123',
-          })),
-        });
-      }
-      if (urlStr.includes('/status/')) {
-        return Promise.resolve({
-          ok: true,
-          text: () => Promise.resolve(JSON.stringify({ status: 'completed' })),
-        });
-      }
-      if (urlStr.includes('/result/')) {
-        return Promise.resolve({
-          ok: true,
-          text: () => Promise.resolve(JSON.stringify({
-            status: 'succeeded',
-            outputs: {
-              '52': { videos: [{ url: 'https://mock.api.runcomfy.com/output.webm', filename: 'ComfyUI.webm' }] },
-              '51': { images: [{ url: 'https://mock.api.runcomfy.com/output.webp', filename: '1199.webp' }] },
-            },
-          })),
-        });
-      }
-      if (urlStr.includes('output.webm')) {
-        return Promise.resolve({
-          ok: true,
-          headers: { get: () => 'video/webm' },
-          arrayBuffer: () => Promise.resolve(Buffer.from('mock-webm-bytes')),
-        });
-      }
-      if (urlStr.includes('output.webp') || urlStr.includes('video.mp4')) {
-        return Promise.resolve({
-          ok: true,
-          arrayBuffer: () => Promise.resolve(Buffer.from('mock-mp4-bytes')),
-        });
-      }
-      return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('not found') });
-    });
+    outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kebabkiller-test-output-'));
+    jest.useFakeTimers();
+    global.fetch = mockRunComfyFetch(jest, 'webm');
   });
 
-  test('should process input correctly and return a mocked video response without throwing', async () => {
-    const jobId = 'test_job_id';
-    const userPrompt = 'a test prompt';
-    const directorJson = { positive_prompt: 'a director prompt' }; 
-    const renderStrategy = 'native_i2v';
+  afterEach(() => {
+    jest.useRealTimers();
+    if (outputDir && fs.existsSync(outputDir)) {
+      fs.rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  async function renderWithTimers(engine, params) {
+    const renderPromise = engine.render(params);
+    await jest.runAllTimersAsync();
+    return renderPromise;
+  }
+
+  test('writes WEBM output and metadata after mocked RunComfy flow', async () => {
+    const engine = createRunComfyEngine(outputDir, RUNCOMFY_CONFIG);
     const onProgress = jest.fn();
 
-    const result = await runComfy.render({ jobId, userPrompt, directorJson, renderStrategy, onProgress });
+    const result = await renderWithTimers(engine, {
+      jobId: 'job-webm',
+      userPrompt: 'test prompt',
+      directorJson: { positive_prompt: 'director prompt' },
+      renderStrategy: 'native_i2v',
+      onProgress,
+    });
+
+    expect(result.engine).toBe('runcomfy');
+    expect(result.renderStrategy).toBe('native_i2v');
+    expect(result.outputPath.endsWith('.webm')).toBe(true);
+    expect(fs.existsSync(result.outputPath)).toBe(true);
+
+    const metaPath = result.outputPath.replace(/\.webm$/, '.meta.json');
+    expect(fs.existsSync(metaPath)).toBe(true);
 
     const inferenceCall = global.fetch.mock.calls.find(([url]) => String(url).includes('/inference'));
     expect(inferenceCall).toBeDefined();
+    expect(inferenceCall[1].headers.Authorization).toBe('Bearer mock_api_key');
+
     const submitBody = JSON.parse(inferenceCall[1].body);
     expect(submitBody.workflow_api_json).toBeDefined();
     expect(submitBody.workflow_api_json[WEBP_OUTPUT_NODE_ID]).toBeUndefined();
     expect(submitBody.workflow_api_json[WEBM_OUTPUT_NODE_ID]).toBeDefined();
-    expect(submitBody.overrides).toBeUndefined();
-    expect(result.renderStrategy).toEqual('native_i2v');
-    expect(result.engine).toEqual('runcomfy');
-    expect(result.outputPath.endsWith('.webm')).toBe(true);
-  }, 15000);
-
-
-  test('should handle RunComfy API status 500 error', async () => {
-    global.fetch.mockImplementationOnce(() =>
-      Promise.resolve({
-        ok: false,
-        status: 500,
-        text: () => Promise.resolve(JSON.stringify({ error: 'Internal Server Error' })),
-      })
-    );
-
-    const jobId = 'test_job_id_error';
-    const userPrompt = 'a test prompt';
-    const directorJson = {};
-    const renderStrategy = 'native_i2v';
-    const onProgress = jest.fn();
-
-    await expect(runComfy.render({ jobId, userPrompt, directorJson, renderStrategy, onProgress }))
-      .rejects.toThrow('RunComfy Submit API returned status: 500');
-
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(onProgress).toHaveBeenCalled();
   });
 
-  test('falls back to WEBP when result has only node 51', async () => {
-    global.fetch.mockImplementation((url) => {
-      const urlStr = String(url);
-      if (urlStr.includes('/inference')) {
-        return Promise.resolve({
-          ok: true,
-          text: () => Promise.resolve(JSON.stringify({
-            request_id: 'mock_webp_only',
-            status_url: 'https://mock.api.runcomfy.com/status/mock_webp_only',
-            result_url: 'https://mock.api.runcomfy.com/result/mock_webp_only',
-          })),
-        });
-      }
-      if (urlStr.includes('/status/')) {
-        return Promise.resolve({
-          ok: true,
-          text: () => Promise.resolve(JSON.stringify({ status: 'completed' })),
-        });
-      }
-      if (urlStr.includes('/result/')) {
-        return Promise.resolve({
-          ok: true,
-          text: () => Promise.resolve(JSON.stringify({
-            status: 'succeeded',
-            outputs: {
-              [WEBP_OUTPUT_NODE_ID]: { images: [{ url: 'https://mock.api.runcomfy.com/output.webp', filename: '1199.webp' }] },
-            },
-          })),
-        });
-      }
-      if (urlStr.includes('output.webp')) {
-        return Promise.resolve({
-          ok: true,
-          headers: { get: () => 'image/webp' },
-          arrayBuffer: () => Promise.resolve(Buffer.from('mock-webp-bytes')),
-        });
-      }
-      return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('not found') });
-    });
-
+  test('falls back to WEBP when RunComfy returns only node 51', async () => {
+    global.fetch = mockRunComfyFetch(jest, 'webp');
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const result = await runComfy.render({
-      jobId: 'test_webp_fallback',
+    const engine = createRunComfyEngine(outputDir, RUNCOMFY_CONFIG);
+
+    const result = await renderWithTimers(engine, {
+      jobId: 'job-webp',
       userPrompt: 'test',
       directorJson: { positive_prompt: 'test' },
       renderStrategy: 'native_i2v',
@@ -230,7 +143,26 @@ describe('runComfyEngine', () => {
     });
 
     expect(result.outputPath.endsWith('.webp')).toBe(true);
+    expect(fs.existsSync(result.outputPath)).toBe(true);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
-  }, 15000);
+  });
+
+  test('throws when RunComfy submit returns HTTP 500', async () => {
+    jest.useRealTimers();
+    global.fetch = mockRunComfyFetch(jest, 'failSubmit');
+    const engine = createRunComfyEngine(outputDir, RUNCOMFY_CONFIG);
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(engine.render({
+      jobId: 'job-fail',
+      userPrompt: 'test',
+      directorJson: {},
+      renderStrategy: 'native_i2v',
+      onProgress: jest.fn(),
+    })).rejects.toThrow('RunComfy Submit API returned status: 500');
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
+  });
 });

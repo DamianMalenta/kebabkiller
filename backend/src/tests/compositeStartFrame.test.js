@@ -1,35 +1,87 @@
-import { describe, test, expect } from '@jest/globals';
-import fs from 'node:fs';
+import { jest, describe, test, expect, beforeAll, afterAll } from '@jest/globals';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 import { buildStartFrameAsset, resolveUploadPath } from '../video/compositeStartFrame.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.resolve(__dirname, '../../uploads');
+import { createUploadFixtures, destroyUploadFixtures } from './helpers/imageFixtures.js';
 
 describe('compositeStartFrame', () => {
-  test('resolveUploadPath maps /uploads/ URLs to disk', () => {
-    const resolved = resolveUploadPath('/uploads/example.jpg', uploadsDir);
-    expect(resolved).toBe(path.join(uploadsDir, 'example.jpg'));
+  let fixtures;
+
+  beforeAll(async () => {
+    fixtures = await createUploadFixtures();
   });
 
-  test('buildStartFrameAsset returns composite when both refs exist on disk', async () => {
-    const files = fs.readdirSync(uploadsDir).filter((f) => /\.(jpe?g|png|webp)$/i.test(f));
-    if (files.length < 2) {
-      console.warn('Skipping composite test — need 2+ images in uploads/');
-      return;
-    }
+  afterAll(() => {
+    destroyUploadFixtures(fixtures?.dir);
+  });
 
+  test('resolveUploadPath maps /uploads/ URLs to disk', () => {
+    const resolved = resolveUploadPath('/uploads/character.png', fixtures.dir);
+    expect(resolved).toBe(path.join(fixtures.dir, 'character.png'));
+  });
+
+  test('resolveUploadPath returns absolute path when file exists', () => {
+    expect(resolveUploadPath(fixtures.characterPath, fixtures.dir)).toBe(fixtures.characterPath);
+  });
+
+  test('returns null when character and background refs are missing', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const result = await buildStartFrameAsset({
-      characterRef: `/uploads/${files[0]}`,
-      backgroundRef: `/uploads/${files[1]}`,
-      uploadsDir,
+      characterRef: null,
+      backgroundRef: null,
+      uploadsDir: fixtures.dir,
+    });
+    expect(result).toBeNull();
+    warn.mockRestore();
+  });
+
+  test('returns character-only frame when background is missing', async () => {
+    const result = await buildStartFrameAsset({
+      characterRef: fixtures.characterRef,
+      backgroundRef: '/uploads/missing-bg.png',
+      uploadsDir: fixtures.dir,
+    });
+
+    expect(result).toEqual({
+      type: 'base64',
+      source: 'character',
+      data: expect.stringMatching(/^data:image\/png;base64,/),
+    });
+  });
+
+  test('returns resized background when character is missing', async () => {
+    const result = await buildStartFrameAsset({
+      characterRef: '/uploads/missing-char.png',
+      backgroundRef: fixtures.backgroundRef,
+      uploadsDir: fixtures.dir,
       width: 480,
       height: 832,
     });
 
-    expect(result).not.toBeNull();
-    expect(result.source).toBe('composite');
-    expect(result.data).toMatch(/^data:image\/jpeg;base64,/);
+    expect(result?.source).toBe('background');
+    expect(result?.data).toMatch(/^data:image\/jpeg;base64,/);
+
+    const buffer = Buffer.from(result.data.split(',')[1], 'base64');
+    const meta = await sharp(buffer).metadata();
+    expect(meta.width).toBe(480);
+    expect(meta.height).toBe(832);
+  });
+
+  test('composites character on background at target 9:16 size', async () => {
+    const result = await buildStartFrameAsset({
+      characterRef: fixtures.characterRef,
+      backgroundRef: fixtures.backgroundRef,
+      uploadsDir: fixtures.dir,
+      width: 480,
+      height: 832,
+    });
+
+    expect(result?.source).toBe('composite');
+    expect(result?.data).toMatch(/^data:image\/jpeg;base64,/);
+
+    const buffer = Buffer.from(result.data.split(',')[1], 'base64');
+    const meta = await sharp(buffer).metadata();
+    expect(meta.width).toBe(480);
+    expect(meta.height).toBe(832);
   });
 });

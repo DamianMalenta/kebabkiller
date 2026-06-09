@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ensureOutputDir, resolveOutputPath } from './queue.js';
+import { ensureOutputDir, resolveOutputPath } from './paths.js';
 import { createRunComfyEngine } from './runComfyEngine.js';
 
 function sleep(ms) {

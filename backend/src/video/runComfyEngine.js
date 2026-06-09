@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ensureOutputDir, resolveOutputPath } from './queue.js';
+import { ensureOutputDir, resolveOutputPath } from './paths.js';
 import { buildStartFrameAsset } from './compositeStartFrame.js';
 import { WAN_QUALITY } from './wanConfig.js';
 
