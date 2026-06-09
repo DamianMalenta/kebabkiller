@@ -138,8 +138,12 @@ export function reconcileKinematicsWithPrompt(userPrompt, kinematics) {
     changed = true;
   }
 
+  const hasExplicitVelocityCue =
+    /\b(szybko|szybki)\b/i.test(userPrompt)
+    || /\b(biegn|pędz)\w*/i.test(userPrompt)
+    || /\b(wolno|powoli)\b(?!\s+się)/i.test(userPrompt);
   const inferredVelocity = inferVelocityFromPolish(userPrompt);
-  if (inferredVelocity !== reconciled.velocity) {
+  if (hasExplicitVelocityCue && inferredVelocity !== reconciled.velocity) {
     reconciled.velocity = inferredVelocity;
     changed = true;
   }

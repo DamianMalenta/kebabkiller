@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { updateVideoJob } from '../db/models.js';
 
 const activeJobs = new Map();
@@ -62,12 +60,4 @@ export function enqueueVideoJob(job, engine) {
   });
 }
 
-export function ensureOutputDir(outputDir) {
-  fs.mkdirSync(outputDir, { recursive: true });
-  return outputDir;
-}
-
-export function resolveOutputPath(outputDir, jobId, ext = '.mp4') {
-  const safeExt = ext.startsWith('.') ? ext : `.${ext}`;
-  return path.join(outputDir, `${jobId}${safeExt}`);
-}
+export { ensureOutputDir, resolveOutputPath } from './paths.js';
