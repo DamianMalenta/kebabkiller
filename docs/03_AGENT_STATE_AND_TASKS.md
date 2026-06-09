@@ -1,13 +1,13 @@
 # 03. Stan Projektu, Problemy i Zadania
 
-**Zaktualizowano:** 2026-06-08 (sesja #11)  
+**Zaktualizowano:** 2026-06-09 (sesja #12)  
 **Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.
 
 ---
 
 ## OBECNY STATUS (jedno zdanie)
 
-MVP produkcyjny: **UI + Reżyser gotowe**; **generator wideo = 1 udany render RunComfy (WEBP), brak stabilnego WEBM/MP4**.
+MVP: **UI + Reżyser (Groq) + poprawny payload RunComfy**; **generator zablokowany przez freeze GPU na WAN21** (ciężki deployment ComfyUI).
 
 ---
 
@@ -15,14 +15,16 @@ MVP produkcyjny: **UI + Reżyser gotowe**; **generator wideo = 1 udany render Ru
 
 | Krok | Stan | Uwagi |
 |------|------|-------|
-| Integracja RunComfy API (submit/poll/download) | ✅ | Kod w `runComfyEngine.js` |
+| Integracja RunComfy API (submit/poll/download) | ✅ | cancel, stale, sonda `/result` |
 | Klatka startowa I2V (composite → node 59) | ✅ | `compositeStartFrame.js` |
-| Testy Jest (mock sieci) | ✅ | 4/4 — nie zastępują żywego testu |
-| Żywy render na GPU | ⚠️ częściowo | 1× sukces (`aa778f19.webp`), 5× fail |
-| Output WEBM/MP4 (node 52) | ❌ | RunComfy API zwraca tylko node 51 — fix w deployment ComfyUI |
-| pickRunComfyMedia (kod) | ✅ | Preferuje node 52, loguje fallback + node IDs |
-| Stabilność (retry po restarcie, wake cluster) | ❌ | Do zrobienia po WEBM |
-| FFmpeg compositing | ❌ | Po stabilnym WEBM |
+| `workflow_api_json` bez node 51 | ✅ | node 52 SaveWEBM |
+| `WAN_LENGTH` konfigurowalny (domyślnie 33) | ✅ | `wanConfig.js` + `.env` |
+| AI Director + kinematyka multi-beat | ✅ | `kinematicsFromPrompt.js` |
+| Testy Jest (runComfy + kinematics) | ✅ | focused pass |
+| Żywy render na GPU | ❌ | freeze WAN21; job `7843aee7` canceled |
+| Output WEBM (node 52) | ❌ | nie doszło do downloadu |
+| Lżejszy deployment RunComfy | ❌ | **PRIORYTET** |
+| FFmpeg compositing | ❌ | po stabilnym WEBM |
 
 ---
 
@@ -36,50 +38,47 @@ npm run dev
 - Frontend: http://localhost:5173  
 - Backend: `PORT` z `backend/.env` (lokalnie **4001**)  
 - Health: http://localhost:4001/api/health  
-- Vite proxy: `frontend/vite.config.js` → backend 4001  
 
 ```bash
-npm test --prefix backend    # testy mockowane
+npm test --prefix backend
 ```
 
-**`.env` — minimum do generatora:**
-- `GROQ_API_KEY` (Reżyser)
-- `VIDEO_ENGINE=runcomfy`
-- `RUNCOMFY_API_KEY` + `RUNCOMFY_ENDPOINT` (format V2: `https://api.runcomfy.net/prod/v2/deployments/{id}/inference`)
+**`.env` — minimum:**
+- `GROQ_API_KEY`, `VIDEO_ENGINE=runcomfy`
+- `RUNCOMFY_API_KEY` + `RUNCOMFY_ENDPOINT` (V2 inference URL)
+- `WAN_LENGTH=33` (smoke test)
 
 ---
 
-## OTWARTE PROBLEMY (tylko blokery generatora)
+## OTWARTE PROBLEMY (blokery)
 
-1. **WEBP zamiast WEBM** — `pickRunComfyMedia` nie wymusza node `52`. Fix w `runComfyEngine.js`.
-2. **Niestabilne rendery** — historyczne: zły endpoint (404), błąd KSamplera node 56, restart backendu w pollingu.
-3. **`.env.example` nieaktualny** — stary URL `.com/v1`; myli przy nowej instalacji.
+1. **GPU freeze po WAN21** — log ComfyUI stoi na `Model WAN21 prepared…`; deployment z ~30+ custom nodes + Manager fetch. Fix: ComfyUI-Minimal / nowy deployment.
+2. **Brak potwierdzonego WEBM** — pipeline nie doszedł do `Saved … bytes → backend/output/`.
+3. **Vite bez `host:true`** — dostęp z telefonu wymaga `npm run dev --prefix frontend -- --host`.
 
-## ROZWIĄZANE (nie wracaj do tego w handoff)
+## ROZWIĄZANE (sesja #12)
 
-- Testy Jest zawieszające się — timeout + ES modules OK
-- Seed „meat cone” → dürüm w `init.js`
-- Endpoint RunComfy V2 w lokalnym `.env` — działa (1 sukces)
+- Fałszywy progress 96,93% → uczciwy cap ~85%
+- Polling ignorował `canceled` (US spelling)
+- Sprzeczna kinematyka LLM (sitting + jump)
+- `length: 144` → `WAN_LENGTH=33` domyślnie
+- Regex infinite loop w `extractMotionBeatsFromPolish`
 
 ## PO GENERATORZE (nie teraz)
 
-- Obraz ref. do Reżysera (VLM QA) — postać idzie przez composite, nie przez LLM
-- FFmpeg green-screen compositing
-- Wake cluster API (teraz stub)
+- Faza 1 serialu (projects/episodes)
+- FFmpeg compositing
+- `host: true` w vite na stałe
+- Wake cluster API (stub)
 
 ---
 
 ## MAPA DROGOWA (skrót)
 
-### Faza 4.5 — ZAKOŃCZONA
-Reżyser, identity_block_en, refs, storyboard preview.
-
-### Faza 5 — W TRAKCIE (focus)
-- [x] Kod RunComfyEngine
-- [x] Jest mock testy
-- [x] Jeden żywy render (WEBP)
-- [x] pickRunComfyMedia — preferuj node 52 (kod)
-- [x] Drugi żywy render (WEBP 1.48 MB, job `789eca38`)
-- [ ] **WEBM z node 52 — PRIORYTET (deployment RunComfy, nie backend)**
-- [ ] Stabilny render ze Studio (`npm run dev`)
+### Faza 5 — W TRAKCIE
+- [x] Kod RunComfyEngine + workflow_api_json
+- [x] AI Director kinematyka + prompt diet
+- [x] Polling cancel/stale/honest progress
+- [ ] **Lżejszy deployment RunComfy — PRIORYTET**
+- [ ] Pierwszy stabilny `.webm` w `backend/output/`
 - [ ] FFmpeg fallback

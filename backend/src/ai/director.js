@@ -1,4 +1,9 @@
 import { getKnowledgeContext } from '../db/models.js';
+import {
+  deriveStoryboardFromBeats,
+  inferKinematicsFromPolish,
+  reconcileKinematicsWithPrompt,
+} from './kinematicsFromPrompt.js';
 import { WAN_FORMAT_PROMPT } from '../video/wanConfig.js';
 
 const PIPELINE_CONFIG = {
@@ -48,7 +53,12 @@ JSON SCHEMA:
     "primary_motion": "string (physical trajectory only)",
     "velocity": "rapid|slow|static"
   }
-}`;
+}
+
+MULTI-BEAT SCENES:
+- If the Polish text describes setup then action, subject_state must match the PRIMARY animated action in this clip (usually the dynamic motion after a transition such as nagle, potem, następnie).
+- primary_motion may describe the full beat sequence in chronological order.
+- subject_state must agree with the dominant motion (never sitting if the main action is a jump).`;
 
 function buildIntentPrompt(userPrompt, context) {
   const kinematicRules = context.rules
@@ -62,35 +72,6 @@ function buildIntentPrompt(userPrompt, context) {
     : '';
 
   return `KINEMATIC & CINEMA RULES:\n${kinematicRules || 'No kinematic rules.'}${charConstraint}\n\nUSER SCENE (Polish):\n${userPrompt}\n\nTRANSLATE TO CINEMATOGRAPHY JSON:`;
-}
-
-function inferKinematicsFromPolish(userPrompt) {
-  const lower = userPrompt.toLowerCase();
-  const motions = [];
-
-  if (/stoi\b/.test(lower)) motions.push('maintains upright balance');
-  if (/potyk/.test(lower)) motions.push('loses balance and tips forward');
-  if (/le[żz]y|leż/.test(lower)) motions.push('comes to rest flat on the surface');
-  if (/siada|siedzi/.test(lower)) motions.push('lowers base to sitting position');
-  if (/toczy/.test(lower)) motions.push('rolls across the surface');
-  if (/skacze/.test(lower)) motions.push('brief vertical hop');
-  if (/biegnie|biega/.test(lower)) motions.push('moves quickly forward');
-
-  let subjectState = 'standing';
-  if (/le[żz]y|leż/.test(lower)) subjectState = 'lying';
-  else if (/potyk|upada|spada/.test(lower)) subjectState = 'falling';
-  else if (/toczy/.test(lower)) subjectState = 'rolling';
-  else if (/siada|siedzi/.test(lower)) subjectState = 'sitting';
-  else if (/skacze/.test(lower)) subjectState = 'jumping';
-  else if (/biegnie|biega/.test(lower)) subjectState = 'running';
-
-  const velocity = /szybko|szybki|biegnie|biega/.test(lower) ? 'rapid' : /wolno|powoli/.test(lower) ? 'slow' : 'static';
-
-  return {
-    subject_state: subjectState,
-    primary_motion: motions.length > 0 ? motions.join(', then ') : 'performs the described physical action',
-    velocity,
-  };
 }
 
 function buildMockIntent(userPrompt, llmError = null) {
@@ -144,17 +125,17 @@ function deriveMotionPhysics(kinematics) {
   return `Rigid body dynamics. Subject state: ${subject_state}. Velocity: ${velocity}. Trajectory: ${primary_motion.trim()}. No human joint articulation.`;
 }
 
-function deriveStoryboard(kinematics) {
-  const { subject_state, primary_motion } = kinematics;
-  return {
-    start: `Starting state: ${subject_state}.`,
-    mid: primary_motion.trim(),
-    end: 'Motion completes; subject holds final pose.',
-  };
-}
-
 function normalizeIntentPlan(intentPlan, userPrompt) {
   if (intentPlan.kinematics) {
+    const { kinematics, beats, changed } = reconcileKinematicsWithPrompt(userPrompt, intentPlan.kinematics);
+    intentPlan.kinematics = kinematics;
+    if (beats.length > 0) {
+      intentPlan._motion_beats = beats;
+    }
+    if (changed) {
+      console.warn('[AI Director] Reconciled kinematics with user prompt cues');
+    }
+
     const validation = validateKinematics(intentPlan.kinematics);
     if (!validation.valid) {
       console.warn(`[AI Director] Kinematic validation failed: ${validation.reason}`);
@@ -206,12 +187,12 @@ function executeAssetBinding(intentPlan, context) {
     bg?.environment_block_en ||
     (bg?.description ? `Setting: ${bg.description}.` : '');
 
+  const hasCompositeRefs = Boolean(char?.reference_path && bg?.reference_path);
   const finalPositivePrompt = [
     cinemaBlock,
     PIPELINE_CONFIG.lensMasterBlock,
     PIPELINE_CONFIG.wan21Format,
-    environmentBlock,
-    identityBlock,
+    ...(hasCompositeRefs ? [] : [environmentBlock, identityBlock]),
     kinematicBlock,
   ]
     .filter(Boolean)
@@ -230,7 +211,7 @@ function executeAssetBinding(intentPlan, context) {
     cinematography: cinema,
     kinematics,
     motion_physics: deriveMotionPhysics(kinematics),
-    storyboard: deriveStoryboard(kinematics),
+    storyboard: deriveStoryboardFromBeats(intentPlan._motion_beats || [], kinematics),
     positive_prompt: finalPositivePrompt,
     negative_prompt: finalNegativePrompt,
     character_ref: char?.reference_path || null,

@@ -4,7 +4,9 @@ import { api } from '../api/client.js';
 export default function Studio() {
   const [characters, setCharacters] = useState([]);
   const [backgrounds, setBackgrounds] = useState([]);
-  const [prompt, setPrompt] = useState('Kebabkiller stoi, potyka się i leży na blacie.');
+  const [prompt, setPrompt] = useState(
+    'Kebabkiller siedzi w rozżarzonym piecu ceglanym. Nagle sztywno wyskakuje na stalowy blat — krótki skok jak bryła, ląduje i lekko się przechyla. Kamera zaczyna od zbliżenia na postać na blacie, potem wolno się oddala. Za kebabkillerem na ścianie pieca powstaje wielki, dramatyczny cień.',
+  );
   const [characterId, setCharacterId] = useState('');
   const [backgroundId, setBackgroundId] = useState('');
   const [directorPlan, setDirectorPlan] = useState(null);

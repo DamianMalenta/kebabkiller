@@ -1,4 +1,14 @@
-# zmiany.md — handoff dla architekta (sesja 2026-06-08)
+# zmiany.md — handoff dla architekta (sesja 2026-06-09, #12)
+
+## Sesja #12 (skrót)
+- `kinematicsFromPrompt.js` + reconcile w `director.js`
+- `WAN_LENGTH` w `.env` (domyślnie 33)
+- RunComfy polling: `canceled`, stale 10 min, uczciwy progress
+- Bloker: freeze WAN21 na ciężkim deploymencie — nie backend
+
+---
+
+# zmiany.md — archiwum sesji 2026-06-08
 
 ## Cel sesji
 Stabilny **WEBM** z RunComfy + spójność prompt/GPU + jakość first (bez tnienia steps/length).

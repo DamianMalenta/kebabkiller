@@ -30,7 +30,7 @@ export async function processVideoJob(job, engine) {
         const percent = typeof progress === 'object' ? progress.percent : progress;
         const statusMessage = typeof progress === 'object' ? progress.message : undefined;
         updateVideoJob(job.id, {
-          progress: Math.min(99, 30 + percent * 0.69),
+          progress: Math.min(95, Math.round(percent)),
           ...(statusMessage ? { status_message: statusMessage } : {}),
         });
       },

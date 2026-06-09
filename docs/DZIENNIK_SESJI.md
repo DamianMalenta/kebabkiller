@@ -4,6 +4,30 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ---
 
+## Sesja #12 — 2026-06-09
+
+**Zakres:** AI Director, RunComfy polling, WAN_LENGTH, diagnostyka freeze GPU, frontend.
+
+### Zrobiono
+- Weryfikacja połączenia Groq — działa; naprawa kinematyki (`kinematicsFromPrompt.js`, reconcile bez sztywnych scen).
+- Prompt diet w `director.js` (composite: bez identity/tła w positive).
+- `WAN_LENGTH` w `.env` / `wanConfig.js` (domyślnie 33); fix infinite loop w regex beatów.
+- RunComfy: obsługa `canceled`/`cancelled`, `succeeded`/`completed`, uczciwy progress, stale 10 min, sonda `/result`, domyślny poll 10 min.
+- Czysta reinstalacja frontendu; zabijanie zombie procesów dev.
+- Anulowanie zawieszonego joba `7843aee7` przez API RunComfy.
+
+### Ustalenia
+- **96,93% w UI = fałszywy licznik** (naprawione — max ~85% w fazie wait).
+- Log `/workspace/ComfyUI` = normalna ścieżka chmury, nie błąd zapisu na PC; lokalny output: `backend/output/`.
+- **My Workflows** w panelu ≠ wymagane dla Studia (wystarczy **Deployment** + API).
+- Freeze po `Model WAN21 prepared` = problem deploymentu (za dużo custom nodes), nie `length` ani JSON workflow.
+- Telefon przez Wi‑Fi: Vite potrzebuje `--host` lub `host: true` (jeszcze nie wdrożone).
+
+### Werdykt
+Pipeline kodu gotowy na smoke test; **bloker = ciężki deployment RunComfy (WAN21 hang)**. Następny krok: lżejsza instancja ComfyUI.
+
+---
+
 ## Sesja #11 — 2026-06-08 (okno czatu #11)
 
 **Zakres:** Audyt faktycznego stanu kodu `video/` + synchronizacja dokumentacji operacyjnej.

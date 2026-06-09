@@ -47,6 +47,52 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** RunComfy uses US/UK spellings and intermediate cancel states — normalize before branching. */
+export function normalizeRunComfyStatus(status) {
+  return String(status || '').trim().toLowerCase().replace(/-/g, '_');
+}
+
+export function isRunComfyCancelledStatus(status) {
+  const normalized = normalizeRunComfyStatus(status);
+  return normalized === 'cancelled'
+    || normalized === 'canceled'
+    || normalized === 'cancellation_requested';
+}
+
+export function isRunComfySuccessStatus(status) {
+  const normalized = normalizeRunComfyStatus(status);
+  return normalized === 'completed' || normalized === 'succeeded';
+}
+
+export function isRunComfyFailedStatus(status) {
+  return normalizeRunComfyStatus(status) === 'failed';
+}
+
+export function runComfyPollProgressPercent(status, attempts, maxAttempts) {
+  const cap = normalizeRunComfyStatus(status) === 'in_queue' ? 35 : 85;
+  const base = normalizeRunComfyStatus(status) === 'in_queue' ? 15 : 25;
+  const step = (cap - base) / Math.max(maxAttempts, 1);
+  return Math.min(cap, Math.round(base + attempts * step));
+}
+
+export function runComfyPollStatusMessage(status, attempts, elapsedMs) {
+  const elapsedMin = (elapsedMs / 60000).toFixed(1);
+  const normalized = normalizeRunComfyStatus(status);
+
+  let phase;
+  if (normalized === 'in_queue') {
+    phase = 'Kolejka RunComfy — cold start GPU';
+  } else if (attempts <= 8) {
+    phase = 'Uruchamianie ComfyUI';
+  } else if (attempts <= 24) {
+    phase = 'Ładowanie Wan 2.1 14B';
+  } else {
+    phase = `Render ${WAN_QUALITY.length} klatek`;
+  }
+
+  return `${phase} · poll #${attempts} · ${elapsedMin} min · ${status}`;
+}
+
 function collectMediaCandidates(outputs) {
   const videoCandidates = [];
   const imageCandidates = [];
@@ -230,27 +276,32 @@ export function createRunComfyEngine(outputDir, config) {
     return match ? match[1] : endpoint.replace(/\/inference\/?$/i, '');
   }
 
-  function runComfyPhaseMessage(status, attempts) {
-    if (status === 'in_queue') {
-      return 'Kolejka RunComfy — cold start GPU (pierwsze uruchomienie ~2–4 min)';
-    }
-    if (attempts <= 8) {
-      return 'Uruchamianie ComfyUI i ładowanie rozszerzeń…';
-    }
-    if (attempts <= 24) {
-      return 'Ładowanie modelu Wan 2.1 14B (~15 GB VRAM)…';
-    }
-    return 'Generowanie 33 klatek wideo — czas zależy od GPU, nie od długości promptu';
-  }
-
-  function runComfyProgressPercent(status, attempts) {
-    if (status === 'in_queue') return Math.min(40, 20 + attempts * 3);
-    return Math.min(97, 40 + attempts * 1.5);
-  }
-
   function emitProgress(onProgress, percent, message) {
     if (!onProgress) return;
     onProgress(message ? { percent, message } : percent);
+  }
+
+  async function tryFetchReadyResult(fetchResultUrl, authHeaders) {
+    const resultRes = await fetch(fetchResultUrl, { headers: authHeaders });
+    const resultText = await resultRes.text();
+    if (!resultRes.ok) return null;
+
+    try {
+      const resultData = JSON.parse(resultText);
+      if (isRunComfyFailedStatus(resultData.status)) {
+        throw new Error(`RunComfy render failed: ${formatRunComfyError(resultData.error)}`);
+      }
+      if (resultData.outputs && pickRunComfyMedia(resultData.outputs)) {
+        return fetchResultUrl;
+      }
+      if (isRunComfySuccessStatus(resultData.status) && resultData.outputs) {
+        return fetchResultUrl;
+      }
+    } catch (err) {
+      if (err.message?.startsWith('RunComfy render failed')) throw err;
+    }
+
+    return null;
   }
 
   // Pętla pobierająca (Polling Loop)
@@ -263,7 +314,11 @@ export function createRunComfyEngine(outputDir, config) {
       const authHeaders = { Authorization: `Bearer ${apiKey}` };
 
       let attempts = 0;
-      const maxAttempts = 120; // ~10 min at 5s
+      const pollIntervalMs = Number(process.env.RUNCOMFY_POLL_INTERVAL_MS) || 5000;
+      const maxAttempts = Number(process.env.RUNCOMFY_POLL_MAX_ATTEMPTS) || 120; // ~10 min at 5s
+      const staleAfterMs = Number(process.env.RUNCOMFY_STALE_AFTER_MS) || 10 * 60 * 1000;
+      const resultProbeEvery = Number(process.env.RUNCOMFY_RESULT_PROBE_EVERY) || 12;
+      const pollStartedAt = Date.now();
 
       while (attempts < maxAttempts) {
           attempts++;
@@ -281,25 +336,72 @@ export function createRunComfyEngine(outputDir, config) {
           }
 
           const status = statusData.status;
-          console.log(`[RunComfyEngine] Poll ${attempts}: ${status}`);
+          const elapsedMs = Date.now() - pollStartedAt;
+          console.log(`[RunComfyEngine] Poll ${attempts}: ${status} (${Math.round(elapsedMs / 1000)}s)`);
 
-          if (status === 'in_queue') {
-            emitProgress(onProgress, runComfyProgressPercent(status, attempts), runComfyPhaseMessage(status, attempts));
-          } else if (status === 'in_progress') {
-            emitProgress(onProgress, runComfyProgressPercent(status, attempts), runComfyPhaseMessage(status, attempts));
-          } else if (status === 'completed') {
-            emitProgress(onProgress, 98, 'Pobieranie wyniku…');
-            return fetchResultUrl;
-          } else if (status === 'cancelled') {
-            throw new Error('RunComfy job was cancelled.');
-          } else if (status === 'failed') {
+          if (isRunComfyCancelledStatus(status)) {
+            throw new Error(`RunComfy job was cancelled (request_id: ${requestId}).`);
+          }
+
+          if (isRunComfyFailedStatus(status)) {
             throw new Error(`RunComfy job failed: ${statusData.error?.message || statusText}`);
           }
 
-          await sleep(5000);
+          if (isRunComfySuccessStatus(status)) {
+            emitProgress(onProgress, 90, 'GPU zakończyło — pobieranie wyniku…');
+            return fetchResultUrl;
+          }
+
+          if (normalizeRunComfyStatus(status) === 'in_queue'
+            || normalizeRunComfyStatus(status) === 'in_progress') {
+            emitProgress(
+              onProgress,
+              runComfyPollProgressPercent(status, attempts, maxAttempts),
+              runComfyPollStatusMessage(status, attempts, elapsedMs),
+            );
+
+            if (normalizeRunComfyStatus(status) === 'in_progress' && attempts % resultProbeEvery === 0) {
+              const readyUrl = await tryFetchReadyResult(fetchResultUrl, authHeaders);
+              if (readyUrl) {
+                console.log('[RunComfyEngine] Result ready while status still in_progress — downloading.');
+                emitProgress(onProgress, 90, 'Wynik gotowy — pobieranie…');
+                return readyUrl;
+              }
+            }
+
+            if (normalizeRunComfyStatus(status) === 'in_progress' && elapsedMs >= staleAfterMs) {
+              const readyUrl = await tryFetchReadyResult(fetchResultUrl, authHeaders);
+              if (readyUrl) {
+                console.log('[RunComfyEngine] Result ready after stale window — downloading.');
+                emitProgress(onProgress, 90, 'Wynik gotowy — pobieranie…');
+                return readyUrl;
+              }
+
+              throw new Error(
+                `RunComfy wygląda na zawieszone (in_progress > ${Math.round(staleAfterMs / 60000)} min, request_id: ${requestId}). ` +
+                'Anuluj job w panelu RunComfy, żeby nie przepalać salda. Sprawdź też lżejszy deployment (ComfyUI-Minimal).',
+              );
+            }
+          } else if (status) {
+            console.warn(`[RunComfyEngine] Unknown RunComfy status: ${status}`);
+          }
+
+          await sleep(pollIntervalMs);
       }
 
-      throw new Error(`RunComfy job timed out after ${maxAttempts} polling attempts.`);
+      console.warn(
+        `[RunComfyEngine] Poll limit reached (${maxAttempts}×${pollIntervalMs}ms) — checking result anyway…`,
+      );
+      const readyUrl = await tryFetchReadyResult(fetchResultUrl, authHeaders);
+      if (readyUrl) {
+        console.log('[RunComfyEngine] Result ready despite poll timeout — downloading.');
+        emitProgress(onProgress, 90, 'Wynik gotowy — pobieranie…');
+        return readyUrl;
+      }
+
+      throw new Error(
+        `RunComfy job timed out after ${maxAttempts} polling attempts (~${Math.round((maxAttempts * pollIntervalMs) / 60000)} min, request_id: ${requestId}).`,
+      );
   }
 
   async function downloadVideo(resultUrl, outputDir, jobId) {

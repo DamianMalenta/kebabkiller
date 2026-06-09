@@ -2,7 +2,11 @@ import { jest, describe, test, expect, beforeAll, beforeEach } from '@jest/globa
 import {
   buildRunComfyWorkflow,
   createRunComfyEngine,
+  isRunComfyCancelledStatus,
+  isRunComfySuccessStatus,
+  normalizeRunComfyStatus,
   pickRunComfyMedia,
+  runComfyPollProgressPercent,
   WAN_QUALITY,
   WEBM_OUTPUT_NODE_ID,
   WEBP_OUTPUT_NODE_ID,
@@ -22,6 +26,24 @@ global.fetch = jest.fn(() =>
 
 // We won't mock `fs` or `path` to avoid ES Module read-only errors. 
 // We will test using real files located in the project's folder.
+
+describe('RunComfy status helpers', () => {
+  test('normalizes US/UK cancel spellings', () => {
+    expect(normalizeRunComfyStatus('Canceled')).toBe('canceled');
+    expect(isRunComfyCancelledStatus('canceled')).toBe(true);
+    expect(isRunComfyCancelledStatus('cancelled')).toBe(true);
+    expect(isRunComfyCancelledStatus('cancellation_requested')).toBe(true);
+  });
+
+  test('treats completed and succeeded as success', () => {
+    expect(isRunComfySuccessStatus('completed')).toBe(true);
+    expect(isRunComfySuccessStatus('succeeded')).toBe(true);
+  });
+
+  test('poll progress never exceeds honest cap during wait', () => {
+    expect(runComfyPollProgressPercent('in_progress', 200, 360)).toBeLessThanOrEqual(85);
+  });
+});
 
 describe('buildRunComfyWorkflow', () => {
   test('sends workflow_api_json without node 51 and with quality-first params', () => {
@@ -158,6 +180,37 @@ describe('runComfyEngine', () => {
     expect(result.outputPath.endsWith('.webm')).toBe(true);
   }, 15000);
 
+
+  test('stops polling when RunComfy returns canceled', async () => {
+    global.fetch.mockImplementation((url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/inference')) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(JSON.stringify({
+            request_id: 'mock_canceled',
+            status_url: 'https://mock.api.runcomfy.com/status/mock_canceled',
+            result_url: 'https://mock.api.runcomfy.com/result/mock_canceled',
+          })),
+        });
+      }
+      if (urlStr.includes('/status/')) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(JSON.stringify({ status: 'canceled' })),
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('not found') });
+    });
+
+    await expect(runComfy.render({
+      jobId: 'test_canceled',
+      userPrompt: 'test',
+      directorJson: { positive_prompt: 'test' },
+      renderStrategy: 'native_i2v',
+      onProgress: jest.fn(),
+    })).rejects.toThrow(/cancelled/i);
+  }, 15000);
 
   test('should handle RunComfy API status 500 error', async () => {
     global.fetch.mockImplementationOnce(() =>
