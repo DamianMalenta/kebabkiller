@@ -4,6 +4,32 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ---
 
+## Sesja planowania — 2026-06-09 (pipeline odcinka)
+
+**Zakres:** Ustalenie docelowej wizji produktu z właścicielem; zapis do dokumentacji (bez zmian kodu).
+
+### Ustalono (wizja)
+
+- **Kebabkiller Studio** = fabryka serialu viralowych odcinków 9:16, nie generator jednej sceny.
+- **Plan odcinka** jako pierwszy ekran pracy (Ty + Scenarzysta).
+- **Katalog główny** — biblioteka; plan wskazuje wybór i **co dostarczyć / wrzucić**.
+- **Jedna akceptacja planu** → **Reżyser produkcji** (automatycznie) → spójne klipy + manifest montażowy.
+- Odcinek ~45 s = **wiele klipów** (2–10 s każdy, max ~10 s / render GPU); montaż zewnętrzny.
+- Scenarzysta: plan + recenzja; Reżyser: technika po akceptacji.
+- Composite / zdjęcia startowe **nie są obowiązkowe** — wybór z katalogu według planu.
+
+### Zapisano w docs
+
+- `docs/05_EPISODE_PIPELINE.md` — źródło prawdy wizji
+- `docs/CAPABILITIES.md` — limity silnika dla Scenarzysty
+- Zaktualizowano: `01_PROJECT_VISION.md`, `00_START_TUTAJ.md`, `03_AGENT_STATE_AND_TASKS.md`, `HANDOFF_AKTUALNY.md`
+
+### Werdykt
+
+Wizja zatwierdzona przez właściciela do dokumentacji. Implementacja: F1 → F0 → F2 → F3 (szczegóły w `05_EPISODE_PIPELINE.md`).
+
+---
+
 ## Sesja #12 — 2026-06-09
 
 **Zakres:** AI Director, RunComfy polling, WAN_LENGTH, diagnostyka freeze GPU, frontend.

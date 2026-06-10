@@ -1,7 +1,7 @@
 # HANDOFF AKTUALNY — stan na teraz
 
-**Ostatnia aktualizacja:** 2026-06-09 (sesja #12)  
-**Sesja:** #12
+**Ostatnia aktualizacja:** 2026-06-09 (sesja planowania pipeline’u)  
+**Sesja:** planowanie produktowe (bez zmian kodu)
 
 ---
 
@@ -15,72 +15,57 @@ Deployment RunComfy = środowisko GPU + modele; **My Workflows w panelu nie jest
 
 ## TL;DR
 
-- **AI Reżyser (Groq):** działa; kinematyka wieloetapowa naprawiona (`kinematicsFromPrompt.js`) — bez sztywnych scen.
-- **RunComfy payload:** poprawny (`workflow_api_json`, node 52, `length` z `WAN_LENGTH`, domyślnie **33**).
-- **Bloker generatora:** GPU **wisi na WAN21** (log ComfyUI urywa się po `Model WAN21 prepared…`) — nawet przy 33 klatkach; deployment za ciężki (dziesiątki custom nodes + Manager fetch przy starcie).
-- **Polling backendu:** naprawiony (`canceled`/`cancelled`, uczciwy %, stale po 10 min, sonda `/result`).
-- **Żywy job `7843aee7`:** anulowany ręcznie (API cancel) po ~7+ min `in_progress` bez postępu w logu.
+- **Wizja produktu zapisana:** [05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md) + [CAPABILITIES.md](CAPABILITIES.md) + zaktualizowany [01_PROJECT_VISION.md](01_PROJECT_VISION.md).
+- **Kierunek:** Plan odcinka (Ty + Scenarzysta) jako pierwszy krok → akceptacja → Reżyser produkcji → spójne klipy + manifest montażowy.
+- **Kod:** bez zmian w tej sesji; legacy Studio + RunComfy freeze WAN21 nadal aktualny technicznie.
+- **Następna implementacja:** F1 (plan + Scenarzysta + katalog), potem F0 (silnik klipu), F2 (Reżyser pod plan).
 
 ---
 
-## Co zrobić jako pierwsze
+## Wizja w jednym akapicie
 
-1. **RunComfy → nowy/lżejszy deployment** (np. **ComfyUI-Minimal** + tylko nody Wan) **albo** wyłączenie ComfyUI-Manager przy starcie joba — obecny `wan_workflow_api` v1 wiesza się na WAN21.
-2. Po nowym deploymencie: jeden smoke test ze Studia (`WAN_LENGTH=33`), oczekiwany log: sampling po WAN21, plik `backend/output/{jobId}.webm`.
-3. Jeśli GPU znów stoi >5 min na WAN21 → **Cancel** w panelu RunComfy (backend przerwie po 10 min ze komunikatem).
+Katalog główny → **Plan odcinka** (wybór z katalogu, preferencje, sceny, lista „do dostarczenia”) → **akceptacja** → **Reżyser produkcji** (auto: klatki, prompty, render) → paczka `E01_SC*.webm` + manifest. Odcinek 45 s = wiele klipów (2–10 s każdy), montaż u twórcy.
 
 ---
 
-## Stan techniczny
+## Co zrobić jako pierwsze (gdy „OK, rób”)
+
+1. **F1:** model danych + UI planu odcinka + Scenarzysta + sekcja braków materiałów.
+2. **F0 równolegle / zaraz po:** profil I2V_PRODUCTION, lżejszy RunComfy, smoke WEBM.
+3. **F2:** Reżyser produkcji czytający zaakceptowany plan.
+
+---
+
+## Stan techniczny (legacy — bez zmian)
 
 | Element | Status |
 |---------|--------|
-| Groq / `POST /api/director/preview` | ✅ `_source: groq` |
-| Kinematyka (siedzi→skacze) | ✅ reconcile z promptu PL |
-| Prompt diet (composite refs) | ✅ krótszy positive |
-| `WAN_LENGTH` w `.env` | ✅ domyślnie 33 |
-| `workflow_api_json` bez node 51 | ✅ |
-| Polling: `canceled`, stale 10 min | ✅ |
-| Uczciwy progress (max ~85% w wait) | ✅ |
+| Groq / `POST /api/director/preview` | ✅ |
+| RunComfy payload / polling | ✅ |
 | Żywy WEBM po fixie deploymentu | ❌ GPU freeze WAN21 |
-| WEBM z node 52 w API | ⚠️ niezweryfikowane (job nie doszedł do końca) |
-
----
-
-## `.env` — ważne klucze
-
-```env
-VIDEO_ENGINE=runcomfy
-RUNCOMFY_ENDPOINT=.../deployments/{id}/inference
-GROQ_API_KEY=...
-WAN_LENGTH=33
-
-# opcjonalnie RunComfy:
-# RUNCOMFY_STALE_AFTER_MS=600000
-# RUNCOMFY_POLL_MAX_ATTEMPTS=120
-```
+| Plan odcinka / Scenarzysta / katalog w UI | ❌ F1 |
+| Reżyser pod plan | ❌ F2 |
 
 ---
 
 ## Prompt do nowego czatu
 
 ```text
-Kebabkiller Studio — sesja #12. AI Director OK; RunComfy wisi na WAN21 (ciężki deployment).
+Kebabkiller Studio — wizja w docs/05_EPISODE_PIPELINE.md.
 
-Przeczytaj HANDOFF_AKTUALNY.md. Pomóż postawić lżejszy deployment RunComfy (ComfyUI-Minimal) lub zdiagnozować freeze WAN21, potem jeden smoke test WEBM przy WAN_LENGTH=33.
+Przeczytaj HANDOFF_AKTUALNY.md i 05_EPISODE_PIPELINE.md.
+Kontynuuj od F1 (plan odcinka + Scenarzysta + katalog) lub F0 (silnik klipu) — według priorytetu właściciela.
 ```
 
 **Koniec sesji:** `HANDOFF`
 
 ---
 
-## Pliki kluczowe
+## Dokumentacja wizji
 
-```text
-backend/src/ai/kinematicsFromPrompt.js   ← beaty z PL, reconcile LLM
-backend/src/ai/director.js
-backend/src/video/runComfyEngine.js      ← polling, cancel, stale
-backend/src/video/wanConfig.js           ← WAN_LENGTH
-backend/.env.example
-frontend/vite.config.js                  ← brak host:true (telefon wymaga --host)
-```
+| Plik | Zawartość |
+|------|-----------|
+| [05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md) | Pełna wizja: plan, role, flow, MVP, fazy |
+| [CAPABILITIES.md](CAPABILITIES.md) | Limity silnika (klatki, czas, zasady scen) |
+| [01_PROJECT_VISION.md](01_PROJECT_VISION.md) | Skrót wizji |
+| [03_AGENT_STATE_AND_TASKS.md](03_AGENT_STATE_AND_TASKS.md) | Roadmapa F0–F3 |

@@ -22,9 +22,11 @@
 | Potrzebujesz… | Czytaj… |
 |---------------|---------|
 | Historia sesji 1 → 2 → … | [DZIENNIK_SESJI.md](DZIENNIK_SESJI.md) |
-| Wizja produktu | [01_PROJECT_VISION.md](01_PROJECT_VISION.md) |
+| Wizja produktu (skrót) | [01_PROJECT_VISION.md](01_PROJECT_VISION.md) |
+| **Pipeline odcinka (źródło prawdy wizji)** | **[05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md)** |
+| Limity silnika / Scenarzysta | [CAPABILITIES.md](CAPABILITIES.md) |
 | Architektura techniczna | [02_ARCHITECTURE.md](02_ARCHITECTURE.md) |
-| Jak działa Baza Wiedzy / Reżyser | [04_AI_DIRECTOR_KNOWLEDGE.md](04_AI_DIRECTOR_KNOWLEDGE.md) |
+| Jak działa Baza Wiedzy / Reżyser (legacy) | [04_AI_DIRECTOR_KNOWLEDGE.md](04_AI_DIRECTOR_KNOWLEDGE.md) |
 | Perełki z gema-0 (wzorce) | [archive/sesja-01/05_PERELKI_Z_GEMA0.md](archive/sesja-01/05_PERELKI_Z_GEMA0.md) |
 | Szczegóły końca sesji #1 | [archive/sesja-01/06_PODSUMOWANIE.md](archive/sesja-01/06_PODSUMOWANIE.md) |
 | Protokół zamykania sesji | [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md) |

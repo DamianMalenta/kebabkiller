@@ -1,13 +1,15 @@
 # 03. Stan Projektu, Problemy i Zadania
 
-**Zaktualizowano:** 2026-06-09 (sesja #12)  
-**Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.
+**Zaktualizowano:** 2026-06-09 (sesja planowania pipeline’u odcinka)  
+**Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.  
+**Wizja docelowa:** [05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md) · [CAPABILITIES.md](CAPABILITIES.md)
 
 ---
 
 ## OBECNY STATUS (jedno zdanie)
 
-MVP: **UI + Reżyser (Groq) + poprawny payload RunComfy**; **generator zablokowany przez freeze GPU na WAN21** (ciężki deployment ComfyUI).
+**Kod:** legacy Studio (jeden prompt → jeden job) + RunComfy zablokowany przez freeze GPU.  
+**Wizja:** Plan odcinka pierwszy → akceptacja → Reżyser produkcji → paczka montażowa (do implementacji F1–F3).
 
 ---
 
@@ -64,21 +66,40 @@ npm test --prefix backend
 - `length: 144` → `WAN_LENGTH=33` domyślnie
 - Regex infinite loop w `extractMotionBeatsFromPolish`
 
-## PO GENERATORZE (nie teraz)
+## PO GENERATORZE (później)
 
-- Faza 1 serialu (projects/episodes)
-- FFmpeg compositing
+- Projekt serialu / biblia serii (F4)
+- FFmpeg compositing / opcjonalny stitch podglądu
 - `host: true` w vite na stałe
 - Wake cluster API (stub)
 
 ---
 
-## MAPA DROGOWA (skrót)
+## MAPA DROGOWA (wizja 2026-06 — szczegóły w `05_EPISODE_PIPELINE.md`)
 
-### Faza 5 — W TRAKCIE
+### F1 — Plan odcinka + Scenarzysta + katalog (PRIORYTET produktowy)
+- [ ] Model danych: `assets`, `asset_images`, `episode_plans`, `plan_scenes`
+- [ ] UI: Plan odcinka jako pierwszy ekran
+- [ ] Scenarzysta (LLM + CAPABILITIES.md)
+- [ ] Sekcja „Do dostarczenia” + wrzutka do katalogu
+- [ ] Walidacja planu przed akceptacją
+
+### F0 — Silnik klipu I2V (fundament techniczny)
+- [ ] Profil `I2V_PRODUCTION` (static camera, 1 beat)
+- [ ] `wanConfig`: denoise, mapowanie czas → klatek per scena
+- [ ] Lżejszy deployment RunComfy + smoke WEBM
+
+### F2 — Reżyser produkcji
+- [ ] Plan `zaakceptowany` → kolejka renderu scen
+- [ ] Jeden profil wizualny na odcinek
+- [ ] `E01_manifest.json` + nazewnictwo klipów
+
+### F3 — Recenzja i poprawki
+- [ ] Podgląd klipów, re-render pojedynczej sceny
+
+### Faza 5 (legacy) — W TRAKCIE technicznie
 - [x] Kod RunComfyEngine + workflow_api_json
 - [x] AI Director kinematyka + prompt diet
 - [x] Polling cancel/stale/honest progress
-- [ ] **Lżejszy deployment RunComfy — PRIORYTET**
+- [ ] **Lżejszy deployment RunComfy**
 - [ ] Pierwszy stabilny `.webm` w `backend/output/`
-- [ ] FFmpeg fallback
