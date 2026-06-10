@@ -1,6 +1,6 @@
 # 03. Stan Projektu, Problemy i Zadania
 
-**Zaktualizowano:** 2026-06-09 (sesja planowania pipeline’u odcinka)  
+**Zaktualizowano:** 2026-06-10 (sesja #13)  
 **Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.  
 **Wizja docelowa:** [05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md) · [CAPABILITIES.md](CAPABILITIES.md)
 
@@ -8,7 +8,7 @@
 
 ## OBECNY STATUS (jedno zdanie)
 
-**Kod:** legacy Studio (jeden prompt → jeden job) + RunComfy zablokowany przez freeze GPU.  
+**Kod:** legacy Studio (jeden prompt → jeden job) + panel serialu (F1 UI) + RunComfy zablokowany przez freeze GPU.  
 **Wizja:** Plan odcinka pierwszy → akceptacja → Reżyser produkcji → paczka montażowa (do implementacji F1–F3).
 
 ---
@@ -23,8 +23,8 @@
 | `WAN_LENGTH` konfigurowalny (domyślnie 33) | ✅ | `wanConfig.js` + `.env` |
 | AI Director + kinematyka multi-beat | ✅ | `kinematicsFromPrompt.js` |
 | Testy Jest (runComfy + kinematics) | ✅ | focused pass |
-| Żywy render na GPU | ❌ | freeze WAN21; job `7843aee7` canceled |
-| Output WEBM (node 52) | ❌ | nie doszło do downloadu |
+| Żywy render na GPU | ⚠️ | 1× WEBM OK; kolejne stale 10 min |
+| Output WEBM (node 52) | ⚠️ | `45686cf6.webm` — brak powtarzalności |
 | Lżejszy deployment RunComfy | ❌ | **PRIORYTET** |
 | FFmpeg compositing | ❌ | po stabilnym WEBM |
 
@@ -54,9 +54,18 @@ npm test --prefix backend
 
 ## OTWARTE PROBLEMY (blokery)
 
-1. **GPU freeze po WAN21** — log ComfyUI stoi na `Model WAN21 prepared…`; deployment z ~30+ custom nodes + Manager fetch. Fix: ComfyUI-Minimal / nowy deployment.
-2. **Brak potwierdzonego WEBM** — pipeline nie doszedł do `Saved … bytes → backend/output/`.
+1. **GPU freeze / stale po WAN21** — deployment `b36cb944…` za ciężki (~30+ custom nodes). Fix: ComfyUI-Minimal / nowy deployment.
+2. **Brak powtarzalnego WEBM** — jeden sukces, potem timeout 10 min przy `WAN_LENGTH=81` (naprawione na 33).
 3. **Vite bez `host:true`** — dostęp z telefonu wymaga `npm run dev --prefix frontend -- --host`.
+
+## ROZWIĄZANE (sesja #13)
+
+- Panel Seriale `/projects` — CRUD projektów, Style Bible, odcinki
+- Polski Style Bible w `positive_prompt` → `style_tags_en` (EN) w `director.js`
+- Zombie joby w Dashboard (badge „Utknięte”, próg 15 min)
+- `WAN_LENGTH` 81 → 33 w `.env`
+- Walidacja API projektów/odcinków (PL error messages)
+- Select odcinka w Studio (`episode_id`)
 
 ## ROZWIĄZANE (sesja #12)
 
@@ -68,10 +77,21 @@ npm test --prefix backend
 
 ## PO GENERATORZE (później)
 
-- Projekt serialu / biblia serii (F4)
 - FFmpeg compositing / opcjonalny stitch podglądu
 - `host: true` w vite na stałe
 - Wake cluster API (stub)
+
+---
+
+## Faza 1 serialu — checklist
+
+| Krok | Stan | Uwagi |
+|------|------|-------|
+| Backend projects/episodes CRUD | ✅ | |
+| Panel `/projects` UI | ✅ | ProjectEditor, EpisodeList |
+| Kanon + pamięć serialowa UI | ✅ | Dashboard + SeriesMemoryPanel |
+| Select odcinka w Studio | ✅ | `episode_id` w preview/render |
+| Synopsis / director_notes odcinka w UI | ❌ | backlog |
 
 ---
 

@@ -4,6 +4,27 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ---
 
+## Sesja #13 — 2026-06-10
+
+**Zakres:** Panel Seriale (UI), fix CLIP/style bible w Reżyserze, audyt RunComfy, zombie joby Dashboard.
+
+### Zrobiono
+- Panel `/projects`: `Projects.jsx`, `ProjectEditor.jsx`, `EpisodeList.jsx`, nav „Seriale”.
+- CRUD projektów + Style Bible + odcinki z UI; linki z Studio/Dashboard zamiast „utwórz przez API”.
+- Fix `director.js`: `style_tags_en` (EN) zamiast wklejania polskiego Style Bible do Node 55; testy `director.test.js` 7/7.
+- Audyt RunComfy: payload OK, deployment `b36cb944…` niestabilny; 1× WEBM sukces, stale przy 81 klatkach.
+- Dashboard: zombie joby (`jobLifecycle.js`, badge „Utknięte”, próg 15 min).
+- `WAN_LENGTH` 81 → 33; restart dev.
+
+### Ustalenia
+- Backend wysyła poprawny `workflow_api_json` — problem to **ciężki deployment GPU**, nie kod Studia.
+- Style Bible = kontekst dla Groq; positive prompt = wyłącznie angielskie tagi CLIP.
+
+### Werdykt
+Faza 1 serialu (UI) gotowa do testów. **Priorytet nadal: lżejszy deployment RunComfy** + powtarzalny smoke WEBM.
+
+---
+
 ## Sesja planowania — 2026-06-09 (pipeline odcinka)
 
 **Zakres:** Ustalenie docelowej wizji produktu z właścicielem; zapis do dokumentacji (bez zmian kodu).

@@ -167,6 +167,19 @@ export function listVideoJobs(limit = 50) {
   `).all(limit);
 }
 
+export function listVideoJobsByStatuses(statuses) {
+  if (!statuses?.length) return [];
+  const placeholders = statuses.map(() => '?').join(', ');
+  return getDb().prepare(`
+    SELECT j.*, c.name AS character_name, b.name AS background_name
+    FROM video_jobs j
+    LEFT JOIN characters c ON c.id = j.character_id
+    LEFT JOIN backgrounds b ON b.id = j.background_id
+    WHERE j.status IN (${placeholders})
+    ORDER BY j.created_at ASC
+  `).all(...statuses);
+}
+
 export function getVideoJob(id) {
   return getDb().prepare(`
     SELECT j.*, c.name AS character_name, b.name AS background_name
@@ -177,16 +190,31 @@ export function getVideoJob(id) {
   `).get(id) ?? null;
 }
 
-export function createVideoJob({ userPrompt, characterId, backgroundId, directorJson, renderStrategy }) {
+export function createVideoJob({
+  userPrompt,
+  characterId,
+  backgroundId,
+  projectId,
+  episodeId,
+  sceneIndex,
+  directorJson,
+  renderStrategy,
+}) {
   const id = uuidv4();
   getDb().prepare(`
-    INSERT INTO video_jobs (id, user_prompt, character_id, background_id, director_json, render_strategy, status)
-    VALUES (?, ?, ?, ?, ?, ?, 'pending')
+    INSERT INTO video_jobs (
+      id, user_prompt, character_id, background_id, project_id, episode_id, scene_index,
+      director_json, render_strategy, status
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
   `).run(
     id,
     userPrompt,
     characterId ?? null,
     backgroundId ?? null,
+    projectId ?? null,
+    episodeId ?? null,
+    sceneIndex ?? null,
     directorJson ? JSON.stringify(directorJson) : null,
     renderStrategy ?? 'native_i2v',
   );
@@ -194,7 +222,11 @@ export function createVideoJob({ userPrompt, characterId, backgroundId, director
 }
 
 export function updateVideoJob(id, fields) {
-  const allowed = ['status', 'director_json', 'render_strategy', 'output_path', 'error_message', 'progress', 'completed_at', 'status_message'];
+  const allowed = [
+    'status', 'director_json', 'render_strategy', 'output_path', 'error_message',
+    'progress', 'completed_at', 'status_message', 'project_id', 'episode_id',
+    'scene_index', 'is_canon',
+  ];
   const sets = [];
   const values = [];
 
@@ -220,4 +252,454 @@ export function getKnowledgeContext() {
     backgrounds: listBackgrounds(),
     rules: listRules({ activeOnly: true }),
   };
+}
+
+// --- Projects ---
+
+export function listProjects() {
+  return getDb().prepare('SELECT * FROM projects ORDER BY name').all();
+}
+
+export function getProject(id) {
+  return getDb().prepare('SELECT * FROM projects WHERE id = ?').get(id) ?? null;
+}
+
+function serializeStyleBible(val) {
+  if (val == null || val === '') return null;
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
+}
+
+export function createProject({
+  name,
+  description,
+  styleBibleJson,
+  defaultCharacterId,
+  defaultBackgroundId,
+}) {
+  const trimmedName = name?.trim();
+  if (!trimmedName) throw new Error('Nazwa projektu jest wymagana.');
+
+  const id = uuidv4();
+  try {
+    getDb().prepare(`
+      INSERT INTO projects (id, name, description, style_bible_json, default_character_id, default_background_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      trimmedName,
+      description ?? '',
+      serializeStyleBible(styleBibleJson),
+      defaultCharacterId ?? null,
+      defaultBackgroundId ?? null,
+    );
+  } catch (err) {
+    if (String(err.message).includes('UNIQUE constraint failed')) {
+      throw new Error(`Projekt "${name}" już istnieje.`);
+    }
+    throw err;
+  }
+  return getProject(id);
+}
+
+export function updateProject(id, fields) {
+  const allowed = {
+    name: 'name',
+    description: 'description',
+    style_bible_json: 'styleBibleJson',
+    series_memory: 'seriesMemory',
+    default_character_id: 'defaultCharacterId',
+    default_background_id: 'defaultBackgroundId',
+  };
+  const sets = [];
+  const values = [];
+
+  for (const [col, key] of Object.entries(allowed)) {
+    if (fields[key] !== undefined) {
+      sets.push(`${col} = ?`);
+      let val = fields[key];
+      if (key === 'styleBibleJson') {
+        val = serializeStyleBible(val);
+      }
+      values.push(val);
+    }
+  }
+
+  if (sets.length === 0) return getProject(id);
+  if (fields.seriesMemory !== undefined) {
+    sets.push("series_memory_updated_at = datetime('now')");
+  }
+  sets.push("updated_at = datetime('now')");
+  values.push(id);
+  getDb().prepare(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+  return getProject(id);
+}
+
+export function deleteProject(id) {
+  return getDb().prepare('DELETE FROM projects WHERE id = ?').run(id).changes > 0;
+}
+
+// --- Episodes ---
+
+export function listEpisodes(projectId) {
+  return getDb().prepare(`
+    SELECT * FROM episodes WHERE project_id = ? ORDER BY episode_number
+  `).all(projectId);
+}
+
+export function getEpisode(id) {
+  return getDb().prepare('SELECT * FROM episodes WHERE id = ?').get(id) ?? null;
+}
+
+export function createEpisode({
+  projectId,
+  episodeNumber,
+  title,
+  synopsisPl,
+  directorNotes,
+  status,
+}) {
+  const num = Number(episodeNumber);
+  if (!Number.isInteger(num) || num < 1) {
+    throw new Error('Numer odcinka musi być liczbą całkowitą większą od 0.');
+  }
+
+  const id = uuidv4();
+  try {
+    getDb().prepare(`
+      INSERT INTO episodes (id, project_id, episode_number, title, synopsis_pl, director_notes, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      projectId,
+      num,
+      title ?? '',
+      synopsisPl ?? '',
+      directorNotes ?? null,
+      status ?? 'draft',
+    );
+  } catch (err) {
+    if (String(err.message).includes('UNIQUE constraint failed')) {
+      throw new Error(`Odcinek ${episodeNumber} już istnieje w tym projekcie.`);
+    }
+    throw err;
+  }
+  return getEpisode(id);
+}
+
+export function updateEpisode(id, fields) {
+  const allowed = ['title', 'synopsis_pl', 'director_notes', 'status', 'episode_number'];
+  const sets = [];
+  const values = [];
+  const map = {
+    title: 'title',
+    synopsis_pl: 'synopsisPl',
+    director_notes: 'directorNotes',
+    status: 'status',
+    episode_number: 'episodeNumber',
+  };
+
+  for (const [col, key] of Object.entries(map)) {
+    if (fields[key] !== undefined) {
+      sets.push(`${col} = ?`);
+      values.push(fields[key]);
+    }
+  }
+
+  if (sets.length === 0) return getEpisode(id);
+  sets.push("updated_at = datetime('now')");
+  values.push(id);
+  getDb().prepare(`UPDATE episodes SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+  return getEpisode(id);
+}
+
+export function deleteEpisode(id) {
+  return getDb().prepare('DELETE FROM episodes WHERE id = ?').run(id).changes > 0;
+}
+
+// --- Render summaries & series memory ---
+
+export function getRenderSummaryByJobId(jobId) {
+  return getDb().prepare('SELECT * FROM render_summaries WHERE job_id = ?').get(jobId) ?? null;
+}
+
+export function hasSeriesMemoryRevisionForJob(jobId) {
+  const row = getDb().prepare(
+    'SELECT 1 AS ok FROM series_memory_revisions WHERE trigger_job_id = ? LIMIT 1',
+  ).get(jobId);
+  return row != null;
+}
+
+export function countSeriesMemoryRevisionsForJob(jobId) {
+  return getDb().prepare(
+    'SELECT COUNT(*) AS c FROM series_memory_revisions WHERE trigger_job_id = ?',
+  ).get(jobId).c;
+}
+
+const CANON_LOCK_STALE_MINUTES = Number(process.env.CANON_ACCEPTANCE_LOCK_STALE_MINUTES) || 5;
+
+/**
+ * Atomowa blokada akceptacji kanonu (świeżej i zombie-resume).
+ * Przeterminowany lock (>5 min) może zostać przejęty po kill -9.
+ */
+export function tryAcquireCanonAcceptanceLock(jobId) {
+  const result = getDb().prepare(`
+    UPDATE video_jobs
+    SET canon_acceptance_in_progress = 1,
+        canon_acceptance_lock_at = datetime('now'),
+        updated_at = datetime('now')
+    WHERE id = ?
+      AND status = 'completed'
+      AND (
+        canon_acceptance_in_progress = 0
+        OR canon_acceptance_lock_at IS NULL
+        OR canon_acceptance_lock_at < datetime('now', ?)
+      )
+  `).run(jobId, `-${CANON_LOCK_STALE_MINUTES} minutes`);
+  return result.changes === 1;
+}
+
+export function releaseCanonAcceptanceLock(jobId) {
+  getDb().prepare(`
+    UPDATE video_jobs
+    SET canon_acceptance_in_progress = 0,
+        canon_acceptance_lock_at = NULL,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).run(jobId);
+}
+
+/** Pełny sukces akceptacji kanonu: summary + rewizja pamięci dla tego joba. */
+export function isCanonAcceptanceComplete(jobId) {
+  return Boolean(getRenderSummaryByJobId(jobId))
+    && hasSeriesMemoryRevisionForJob(jobId);
+}
+
+export function upsertRenderSummary({
+  jobId,
+  projectId,
+  episodeId,
+  sceneIndex,
+  summaryJson,
+}) {
+  const existing = getRenderSummaryByJobId(jobId);
+  const payload = JSON.stringify(summaryJson);
+
+  if (existing) {
+    getDb().prepare(`
+      UPDATE render_summaries
+      SET project_id = ?, episode_id = ?, scene_index = ?, summary_json = ?
+      WHERE job_id = ?
+    `).run(projectId, episodeId ?? null, sceneIndex ?? null, payload, jobId);
+    return getRenderSummaryByJobId(jobId);
+  }
+
+  const id = uuidv4();
+  getDb().prepare(`
+    INSERT INTO render_summaries (id, job_id, project_id, episode_id, scene_index, summary_json)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, jobId, projectId, episodeId ?? null, sceneIndex ?? null, payload);
+  return getRenderSummaryByJobId(jobId);
+}
+
+export function listRenderSummariesForProject(projectId, { limit = 5 } = {}) {
+  return getDb().prepare(`
+    SELECT rs.*, j.is_canon, j.created_at AS job_created_at
+    FROM render_summaries rs
+    JOIN video_jobs j ON j.id = rs.job_id
+    WHERE rs.project_id = ? AND j.is_canon = 1
+    ORDER BY rs.created_at DESC
+    LIMIT ?
+  `).all(projectId, limit);
+}
+
+/**
+ * Atomowo rezerwuje kanon dla joba. Zwraca true tylko dla pierwszego wywołania.
+ */
+export function tryClaimJobCanon(jobId) {
+  const result = getDb().prepare(`
+    UPDATE video_jobs
+    SET is_canon = 1, updated_at = datetime('now')
+    WHERE id = ? AND is_canon = 0 AND status = 'completed'
+  `).run(jobId);
+  return result.changes === 1;
+}
+
+export function releaseJobCanonClaim(jobId) {
+  getDb().prepare(`
+    UPDATE video_jobs
+    SET is_canon = 0, updated_at = datetime('now')
+    WHERE id = ? AND is_canon = 1
+  `).run(jobId);
+}
+
+export function setJobCanon(jobId, { projectId, episodeId, sceneIndex }) {
+  const db = getDb();
+  db.prepare(`
+    UPDATE video_jobs
+    SET is_canon = 0
+    WHERE project_id = ?
+      AND is_canon = 1
+      AND (? IS NULL OR episode_id = ?)
+      AND (? IS NULL OR scene_index = ?)
+      AND id != ?
+  `).run(
+    projectId,
+    episodeId ?? null, episodeId ?? null,
+    sceneIndex ?? null, sceneIndex ?? null,
+    jobId,
+  );
+
+  db.prepare(`
+    UPDATE video_jobs
+    SET is_canon = 1, project_id = COALESCE(project_id, ?), updated_at = datetime('now')
+    WHERE id = ?
+  `).run(projectId, jobId);
+
+  return getVideoJob(jobId);
+}
+
+export function updateProjectSeriesMemory(projectId, memoryText) {
+  getDb().prepare(`
+    UPDATE projects
+    SET series_memory = ?,
+        series_memory_updated_at = datetime('now'),
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).run(memoryText, projectId);
+  return getProject(projectId);
+}
+
+export function archiveSeriesMemoryRevision({
+  projectId,
+  memoryText,
+  triggerJobId,
+  compactionSource,
+}) {
+  const id = uuidv4();
+  getDb().prepare(`
+    INSERT INTO series_memory_revisions (id, project_id, memory_text, trigger_job_id, compaction_source)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, projectId, memoryText, triggerJobId ?? null, compactionSource ?? null);
+  return id;
+}
+
+/**
+ * Atomowy commit pamięci serialowej: projects.series_memory + rewizja (wszystko albo nic).
+ */
+export function commitCanonSeriesMemory({
+  projectId,
+  memoryText,
+  triggerJobId,
+  compactionSource,
+}) {
+  const db = getDb();
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare(`
+      UPDATE projects
+      SET series_memory = ?,
+          series_memory_updated_at = datetime('now'),
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(memoryText, projectId);
+
+    const revisionId = uuidv4();
+    db.prepare(`
+      INSERT INTO series_memory_revisions (id, project_id, memory_text, trigger_job_id, compaction_source)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      revisionId,
+      projectId,
+      memoryText,
+      triggerJobId ?? null,
+      compactionSource ?? null,
+    );
+
+    db.exec('COMMIT');
+    return { revisionId, project: getProject(projectId) };
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // ignore rollback errors
+    }
+    throw err;
+  }
+}
+
+function parseStyleBible(project) {
+  if (!project?.style_bible_json) return project?.description || '';
+  try {
+    const parsed = JSON.parse(project.style_bible_json);
+    if (typeof parsed === 'string') return parsed;
+    if (parsed?.text) return parsed.text;
+    return JSON.stringify(parsed);
+  } catch {
+    return project.style_bible_json;
+  }
+}
+
+/**
+ * Compact context for LLM — never includes full director_json.
+ */
+export function getSeriesContextForLlm({ projectId, episodeId, maxSummaries = 5 } = {}) {
+  if (!projectId && episodeId) {
+    const ep = getEpisode(episodeId);
+    projectId = ep?.project_id;
+  }
+  if (!projectId) {
+    throw new Error('project_id or episode_id is required');
+  }
+
+  const project = getProject(projectId);
+  if (!project) throw new Error('Project not found');
+
+  const episode = episodeId ? getEpisode(episodeId) : null;
+  const episodes = listEpisodes(projectId);
+  const priorEpisodes = episode
+    ? episodes.filter((e) => e.episode_number < episode.episode_number)
+    : episodes;
+
+  const recentSummaries = listRenderSummariesForProject(projectId, { limit: maxSummaries });
+
+  return {
+    project: {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      style_bible: parseStyleBible(project),
+      series_memory: project.series_memory || '',
+      series_memory_updated_at: project.series_memory_updated_at,
+      default_character_id: project.default_character_id,
+      default_background_id: project.default_background_id,
+    },
+    episode: episode
+      ? {
+          id: episode.id,
+          episode_number: episode.episode_number,
+          title: episode.title,
+          synopsis_pl: episode.synopsis_pl,
+          director_notes: episode.director_notes,
+        }
+      : null,
+    prior_episodes: priorEpisodes.map((e) => ({
+      episode_number: e.episode_number,
+      title: e.title,
+      synopsis_pl: e.synopsis_pl,
+    })),
+    recent_summaries: recentSummaries.map((row) => ({
+      job_id: row.job_id,
+      scene_index: row.scene_index,
+      summary_json: JSON.parse(row.summary_json),
+      created_at: row.created_at,
+    })),
+    knowledge: getKnowledgeContext(),
+  };
+}
+
+export function getDirectorContextForEpisode(episodeId) {
+  const episode = getEpisode(episodeId);
+  if (!episode) throw new Error('Episode not found');
+  return getSeriesContextForLlm({ projectId: episode.project_id, episodeId });
 }

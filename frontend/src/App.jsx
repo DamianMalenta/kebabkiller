@@ -4,6 +4,7 @@ import Studio from './pages/Studio.jsx';
 import Settings from './pages/Settings.jsx';
 import Catalog from './pages/Catalog.jsx';
 import EpisodePlan from './pages/EpisodePlan.jsx';
+import Projects from './pages/Projects.jsx';
 
 const navClass = ({ isActive }) =>
   `rounded-lg px-3 py-2 text-sm transition ${
@@ -23,6 +24,7 @@ export default function App() {
             <NavLink to="/" end className={navClass}>Dashboard</NavLink>
             <NavLink to="/catalog" className={navClass}>Katalog</NavLink>
             <NavLink to="/studio" className={navClass}>Studio</NavLink>
+            <NavLink to="/projects" className={navClass}>Seriale</NavLink>
             <NavLink to="/settings" className={navClass}>Baza Wiedzy</NavLink>
           </div>
         </div>
@@ -34,6 +36,7 @@ export default function App() {
           <Route path="/catalog" element={<Catalog />} />
           <Route path="/episodes/:id" element={<EpisodePlan />} />
           <Route path="/studio" element={<Studio />} />
+          <Route path="/projects" element={<Projects />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>

@@ -1,6 +1,8 @@
-import { updateVideoJob } from '../db/models.js';
+import { listVideoJobsByStatuses, updateVideoJob } from '../db/models.js';
 
 const activeJobs = new Map();
+const INTERRUPTED_STATUSES = ['directing', 'rendering'];
+const RESTART_ERROR = 'Przerwano przez restart serwera — uruchom scenę ponownie w Studio.';
 
 export function getActiveJobCount() {
   return activeJobs.size;
@@ -58,6 +60,26 @@ export function enqueueVideoJob(job, engine) {
       console.error('[VideoQueue] Unhandled error:', err);
     });
   });
+}
+
+export function recoverVideoJobsOnStartup(engine) {
+  const interrupted = listVideoJobsByStatuses(INTERRUPTED_STATUSES);
+  for (const job of interrupted) {
+    updateVideoJob(job.id, {
+      status: 'failed',
+      error_message: RESTART_ERROR,
+      progress: 0,
+    });
+    console.log(`[VideoQueue] Marked interrupted job ${job.id} as failed (server restart)`);
+  }
+
+  const pending = listVideoJobsByStatuses(['pending']);
+  for (const job of pending) {
+    enqueueVideoJob(job, engine);
+    console.log(`[VideoQueue] Re-enqueued pending job ${job.id}`);
+  }
+
+  return { interrupted: interrupted.length, requeued: pending.length };
 }
 
 export { ensureOutputDir, resolveOutputPath } from './paths.js';

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import JobStatus from '../components/JobStatus.jsx';
+import { isActiveJobStatus, isZombieJob } from '../utils/jobLifecycle.js';
 
 const STATUS_LABELS = {
   szkic: 'Szkic',
@@ -16,20 +17,23 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [episodes, setEpisodes] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [knowledge, setKnowledge] = useState(null);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
 
   async function load() {
     try {
-      const [jobsData, knowledgeData, episodesData] = await Promise.all([
+      const [jobsData, knowledgeData, episodesData, projectsData] = await Promise.all([
         api.jobs.list(),
         api.knowledge(),
         api.episodePlans.list(),
+        api.projects.list(),
       ]);
       setJobs(jobsData);
       setKnowledge(knowledgeData);
       setEpisodes(episodesData);
+      setProjects(projectsData);
     } catch (err) {
       setError(err.message);
     }
@@ -64,8 +68,13 @@ export default function Dashboard() {
     setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, ...updated } : j)));
   }
 
+  function handleJobUpdate(updated) {
+    setJobs((prev) => prev.map((j) => (j.id === updated.id ? { ...j, ...updated } : j)));
+  }
+
   const completed = jobs.filter((j) => j.status === 'completed').length;
-  const inProgress = jobs.filter((j) => !['completed', 'failed'].includes(j.status)).length;
+  const zombies = jobs.filter((j) => isZombieJob(j));
+  const inProgress = jobs.filter((j) => isActiveJobStatus(j.status) && !isZombieJob(j)).length;
 
   return (
     <div className="space-y-8">
@@ -78,8 +87,19 @@ export default function Dashboard() {
 
       {error && <p className="rounded-lg bg-red-950 p-3 text-red-300">{error}</p>}
 
+      {zombies.length > 0 && (
+        <div className="rounded-lg border border-orange-900/60 bg-orange-950/30 p-4 text-sm text-orange-200">
+          <p className="font-semibold">
+            {zombies.length} utknięte zlecenie{zombies.length > 1 ? 'a' : ''} (brak postępu &gt; 15 min)
+          </p>
+          <p className="mt-1 text-orange-200/80">
+            To nie blokuje nowych renderów — oznaczone poniżej badge „Utknięte”. Anuluj job w RunComfy i uruchom scenę ponownie.
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-5">
-        <StatCard label="Odcinki" value={episodes.length} />
+        <StatCard label="Odcinki (plan)" value={episodes.length} />
         <StatCard label="Postacie" value={knowledge?.characters?.length ?? '—'} />
         <StatCard label="Tła" value={knowledge?.backgrounds?.length ?? '—'} />
         <StatCard label="Reguły aktywne" value={knowledge?.rules?.length ?? '—'} />
@@ -101,7 +121,16 @@ export default function Dashboard() {
         <Link to="/studio" className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
           Studio (legacy)
         </Link>
-        <Link to="/settings" className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
+        <Link
+          to="/projects"
+          className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
+        >
+          Seriale
+        </Link>
+        <Link
+          to="/settings"
+          className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
+        >
           Baza wiedzy
         </Link>
       </div>
@@ -139,7 +168,13 @@ export default function Dashboard() {
             <p className="text-zinc-500">Brak zleceń. Utwórz pierwszą scenę w Studio.</p>
           )}
           {jobs.map((job) => (
-            <JobStatus key={job.id} job={job} onRefresh={refreshJob} />
+            <JobStatus
+              key={job.id}
+              job={job}
+              projects={projects}
+              onJobUpdate={handleJobUpdate}
+              onRefresh={refreshJob}
+            />
           ))}
         </div>
       </section>
