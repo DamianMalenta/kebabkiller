@@ -20,6 +20,18 @@ Ciężki deployment z ~30+ custom nodes + ComfyUI Manager powoduje zawieszenie p
 4. **Nie instaluj** ComfyUI-Manager ani zbędnych custom nodes na tym deploymentcie.
 5. Skopiuj **Inference URL** (V2) do `RUNCOMFY_ENDPOINT` w `backend/.env`.
 
+## Audyt bez panelu
+
+```bash
+cd backend
+chmod +x scripts/audit-runcomfy.sh   # raz
+./scripts/audit-runcomfy.sh
+# opcjonalnie status wiszącego joba:
+./scripts/audit-runcomfy.sh --request-id <uuid_z_logu_backendu>
+```
+
+Skrypt czyta `RUNCOMFY_*` z `backend/.env`, pobiera ustawienia deploymentu, workflow, listę custom node’ów (`object_info`) i porównuje z lokalnym `wan_workflow_api.json`.
+
 ## Smoke test WEBM
 
 ```bash
