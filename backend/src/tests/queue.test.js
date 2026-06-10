@@ -1,6 +1,6 @@
 import { jest, describe, test, expect, beforeAll, afterAll } from '@jest/globals';
-import { createVideoJob, getVideoJob } from '../db/models.js';
-import { getActiveJobCount, processVideoJob } from '../video/queue.js';
+import { createVideoJob, getVideoJob, updateVideoJob } from '../db/models.js';
+import { getActiveJobCount, processVideoJob, recoverVideoJobsOnStartup } from '../video/queue.js';
 import { createTestDatabase, destroyTestDatabase } from './helpers/testDatabase.js';
 
 describe('video queue', () => {
@@ -101,5 +101,51 @@ describe('video queue', () => {
     await Promise.all([first, second]);
 
     expect(renderCalls).toBe(1);
+  });
+
+  test('recoverVideoJobsOnStartup fails interrupted jobs and re-enqueues pending', async () => {
+    const directingJob = createVideoJob({
+      userPrompt: 'interrupted scene',
+      characterId: null,
+      backgroundId: null,
+      directorJson: { positive_prompt: 'prompt', render_strategy: 'native_i2v' },
+      renderStrategy: 'native_i2v',
+    });
+    updateVideoJob(directingJob.id, { status: 'directing', progress: 30 });
+
+    const pendingJob = createVideoJob({
+      userPrompt: 'pending scene',
+      characterId: null,
+      backgroundId: null,
+      directorJson: { positive_prompt: 'prompt', render_strategy: 'native_i2v' },
+      renderStrategy: 'native_i2v',
+    });
+
+    let renderedId = null;
+    const engine = {
+      name: 'recovery-engine',
+      async render({ jobId }) {
+        renderedId = jobId;
+        return {
+          outputPath: '/tmp/recovered.webm',
+          renderStrategy: 'native_i2v',
+          engine: 'recovery-engine',
+        };
+      },
+    };
+
+    const stats = recoverVideoJobsOnStartup(engine);
+    expect(stats.interrupted).toBe(1);
+    expect(stats.requeued).toBe(1);
+
+    const failed = getVideoJob(directingJob.id);
+    expect(failed.status).toBe('failed');
+    expect(failed.error_message).toContain('restart');
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const completed = getVideoJob(pendingJob.id);
+    expect(completed.status).toBe('completed');
+    expect(renderedId).toBe(pendingJob.id);
   });
 });

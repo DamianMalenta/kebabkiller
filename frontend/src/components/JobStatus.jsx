@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import ProjectPickModal from './ProjectPickModal.jsx';
 import SeriesMemoryPanel from './SeriesMemoryPanel.jsx';
-import { isZombieJob, jobAgeMinutes } from '../utils/jobLifecycle.js';
+import { isZombieJob, jobStaleMinutes } from '../utils/jobLifecycle.js';
 
 const STATUS_LABELS = {
   pending: 'Oczekuje',
@@ -57,7 +57,7 @@ export default function JobStatus({ job, projects = [], onJobUpdate, onRefresh }
   const showCanonButton = localJob.status === 'completed' && !isCanonComplete && !canonLoading;
   const projectName = projects.find((p) => p.id === localJob.project_id)?.name;
   const isZombie = isZombieJob(localJob);
-  const ageMin = jobAgeMinutes(localJob);
+  const staleMin = jobStaleMinutes(localJob);
 
   async function runCanonAcceptance(projectId) {
     setCanonError('');
@@ -142,7 +142,7 @@ export default function JobStatus({ job, projects = [], onJobUpdate, onRefresh }
 
       {isZombie && (
         <div className="mt-3 rounded-lg border border-orange-900/60 bg-orange-950/30 p-3 text-xs text-orange-200">
-          <p className="font-semibold">Zombie job — brak postępu od {ageMin ?? '?'} min</p>
+          <p className="font-semibold">Zombie job — brak postępu od {staleMin ?? '?'} min</p>
           <p className="mt-1 text-orange-200/80">
             Backend prawdopodobnie stracił kontakt z RunComfy (restart, timeout lub freeze GPU).
             Sprawdź panel RunComfy i anuluj wiszący request, potem uruchom nową scenę w Studio.

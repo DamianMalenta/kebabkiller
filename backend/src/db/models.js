@@ -167,6 +167,19 @@ export function listVideoJobs(limit = 50) {
   `).all(limit);
 }
 
+export function listVideoJobsByStatuses(statuses) {
+  if (!statuses?.length) return [];
+  const placeholders = statuses.map(() => '?').join(', ');
+  return getDb().prepare(`
+    SELECT j.*, c.name AS character_name, b.name AS background_name
+    FROM video_jobs j
+    LEFT JOIN characters c ON c.id = j.character_id
+    LEFT JOIN backgrounds b ON b.id = j.background_id
+    WHERE j.status IN (${placeholders})
+    ORDER BY j.created_at ASC
+  `).all(...statuses);
+}
+
 export function getVideoJob(id) {
   return getDb().prepare(`
     SELECT j.*, c.name AS character_name, b.name AS background_name

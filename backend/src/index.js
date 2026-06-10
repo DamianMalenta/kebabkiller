@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { initDatabase } from './db/init.js';
 import { createApiRouter } from './api/routes.js';
 import { createVideoEngine } from './video/mockEngine.js';
+import { recoverVideoJobsOnStartup } from './video/queue.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -24,6 +25,13 @@ const videoEngine = createVideoEngine({
   RUNCOMFY_API_KEY: process.env.RUNCOMFY_API_KEY,
   RUNCOMFY_ENDPOINT: process.env.RUNCOMFY_ENDPOINT,
 });
+
+const recovery = recoverVideoJobsOnStartup(videoEngine);
+if (recovery.interrupted || recovery.requeued) {
+  console.log(
+    `[VideoQueue] Recovery: ${recovery.interrupted} interrupted → failed, ${recovery.requeued} pending re-enqueued`,
+  );
+}
 
 const app = express();
 app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }));

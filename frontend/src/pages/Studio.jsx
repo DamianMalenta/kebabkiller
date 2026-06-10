@@ -54,6 +54,10 @@ export default function Studio() {
       });
   }, [projectId]);
 
+  useEffect(() => {
+    setDirectorPlan(null);
+  }, [prompt, characterId, backgroundId, projectId, episodeId]);
+
   async function handlePreview() {
     setLoadingPreview(true);
     setError('');
