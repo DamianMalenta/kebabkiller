@@ -2,6 +2,7 @@ import { NavLink, Route, Routes } from 'react-router-dom';
 import Dashboard from './pages/Dashboard.jsx';
 import Studio from './pages/Studio.jsx';
 import Settings from './pages/Settings.jsx';
+import Projects from './pages/Projects.jsx';
 
 const navClass = ({ isActive }) =>
   `rounded-lg px-3 py-2 text-sm transition ${
@@ -20,6 +21,7 @@ export default function App() {
           <div className="flex gap-2">
             <NavLink to="/" end className={navClass}>Dashboard</NavLink>
             <NavLink to="/studio" className={navClass}>Studio</NavLink>
+            <NavLink to="/projects" className={navClass}>Seriale</NavLink>
             <NavLink to="/settings" className={navClass}>Baza Wiedzy</NavLink>
           </div>
         </div>
@@ -29,6 +31,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/studio" element={<Studio />} />
+          <Route path="/projects" element={<Projects />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>

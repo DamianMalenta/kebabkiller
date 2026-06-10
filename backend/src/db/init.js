@@ -22,23 +22,123 @@ export function initDatabase(dbPath) {
   dbInstance.exec('PRAGMA foreign_keys = ON');
 
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-  dbInstance.exec(schema);
+  const statements = schema
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const tableStatements = [];
+  const indexStatements = [];
+  for (const stmt of statements) {
+    if (/^CREATE INDEX/i.test(stmt)) {
+      indexStatements.push(stmt);
+    } else {
+      tableStatements.push(stmt);
+    }
+  }
+
+  for (const stmt of tableStatements) {
+    try {
+      dbInstance.exec(stmt);
+    } catch {
+      // Tabela/kolumna już istnieje w starszej bazy
+    }
+  }
 
   // Auto-migration for MVP
   try {
     dbInstance.exec('ALTER TABLE characters ADD COLUMN identity_block_en TEXT');
-  } catch (err) {
+  } catch {
     // Column likely exists
   }
   try {
     dbInstance.exec('ALTER TABLE backgrounds ADD COLUMN environment_block_en TEXT');
-  } catch (err) {
+  } catch {
     // Column likely exists
   }
   try {
     dbInstance.exec('ALTER TABLE video_jobs ADD COLUMN status_message TEXT');
-  } catch (err) {
+  } catch {
     // Column likely exists
+  }
+
+  const migrations = [
+    `CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL DEFAULT '',
+      style_bible_json TEXT,
+      series_memory TEXT,
+      series_memory_updated_at TEXT,
+      default_character_id TEXT,
+      default_background_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (default_character_id) REFERENCES characters(id),
+      FOREIGN KEY (default_background_id) REFERENCES backgrounds(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS episodes (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      episode_number INTEGER NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      synopsis_pl TEXT NOT NULL DEFAULT '',
+      director_notes TEXT,
+      status TEXT NOT NULL DEFAULT 'draft',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      UNIQUE(project_id, episode_number)
+    )`,
+    `CREATE TABLE IF NOT EXISTS render_summaries (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL UNIQUE,
+      project_id TEXT NOT NULL,
+      episode_id TEXT,
+      scene_index INTEGER,
+      summary_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (job_id) REFERENCES video_jobs(id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE SET NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS series_memory_revisions (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      memory_text TEXT NOT NULL,
+      trigger_job_id TEXT,
+      compaction_source TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (trigger_job_id) REFERENCES video_jobs(id) ON DELETE SET NULL
+    )`,
+    'ALTER TABLE video_jobs ADD COLUMN project_id TEXT REFERENCES projects(id)',
+    'ALTER TABLE video_jobs ADD COLUMN episode_id TEXT REFERENCES episodes(id)',
+    'ALTER TABLE video_jobs ADD COLUMN scene_index INTEGER',
+    'ALTER TABLE video_jobs ADD COLUMN is_canon INTEGER NOT NULL DEFAULT 0',
+    'CREATE INDEX IF NOT EXISTS idx_video_jobs_project ON video_jobs(project_id)',
+    'CREATE INDEX IF NOT EXISTS idx_video_jobs_episode ON video_jobs(episode_id)',
+    'CREATE INDEX IF NOT EXISTS idx_video_jobs_canon ON video_jobs(is_canon)',
+    'ALTER TABLE video_jobs ADD COLUMN canon_acceptance_in_progress INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE video_jobs ADD COLUMN canon_acceptance_lock_at TEXT',
+    'CREATE INDEX IF NOT EXISTS idx_render_summaries_project ON render_summaries(project_id)',
+    'CREATE INDEX IF NOT EXISTS idx_episodes_project ON episodes(project_id)',
+  ];
+
+  for (const sql of migrations) {
+    try {
+      dbInstance.exec(sql);
+    } catch {
+      // Table/column/index likely exists
+    }
+  }
+
+  for (const stmt of indexStatements) {
+    try {
+      dbInstance.exec(stmt);
+    } catch {
+      // Index likely exists or column not yet present on legacy DB
+    }
   }
 
   purgeToxicRules(dbInstance);

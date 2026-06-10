@@ -15,6 +15,19 @@ async function request(path, options = {}) {
   return data;
 }
 
+/** Tekst style bible do edycji w textarea (odpowiednik backend parseStyleBible). */
+export function styleBibleToEditText(project) {
+  if (!project?.style_bible_json) return project?.description || '';
+  try {
+    const parsed = JSON.parse(project.style_bible_json);
+    if (typeof parsed === 'string') return parsed;
+    if (parsed?.text) return parsed.text;
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return project.style_bible_json;
+  }
+}
+
 export const api = {
   health: () => request('/health'),
   knowledge: () => request('/knowledge'),
@@ -42,12 +55,48 @@ export const api = {
 
   director: {
     preview: (body) => request('/director/preview', { method: 'POST', body: JSON.stringify(body) }),
+    suggest: (body) => request('/director/suggest', { method: 'POST', body: JSON.stringify(body) }),
+    projectContext: (projectId, episodeId) => {
+      const q = episodeId ? `?episode_id=${encodeURIComponent(episodeId)}` : '';
+      return request(`/projects/${projectId}/director-context${q}`);
+    },
+    episodeContext: (episodeId) => request(`/episodes/${episodeId}/director-context`),
+  },
+
+  projects: {
+    list: () => request('/projects'),
+    get: (id) => request(`/projects/${id}`),
+    create: (body) => request('/projects', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id, body) => request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
+    episodes: (projectId) => request(`/projects/${projectId}/episodes`),
+    createEpisode: (projectId, body) =>
+      request(`/projects/${projectId}/episodes`, { method: 'POST', body: JSON.stringify(body) }),
+  },
+
+  episodes: {
+    get: (id) => request(`/episodes/${id}`),
+    update: (id, body) => request(`/episodes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id) => request(`/episodes/${id}`, { method: 'DELETE' }),
   },
 
   jobs: {
     list: () => request('/jobs'),
     get: (id) => request(`/jobs/${id}`),
     create: (body) => request('/jobs', { method: 'POST', body: JSON.stringify(body) }),
+    patch: (id, body) => request(`/jobs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    /** PATCH is_canon + project_id — kompresja pamięci serialowej (LLM, kilka sekund). */
+    setJobAsCanon: async (jobId, projectId) => {
+      try {
+        return await request(`/jobs/${jobId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_canon: true, project_id: projectId }),
+        });
+      } catch (err) {
+        throw err instanceof Error ? err : new Error(String(err));
+      }
+    },
+    markCanon: (id, body = {}) => request(`/jobs/${id}`, { method: 'PATCH', body: JSON.stringify({ is_canon: true, ...body }) }),
     downloadUrl: (id) => `${BASE}/jobs/${id}/download`,
   },
 };

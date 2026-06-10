@@ -2,20 +2,24 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import JobStatus from '../components/JobStatus.jsx';
+import { isActiveJobStatus, isZombieJob } from '../utils/jobLifecycle.js';
 
 export default function Dashboard() {
   const [jobs, setJobs] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [knowledge, setKnowledge] = useState(null);
   const [error, setError] = useState('');
 
   async function load() {
     try {
-      const [jobsData, knowledgeData] = await Promise.all([
+      const [jobsData, knowledgeData, projectsData] = await Promise.all([
         api.jobs.list(),
         api.knowledge(),
+        api.projects.list(),
       ]);
       setJobs(jobsData);
       setKnowledge(knowledgeData);
+      setProjects(projectsData);
     } catch (err) {
       setError(err.message);
     }
@@ -32,8 +36,13 @@ export default function Dashboard() {
     setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, ...updated } : j)));
   }
 
+  function handleJobUpdate(updated) {
+    setJobs((prev) => prev.map((j) => (j.id === updated.id ? { ...j, ...updated } : j)));
+  }
+
   const completed = jobs.filter((j) => j.status === 'completed').length;
-  const inProgress = jobs.filter((j) => !['completed', 'failed'].includes(j.status)).length;
+  const zombies = jobs.filter((j) => isZombieJob(j));
+  const inProgress = jobs.filter((j) => isActiveJobStatus(j.status) && !isZombieJob(j)).length;
 
   return (
     <div className="space-y-8">
@@ -45,6 +54,17 @@ export default function Dashboard() {
       </header>
 
       {error && <p className="rounded-lg bg-red-950 p-3 text-red-300">{error}</p>}
+
+      {zombies.length > 0 && (
+        <div className="rounded-lg border border-orange-900/60 bg-orange-950/30 p-4 text-sm text-orange-200">
+          <p className="font-semibold">
+            {zombies.length} utknięte zlecenie{zombies.length > 1 ? 'a' : ''} (brak postępu &gt; 15 min)
+          </p>
+          <p className="mt-1 text-orange-200/80">
+            To nie blokuje nowych renderów — oznaczone poniżej badge „Utknięte”. Anuluj job w RunComfy i uruchom scenę ponownie.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard label="Postacie" value={knowledge?.characters?.length ?? '—'} />
@@ -59,6 +79,12 @@ export default function Dashboard() {
           className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-amber-400"
         >
           Nowa scena
+        </Link>
+        <Link
+          to="/projects"
+          className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
+        >
+          Seriale
         </Link>
         <Link
           to="/settings"
@@ -77,7 +103,13 @@ export default function Dashboard() {
             <p className="text-zinc-500">Brak zleceń. Utwórz pierwszą scenę w Studio.</p>
           )}
           {jobs.map((job) => (
-            <JobStatus key={job.id} job={job} onRefresh={refreshJob} />
+            <JobStatus
+              key={job.id}
+              job={job}
+              projects={projects}
+              onJobUpdate={handleJobUpdate}
+              onRefresh={refreshJob}
+            />
           ))}
         </div>
       </section>
