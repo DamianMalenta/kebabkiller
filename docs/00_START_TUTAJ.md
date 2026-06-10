@@ -60,7 +60,7 @@ npm run dev
 ```
 
 - UI: http://localhost:5173  
-- API: `http://localhost:{PORT}/api/health` — `PORT` z `backend/.env` (lokalnie często **4001**; vite proxy w `frontend/vite.config.js` musi się zgadzać)
+- API: `http://localhost:{PORT}/api/health` — `PORT` z `backend/.env` (domyślnie **4000**). Vite proxy synchronizuje się automatycznie (`scripts/read-backend-port.mjs`).
 
 Klucze: `GROQ_API_KEY` (Reżyser), `RUNCOMFY_*` + `VIDEO_ENGINE=runcomfy` (generator).
 

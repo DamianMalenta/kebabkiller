@@ -38,8 +38,8 @@ npm run dev
 ```
 
 - Frontend: http://localhost:5173  
-- Backend: `PORT` z `backend/.env` (lokalnie **4001**)  
-- Health: http://localhost:4001/api/health  
+- Backend: `PORT` z `backend/.env` (domyślnie **4000**; Vite proxy czyta ten sam plik)  
+- Health: `http://localhost:{PORT}/api/health`  
 
 ```bash
 npm test --prefix backend

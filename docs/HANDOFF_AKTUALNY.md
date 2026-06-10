@@ -65,8 +65,10 @@ VIDEO_ENGINE=runcomfy
 RUNCOMFY_ENDPOINT=https://api.runcomfy.net/prod/v2/deployments/b36cb944-1eed-4cea-8e63-ef99667db566/inference
 GROQ_API_KEY=...
 WAN_LENGTH=33
-PORT=4001
+PORT=4000
 ```
+
+Port backendu: `backend/.env` → `PORT` (domyślnie 4000). Vite proxy synchronizuje się przez `scripts/read-backend-port.mjs`.
 
 ---
 

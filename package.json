@@ -5,10 +5,11 @@
   "description": "Automated vertical video production studio for Kebabkiller",
   "scripts": {
     "install:all": "npm install --prefix backend && npm install --prefix frontend",
-    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev": "node scripts/verify-dev-ports.mjs && concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
-    "start": "npm run start --prefix backend"
+    "start": "npm run start --prefix backend",
+    "test:ports": "node --test scripts/read-backend-port.test.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

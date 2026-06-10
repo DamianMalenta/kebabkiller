@@ -19,11 +19,13 @@ npm run install:all
 cp backend/.env.example backend/.env
 # Uzupełnij klucze: GEMINI_API_KEY, RUNCOMFY_API_KEY, RUNCOMFY_ENDPOINT
 
-# 3. Uruchomienie (backend :4000 + frontend :5173)
+# 3. Uruchomienie (frontend :5173, backend PORT z backend/.env — domyślnie 4000)
 npm run dev
 ```
 
 Otwórz **http://localhost:5173** — Panel Reżysera.
+
+Vite proxy (`frontend/vite.config.js`) czyta port z `backend/.env` — nie trzeba ręcznie synchronizować z frontendem. Jeśli port 4000 jest zajęty, ustaw w `.env` np. `PORT=4001`.
 
 > Backend startuje z `node --use-system-ca` (wymagane dla połączenia z RunComfy na Windows).
 
