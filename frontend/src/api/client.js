@@ -40,6 +40,42 @@ export const api = {
     delete: (id) => request(`/rules/${id}`, { method: 'DELETE' }),
   },
 
+  assets: {
+    list: (type) => request(`/assets${type ? `?type=${type}` : ''}`),
+    get: (id) => request(`/assets/${id}`),
+    create: (formData) => request('/assets', { method: 'POST', body: formData }),
+    update: (id, formData) => request(`/assets/${id}`, { method: 'PUT', body: formData }),
+    delete: (id) => request(`/assets/${id}`, { method: 'DELETE' }),
+    addImage: (id, formData) => request(`/assets/${id}/images`, { method: 'POST', body: formData }),
+    deleteImage: (imageId) => request(`/asset-images/${imageId}`, { method: 'DELETE' }),
+  },
+
+  episodePlans: {
+    list: () => request('/episode-plans'),
+    get: (id) => request(`/episode-plans/${id}`),
+    create: (body) => request('/episode-plans', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id, body) => request(`/episode-plans/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id) => request(`/episode-plans/${id}`, { method: 'DELETE' }),
+    replaceScenes: (id, scenes) => request(`/episode-plans/${id}/scenes`, {
+      method: 'PUT',
+      body: JSON.stringify({ scenes }),
+    }),
+    validate: (id) => request(`/episode-plans/${id}/validate`),
+    accept: (id) => request(`/episode-plans/${id}/accept`, { method: 'POST' }),
+    assist: (id, body) => request(`/episode-plans/${id}/assist`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+    resolveDeliverable: (deliverableId, formData) => request(`/deliverables/${deliverableId}/resolve`, {
+      method: 'POST',
+      body: formData,
+    }),
+    addDeliverable: (planId, body) => request(`/episode-plans/${planId}/deliverables`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  },
+
   director: {
     preview: (body) => request('/director/preview', { method: 'POST', body: JSON.stringify(body) }),
   },

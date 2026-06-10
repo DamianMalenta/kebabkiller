@@ -4,7 +4,8 @@ import {
   inferKinematicsFromPolish,
   reconcileKinematicsWithPrompt,
 } from './kinematicsFromPrompt.js';
-import { WAN_FORMAT_PROMPT } from '../video/wanConfig.js';
+import { WAN_FORMAT_PROMPT, parseI2vProfileId } from '../video/wanConfig.js';
+import { applyI2vProductionProfile } from './i2vProduction.js';
 
 const PIPELINE_CONFIG = {
   maxRetries: 3,
@@ -371,7 +372,12 @@ async function tryWithRetry(providerName, fn) {
   }
 }
 
-export async function expandScenePrompt(userPrompt, { characterId, backgroundId } = {}) {
+export async function expandScenePrompt(userPrompt, {
+  characterId,
+  backgroundId,
+  i2vProfile,
+  durationSec,
+} = {}) {
   const context = getKnowledgeContext();
 
   if (characterId) context.characters = context.characters.filter((c) => c.id === characterId);
@@ -386,7 +392,8 @@ export async function expandScenePrompt(userPrompt, { characterId, backgroundId 
       if (rawIntent) {
         const intentPlan = normalizeIntentPlan(rawIntent, userPrompt);
         intentPlan._source = intentPlan._source || provider.name;
-        return executeAssetBinding(intentPlan, context);
+        const plan = executeAssetBinding(intentPlan, context);
+        return maybeApplyProductionProfile(plan, { i2vProfile, durationSec });
       }
     } catch (err) {
       lastError = err.message;
@@ -396,7 +403,16 @@ export async function expandScenePrompt(userPrompt, { characterId, backgroundId 
 
   console.warn('[AI Director] All LLM providers failed, falling back to mock:', lastError);
   const mockIntent = buildMockIntent(userPrompt, lastError);
-  return executeAssetBinding(mockIntent, context);
+  const plan = executeAssetBinding(mockIntent, context);
+  return maybeApplyProductionProfile(plan, { i2vProfile, durationSec });
+}
+
+function maybeApplyProductionProfile(plan, { i2vProfile, durationSec }) {
+  const profile = (i2vProfile || parseI2vProfileId()).toUpperCase();
+  if (profile === 'I2V_PRODUCTION') {
+    return applyI2vProductionProfile(plan, { i2vProfile: profile, durationSec });
+  }
+  return plan;
 }
 
 export async function previewDirectorPlan(userPrompt, options) {

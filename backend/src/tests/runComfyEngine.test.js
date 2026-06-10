@@ -57,7 +57,20 @@ describe('buildRunComfyWorkflow', () => {
     expect(payload.workflow_api_json['54'].inputs.height).toBe(WAN_QUALITY.height);
     expect(payload.workflow_api_json['54'].inputs.length).toBe(WAN_QUALITY.length);
     expect(payload.workflow_api_json['56'].inputs.steps).toBe(WAN_QUALITY.steps);
+    expect(payload.workflow_api_json['56'].inputs.denoise).toBe(WAN_QUALITY.denoise);
     expect(typeof payload.workflow_api_json['56'].inputs.seed).toBe('number');
+  });
+
+  test('applies I2V_PRODUCTION denoise and per-scene length from director json', () => {
+    const payload = buildRunComfyWorkflow('job-prod', 'prompt', {
+      i2v_profile: 'I2V_PRODUCTION',
+      duration_sec: 4,
+      positive_prompt: 'test',
+      negative_prompt: 'neg',
+    }, {});
+
+    expect(payload.workflow_api_json['54'].inputs.length).toBe(96);
+    expect(payload.workflow_api_json['56'].inputs.denoise).toBe(0.85);
   });
 
   test('injects base64 start frame into node 59', () => {

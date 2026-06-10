@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from './sqliteDriver.js';
 import { v4 as uuidv4 } from 'uuid';
+import { syncLegacyAssetsFromKnowledge } from './episodeModels.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -43,6 +44,12 @@ export function initDatabase(dbPath) {
 
   purgeToxicRules(dbInstance);
   seedDefaults(dbInstance);
+
+  try {
+    syncLegacyAssetsFromKnowledge();
+  } catch (err) {
+    console.warn('[init] syncLegacyAssetsFromKnowledge:', err.message);
+  }
 
   return dbInstance;
 }

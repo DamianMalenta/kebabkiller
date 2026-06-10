@@ -3,9 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureOutputDir, resolveOutputPath } from './paths.js';
 import { buildStartFrameAsset } from './compositeStartFrame.js';
-import { WAN_QUALITY } from './wanConfig.js';
+import { resolveWanRenderParams, WAN_QUALITY } from './wanConfig.js';
 
-export { WAN_QUALITY } from './wanConfig.js';
+export { WAN_QUALITY, resolveWanRenderParams, secondsToFrames, I2V_PROFILES } from './wanConfig.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WORKFLOW_TEMPLATE_PATH = path.join(__dirname, 'wan_workflow_api.json');
@@ -172,6 +172,13 @@ export function buildRunComfyWorkflow(jobId, userPrompt, directorJson, processed
   const workflow = structuredClone(getWorkflowTemplate());
   delete workflow[WEBP_OUTPUT_NODE_ID];
 
+  const renderParams = resolveWanRenderParams({
+    i2vProfile: directorJson?.i2v_profile,
+    durationSec: directorJson?.duration_sec,
+    wanLength: directorJson?.wan_length,
+    denoise: directorJson?.wan_denoise,
+  });
+
   const positivePrompt = directorJson?.positive_prompt || userPrompt;
   const negativePrompt = directorJson?.negative_prompt || 'blurry, worst quality, text, watermark';
   const seed = Math.floor(Math.random() * 1_000_000_000_000);
@@ -183,13 +190,14 @@ export function buildRunComfyWorkflow(jobId, userPrompt, directorJson, processed
   workflow['53'].inputs.text = negativePrompt;
 
   workflow['54'].inputs = cloneInputs('54', workflow);
-  workflow['54'].inputs.width = WAN_QUALITY.width;
-  workflow['54'].inputs.height = WAN_QUALITY.height;
-  workflow['54'].inputs.length = WAN_QUALITY.length;
+  workflow['54'].inputs.width = renderParams.width;
+  workflow['54'].inputs.height = renderParams.height;
+  workflow['54'].inputs.length = renderParams.length;
 
   workflow['56'].inputs = cloneInputs('56', workflow);
   workflow['56'].inputs.seed = seed;
-  workflow['56'].inputs.steps = WAN_QUALITY.steps;
+  workflow['56'].inputs.steps = renderParams.steps;
+  workflow['56'].inputs.denoise = renderParams.denoise;
 
   if (processedAssets.startFrame?.type === 'base64') {
     workflow['59'].inputs = cloneInputs('59', workflow);
