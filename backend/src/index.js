@@ -31,7 +31,11 @@ app.use(express.json({ limit: '2mb' }));
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/output', express.static(OUTPUT_DIR));
 
-app.use('/api', createApiRouter({ videoEngine, uploadsDir: UPLOADS_DIR }));
+app.use('/api', createApiRouter({
+  videoEngine,
+  uploadsDir: UPLOADS_DIR,
+  outputDir: OUTPUT_DIR,
+}));
 
 app.listen(PORT, () => {
   console.log(`[Kebabkiller Studio] Backend running on http://localhost:${PORT}`);

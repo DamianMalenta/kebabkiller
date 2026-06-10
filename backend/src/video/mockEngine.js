@@ -7,8 +7,8 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function createPlaceholderMp4(outputPath, jobId, userPrompt) {
-  const metaPath = outputPath.replace('.mp4', '.meta.json');
+function createPlaceholderVideo(outputPath, jobId, userPrompt) {
+  const metaPath = outputPath.replace(/\.[^.]+$/, '.meta.json');
   fs.writeFileSync(metaPath, JSON.stringify({
     jobId,
     userPrompt,
@@ -30,15 +30,16 @@ export function createMockEngine(outputDir) {
 
   return {
     name: 'mock',
-    async render({ jobId, userPrompt, directorJson, renderStrategy, onProgress }) {
+    async render({ jobId, userPrompt, directorJson, renderStrategy, onProgress, outputPath: outputPathOverride }) {
       const steps = [40, 55, 70, 85, 95];
       for (const p of steps) {
-        await sleep(800);
+        await sleep(200);
         onProgress?.(p);
       }
 
-      const outputPath = resolveOutputPath(outputDir, jobId);
-      createPlaceholderMp4(outputPath, jobId, userPrompt);
+      const outputPath = outputPathOverride || resolveOutputPath(outputDir, jobId, '.webm');
+      ensureOutputDir(path.dirname(outputPath));
+      createPlaceholderVideo(outputPath, jobId, userPrompt);
 
       return {
         outputPath,

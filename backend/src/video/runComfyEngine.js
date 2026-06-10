@@ -450,7 +450,7 @@ export function createRunComfyEngine(outputDir, config) {
 
   return {
     name: 'runcomfy',
-    async render({ jobId, userPrompt, directorJson, renderStrategy, onProgress }) {
+    async render({ jobId, userPrompt, directorJson, renderStrategy, onProgress, outputPath: outputPathOverride }) {
       console.log(`[RunComfyEngine] Starting render for job ${jobId}`);
         emitProgress(onProgress, 2, 'Przygotowanie zlecenia RunComfy…');
       
@@ -481,7 +481,12 @@ export function createRunComfyEngine(outputDir, config) {
 
         // Krok 5: Pobranie i Zapis (Download & Cleanup)
         emitProgress(onProgress, 98, 'Pobieranie pliku wideo…');
-        const outputPath = await downloadVideo(resultUrl, outputDir, jobId);
+        let outputPath = await downloadVideo(resultUrl, outputDir, jobId);
+        if (outputPathOverride) {
+          ensureOutputDir(path.dirname(outputPathOverride));
+          fs.copyFileSync(outputPath, outputPathOverride);
+          outputPath = outputPathOverride;
+        }
         
         // Zapis metadanych (Meta JSON)
         const metaPath = outputPath.replace(/\.[^.]+$/, '.meta.json');

@@ -131,3 +131,45 @@ CREATE TABLE IF NOT EXISTS plan_deliverables (
 );
 
 CREATE INDEX IF NOT EXISTS idx_plan_deliverables_episode ON plan_deliverables(episode_plan_id);
+
+-- F2: episode production (Reżyser produkcji)
+
+CREATE TABLE IF NOT EXISTS production_runs (
+  id TEXT PRIMARY KEY,
+  episode_plan_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  export_dir TEXT,
+  manifest_path TEXT,
+  visual_profile_json TEXT,
+  error_message TEXT,
+  progress INTEGER NOT NULL DEFAULT 0,
+  clips_total INTEGER NOT NULL DEFAULT 0,
+  clips_completed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT,
+  FOREIGN KEY (episode_plan_id) REFERENCES episode_plans(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_production_runs_episode ON production_runs(episode_plan_id);
+
+CREATE TABLE IF NOT EXISTS production_clips (
+  id TEXT PRIMARY KEY,
+  production_run_id TEXT NOT NULL,
+  plan_scene_id TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  clip_code TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  user_prompt TEXT,
+  director_json TEXT,
+  output_path TEXT,
+  error_message TEXT,
+  progress INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT,
+  FOREIGN KEY (production_run_id) REFERENCES production_runs(id) ON DELETE CASCADE,
+  FOREIGN KEY (plan_scene_id) REFERENCES plan_scenes(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_production_clips_run ON production_clips(production_run_id);

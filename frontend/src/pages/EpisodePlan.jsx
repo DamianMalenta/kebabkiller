@@ -20,22 +20,32 @@ export default function EpisodePlan() {
   const [error, setError] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatLog, setChatLog] = useState([]);
+  const [production, setProduction] = useState(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    const [planData, assetsData, validationData] = await Promise.all([
+    const [planData, assetsData, validationData, productionData] = await Promise.all([
       api.episodePlans.get(id),
       api.assets.list(),
       api.episodePlans.validate(id),
+      api.episodePlans.production(id).catch(() => null),
     ]);
     setPlan(planData);
     setAssets(assetsData);
     setValidation(validationData);
+    setProduction(productionData);
   }
 
   useEffect(() => {
     load().catch((err) => setError(err.message));
-  }, [id]);
+    const interval = setInterval(() => {
+      if (['w_produkcji', 'zaakceptowany'].includes(plan?.status)) {
+        api.episodePlans.production(id).then(setProduction).catch(() => {});
+        api.episodePlans.get(id).then(setPlan).catch(() => {});
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [id, plan?.status]);
 
   async function savePlanFields(fields) {
     setBusy(true);
@@ -116,9 +126,24 @@ export default function EpisodePlan() {
     setBusy(true);
     setError('');
     try {
-      const updated = await api.episodePlans.accept(id);
-      setPlan(updated);
+      const result = await api.episodePlans.accept(id, { start_production: true });
+      setPlan(result);
       setValidation(await api.episodePlans.validate(id));
+      setProduction(await api.episodePlans.production(id));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restartProduction() {
+    setBusy(true);
+    setError('');
+    try {
+      await api.episodePlans.produce(id);
+      setProduction(await api.episodePlans.production(id));
+      setPlan(await api.episodePlans.get(id));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -315,6 +340,74 @@ export default function EpisodePlan() {
       </section>
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Produkcja</h2>
+          {['zaakceptowany', 'gotowy', 'w_produkcji'].includes(plan.status) && (
+            <button
+              type="button"
+              disabled={busy || plan.status === 'w_produkcji'}
+              onClick={restartProduction}
+              className="rounded-lg border border-zinc-600 px-3 py-1 text-xs hover:bg-zinc-800 disabled:opacity-40"
+            >
+              {plan.status === 'w_produkcji' ? 'Render w toku…' : 'Uruchom ponownie'}
+            </button>
+          )}
+        </div>
+        {!production?.production && (
+          <p className="text-sm text-zinc-500">
+            Po akceptacji planu Reżyser produkcji renderuje sceny i buduje paczkę montażową.
+          </p>
+        )}
+        {production?.production && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-zinc-400">Postęp:</span>
+              <div className="h-2 flex-1 rounded-full bg-zinc-800">
+                <div
+                  className="h-2 rounded-full bg-amber-500 transition-all"
+                  style={{ width: `${production.production.progress || 0}%` }}
+                />
+              </div>
+              <span className="text-amber-300">{production.production.progress || 0}%</span>
+            </div>
+            <ul className="space-y-2">
+              {production.production.clips?.map((clip) => (
+                <li key={clip.id} className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-sm">
+                  <span className="text-zinc-200">{clip.clip_code}</span>
+                  <span className={
+                    clip.status === 'completed' ? 'text-emerald-400'
+                      : clip.status === 'failed' ? 'text-red-400'
+                        : 'text-zinc-500'
+                  }>
+                    {clip.status}
+                  </span>
+                  {clip.output_path && (
+                    <a
+                      href={clip.output_path}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-amber-400 hover:underline"
+                    >
+                      podgląd
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {production.production.manifest_path && (
+              <p className="text-xs text-zinc-500">
+                Paczka: <code className="text-zinc-400">{production.production.export_dir}</code>
+                {' · '}
+                <a href={production.production.manifest_path.replace(/^.*\/output/, '/output')} className="text-amber-400 hover:underline">
+                  manifest
+                </a>
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
         <h2 className="text-lg font-semibold">Scenarzysta</h2>
         <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg bg-zinc-950 p-3">
           {chatLog.length === 0 && (
@@ -343,7 +436,7 @@ export default function EpisodePlan() {
       </section>
 
       <p className="text-xs text-zinc-600">
-        Po akceptacji planu uruchomi się Reżyser produkcji (F2). Legacy Studio (
+        Scenarzysta — doprecyzowanie promptów i UX w backlogu. Legacy Studio (
         <button type="button" onClick={() => navigate('/studio')} className="text-amber-500 hover:underline">/studio</button>
         ) nadal dostępne.
       </p>

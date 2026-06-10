@@ -1,7 +1,7 @@
 # HANDOFF AKTUALNY — stan na teraz
 
-**Ostatnia aktualizacja:** 2026-06-09 (sesja planowania pipeline’u)  
-**Sesja:** planowanie produktowe (bez zmian kodu)
+**Ostatnia aktualizacja:** 2026-06-10 (F0 + F1 + F2)  
+**Sesja:** implementacja pipeline’u odcinka
 
 ---
 
@@ -17,8 +17,9 @@ Deployment RunComfy = środowisko GPU + modele; **My Workflows w panelu nie jest
 
 - **Wizja produktu zapisana:** [05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md) + [CAPABILITIES.md](CAPABILITIES.md) + zaktualizowany [01_PROJECT_VISION.md](01_PROJECT_VISION.md).
 - **Kierunek:** Plan odcinka (Ty + Scenarzysta) jako pierwszy krok → akceptacja → Reżyser produkcji → spójne klipy + manifest montażowy.
-- **Kod:** bez zmian w tej sesji; legacy Studio + RunComfy freeze WAN21 nadal aktualny technicznie.
-- **Następna implementacja:** F1 (plan + Scenarzysta + katalog), potem F0 (silnik klipu), F2 (Reżyser pod plan).
+- **Kod:** F1 (plan + katalog + Scenarzysta), F0 (I2V_PRODUCTION), F2 (Reżyser produkcji + manifest) — zaimplementowane.
+- **Backlog:** doprecyzowanie Scenarzysty; F3 (recenzja + re-render sceny).
+- **GPU:** RunComfy freeze WAN21 nadal blokerem żywego WEBM — mock produkuje paczkę montażową.
 
 ---
 
@@ -43,8 +44,10 @@ Katalog główny → **Plan odcinka** (wybór z katalogu, preferencje, sceny, li
 | Groq / `POST /api/director/preview` | ✅ |
 | RunComfy payload / polling | ✅ |
 | Żywy WEBM po fixie deploymentu | ❌ GPU freeze WAN21 |
-| Plan odcinka / Scenarzysta / katalog w UI | ❌ F1 |
-| Reżyser pod plan | ❌ F2 |
+| Plan odcinka / Scenarzysta / katalog w UI | ✅ F1 |
+| Reżyser pod plan + manifest | ✅ F2 |
+| Doprecyzowanie Scenarzysty | ❌ backlog |
+| Recenzja klipów (F3) | ❌ |
 
 ---
 

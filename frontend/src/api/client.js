@@ -61,7 +61,12 @@ export const api = {
       body: JSON.stringify({ scenes }),
     }),
     validate: (id) => request(`/episode-plans/${id}/validate`),
-    accept: (id) => request(`/episode-plans/${id}/accept`, { method: 'POST' }),
+    accept: (id, body = {}) => request(`/episode-plans/${id}/accept`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+    produce: (id) => request(`/episode-plans/${id}/produce`, { method: 'POST' }),
+    production: (id) => request(`/episode-plans/${id}/production`),
     assist: (id, body) => request(`/episode-plans/${id}/assist`, {
       method: 'POST',
       body: JSON.stringify(body),

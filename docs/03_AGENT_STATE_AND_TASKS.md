@@ -90,9 +90,12 @@ npm test --prefix backend
 - [ ] Lżejszy deployment RunComfy + smoke WEBM
 
 ### F2 — Reżyser produkcji
-- [ ] Plan `zaakceptowany` → kolejka renderu scen
-- [ ] Jeden profil wizualny na odcinek
-- [ ] `E01_manifest.json` + nazewnictwo klipów
+- [x] Plan `zaakceptowany` → kolejka renderu scen (`productionQueue.js`)
+- [x] Jeden profil wizualny na odcinek (`productionDirector.js`)
+- [x] `E01_manifest.json` + nazewnictwo klipów (`output/export/E01/`)
+
+### Backlog (po F2)
+- [ ] **Doprecyzowanie Scenarzysty** — lepsze prompty, pętla doprecyzowania z twórcą, walidacja multi-beat w opisach scen
 
 ### F3 — Recenzja i poprawki
 - [ ] Podgląd klipów, re-render pojedynczej sceny

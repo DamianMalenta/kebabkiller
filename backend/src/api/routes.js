@@ -47,9 +47,15 @@ import {
   validateEpisodePlan,
   acceptEpisodePlan,
 } from '../db/episodeModels.js';
+import {
+  getLatestProductionRun,
+  listProductionRuns,
+  getProductionRun,
+} from '../db/productionModels.js';
 import { enqueueVideoJob } from '../video/queue.js';
+import { enqueueEpisodeProduction } from '../video/productionQueue.js';
 
-export function createApiRouter({ videoEngine, uploadsDir }) {
+export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   const router = Router();
 
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -410,10 +416,52 @@ export function createApiRouter({ videoEngine, uploadsDir }) {
   router.post('/episode-plans/:id/accept', (req, res) => {
     try {
       const plan = acceptEpisodePlan(req.params.id);
-      res.json(plan);
+      const autoProduce = req.body?.start_production !== false;
+      if (autoProduce) {
+        enqueueEpisodeProduction(plan.id, videoEngine, outputDir);
+      }
+      res.json({
+        ...plan,
+        production_started: autoProduce,
+      });
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
+  });
+
+  router.post('/episode-plans/:id/produce', (req, res) => {
+    try {
+      const plan = getEpisodePlan(req.params.id);
+      if (!plan) return res.status(404).json({ error: 'Episode plan not found' });
+      if (!['zaakceptowany', 'gotowy', 'w_produkcji'].includes(plan.status)) {
+        return res.status(400).json({ error: 'Plan musi być zaakceptowany przed produkcją.' });
+      }
+      enqueueEpisodeProduction(plan.id, videoEngine, outputDir);
+      res.status(202).json({
+        message: 'Produkcja uruchomiona.',
+        plan_id: plan.id,
+      });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.get('/episode-plans/:id/production', (req, res) => {
+    const plan = getEpisodePlan(req.params.id);
+    if (!plan) return res.status(404).json({ error: 'Episode plan not found' });
+    const run = getLatestProductionRun(req.params.id);
+    res.json({
+      plan_id: plan.id,
+      plan_status: plan.status,
+      production: run,
+      history: listProductionRuns(req.params.id),
+    });
+  });
+
+  router.get('/production-runs/:id', (req, res) => {
+    const run = getProductionRun(req.params.id);
+    if (!run) return res.status(404).json({ error: 'Production run not found' });
+    res.json(run);
   });
 
   router.post('/episode-plans/:id/assist', async (req, res) => {
