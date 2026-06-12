@@ -52,9 +52,7 @@ On Windows, use `npm run dev` as documented in `README.md`.
 | Port sync tests | `npm run test:ports` |
 | Frontend production build | `npm run build --prefix frontend` |
 
-There is **no** ESLint or `npm run lint` script in this repo.
-
-CI (GitHub Actions): `.github/workflows/ci.yml` runs the same checks on every PR.
+There is **no** ESLint or `npm run lint` script in this repo. Validation is **local only** (`npm run validate:workflow` before changing the Wan workflow).
 
 ### Services
 
