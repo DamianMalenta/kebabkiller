@@ -1,0 +1,45 @@
+{
+  "$schema": "kebabkiller-runcomfy-minimal-v1",
+  "description": "Contract between Studio wan_workflow_api.json and ComfyUI-Minimal deployment on RunComfy.",
+  "workflow_path": "backend/src/video/wan_workflow_api.json",
+  "forbidden_nodes": {
+    "51": "SaveAnimatedWEBP — Studio omits this node; API must return SaveWEBM (52) only"
+  },
+  "required_nodes": {
+    "52": "SaveWEBM",
+    "54": "WanImageToVideo",
+    "56": "KSampler",
+    "59": "LoadImage"
+  },
+  "required_class_types": [
+    "VAEDecode",
+    "VAELoader",
+    "SaveWEBM",
+    "CLIPTextEncode",
+    "WanImageToVideo",
+    "KSampler",
+    "CLIPVisionLoader",
+    "CLIPVisionEncode",
+    "LoadImage",
+    "CLIPLoader",
+    "UNETLoader",
+    "ModelSamplingSD3"
+  ],
+  "models": {
+    "vae": "wan_2.1_vae.safetensors",
+    "unet": "wan2.1/wan2.1_i2v_480p_14B_bf16.safetensors",
+    "clip": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+    "clip_type": "wan",
+    "clip_vision": "clip_vision_h.safetensors"
+  },
+  "wan_quality": {
+    "width": 480,
+    "height": 832,
+    "steps": 20,
+    "cfg": 6,
+    "sampler_name": "uni_pc",
+    "savewebm_fps": 24,
+    "savewebm_codec": "vp9"
+  },
+  "max_node_count": 20
+}
