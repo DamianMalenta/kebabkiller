@@ -26,6 +26,7 @@
 | **Pipeline odcinka (źródło prawdy wizji)** | **[05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md)** |
 | Limity silnika / Scenarzysta | [CAPABILITIES.md](CAPABILITIES.md) |
 | Architektura techniczna | [02_ARCHITECTURE.md](02_ARCHITECTURE.md) |
+| **Programista w panelu (Cursor Cloud Agents)** | **[07_DEV_AGENT_PLAN.md](07_DEV_AGENT_PLAN.md)** |
 | Jak działa Baza Wiedzy / Reżyser (legacy) | [04_AI_DIRECTOR_KNOWLEDGE.md](04_AI_DIRECTOR_KNOWLEDGE.md) |
 | Perełki z gema-0 (wzorce) | [archive/sesja-01/05_PERELKI_Z_GEMA0.md](archive/sesja-01/05_PERELKI_Z_GEMA0.md) |
 | Szczegóły końca sesji #1 | [archive/sesja-01/06_PODSUMOWANIE.md](archive/sesja-01/06_PODSUMOWANIE.md) |

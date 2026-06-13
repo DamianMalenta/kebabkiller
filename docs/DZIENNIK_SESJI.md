@@ -4,6 +4,27 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ---
 
+## Sesja #16 — 2026-06-13
+
+**Zakres:** Vite tunnel fix, plan Programista (Cursor Cloud Agents) v2, weryfikacja vs MCP.
+
+### Zrobiono
+- Fix `allowedHosts: true` (PR #7 zmergowany) — Cloudflare tunnel działa.
+- Audyt Cloud Agents API v1 vs plan wdrożenia; porównanie z MCP (community, Kebabkiller MCP, iframe).
+- Korekty planu: brak gwarancji draft PR, auth token bez polegania na IP, faza 0 `GET /v1/repositories`.
+- Dokument **`docs/07_DEV_AGENT_PLAN.md`** (v2) — pełny plan faz 0–5 + 2b MCP.
+- Aktualizacja `HANDOFF_AKTUALNY.md`, `03_AGENT_STATE_AND_TASKS.md`, `00_START_TUTAJ.md`.
+
+### Ustalenia
+- Wariant A: własny chat `/dev` + backend proxy → `api.cursor.com/v1` (nie iframe, nie community MCP w panelu).
+- Faza 2b: opcjonalny Kebabkiller MCP — agent czyta SQLite Studia podczas kodowania.
+- Implementacja kodu — następna sesja, branch `cursor/dev-agent-panel-9e33`.
+
+### Werdykt
+Plan gotowy do wklejenia w nowy czat. Kod Programisty — backlog.
+
+---
+
 ## Sesja #14 — 2026-06-11
 
 **Zakres:** Audyt frontendu, pipeline fixy, mobile UX, dev LAN pod telefon, instrukcje w UI.

@@ -1,7 +1,7 @@
 # HANDOFF AKTUALNY — stan na teraz
 
-**Ostatnia aktualizacja:** 2026-06-11 (sesja #14)  
-**Sesja:** mobile UX + pipeline polish + dev LAN
+**Ostatnia aktualizacja:** 2026-06-13 (sesja #16)  
+**Sesja:** plan Programista (/dev) + fix Vite tunnel
 
 ---
 
@@ -15,20 +15,19 @@ Deployment RunComfy = środowisko GPU; panel overrides ≠ payload ze Studia.
 
 ## TL;DR
 
-- **Plan odcinka (F1):** UI z krokami 0–6, Scenarzysta, auto-zapis scen, walidacja, akceptacja → produkcja. ✅
-- **Mobile:** Vite `host:true`, LAN `http://192.168.8.44:5173`, karty scen, sticky „Akceptuj”, dolny pasek nav, panel dzień/noc. ✅
-- **Backend:** `wanConfig` (WAN_LENGTH dla I2V), recovery partial/failed → retry; testy **64/64**. ✅
-- **Dev serwery:** backend **4001**, frontend **5173** — health OK (localhost + LAN). ✅
-- **RunComfy:** deployment `b36cb944…` ciężki (ComfyUI-Manager) — bloker żywego WEBM. ❌
-- **Backlog:** F3 recenzja; Scenarzysta + `series_memory`; picker `asset_image_id`.
+- **Programista w panelu:** plan wdrożenia v2 gotowy → **`docs/07_DEV_AGENT_PLAN.md`** (Cursor Cloud Agents API + `/dev`). ❌ nie wdrożone
+- **Vite + Cloudflare tunnel:** `allowedHosts: true` zmergowane (PR #7). ✅
+- **Stół Reżyserski** (`/desk`): chat + wizard + agentTools. ✅
+- **RunComfy / produkcja GPU:** nadal bloker deploymentu. ❌
+- **Backlog produktowy:** F3 recenzja; Scenarzysta + `series_memory`
 
 ---
 
 ## Co zrobić jako pierwsze
 
-1. **Test z telefonu (Wi‑Fi):** http://192.168.8.44:5173 → Katalog → Nowy odcinek → kroki 1–6 → Akceptuj → obserwuj Produkcję.
-2. Jeśli render **failed** — logi backendu + RunComfy; ewentualnie nowy deployment Minimal (patrz `docs/RUNCOMFY_DEPLOYMENT.md`).
-3. Po udanym teście 2 klipów — rozważyć F3 lub podpięcie Scenarzysty do pamięci serialu.
+1. **Wdrożenie Programisty:** nowy czat → prompt z `docs/07_DEV_AGENT_PLAN.md` → fazy 0–5.
+2. Przed kodem: `CURSOR_API_KEY` + `GET /v1/repositories` (repo na liście GitHub App).
+3. Po MVP: faza 2b Kebabkiller MCP (agent czyta odcinki/produkcję ze Studia).
 
 ---
 
@@ -36,41 +35,36 @@ Deployment RunComfy = środowisko GPU; panel overrides ≠ payload ze Studia.
 
 | Element | Status |
 |---------|--------|
-| Plan odcinka + instrukcje UI (desktop + mobile) | ✅ |
-| Mobile: karty scen, sticky accept, step jump, bottom nav | ✅ |
-| Vite LAN (`host: true` w `vite.config.js`) | ✅ |
-| `canAccept` tylko właściwe statusy | ✅ |
-| Auto-zapis scen (select + blur) | ✅ |
-| `wanConfig` + `.env` spójne (WAN_LENGTH=73, I2V_PRODUCTION) | ✅ |
-| Backend testy | ✅ 64/64 |
+| Plan Programista (`07_DEV_AGENT_PLAN.md` v2) | ✅ |
+| Vite tunnel (`allowedHosts: true`) | ✅ |
+| Stół Reżyserski `/desk` | ✅ |
+| Programista `/dev` (kod) | ❌ |
+| Kebabkiller MCP (faza 2b) | ❌ backlog |
 | RunComfy stabilny | ❌ |
-| Scenarzysta + series_memory | ❌ backlog |
-| F3 recenzja klipów | ❌ |
 
 ---
 
-## `.env` — ważne klucze
+## `.env` — nowe klucze (Programista, po wdrożeniu)
 
 ```env
-VIDEO_ENGINE=runcomfy
-RUNCOMFY_ENDPOINT=https://api.runcomfy.net/prod/v2/deployments/b36cb944-1eed-4cea-8e63-ef99667db566/inference
-PORT=4001
-WAN_LENGTH=73
-I2V_PROFILE=I2V_PRODUCTION
-GROQ_API_KEY=...
+CURSOR_API_KEY=           # Dashboard → API Keys
+CURSOR_REPO_URL=https://github.com/DamianMalenta/kebabkiller
+CURSOR_DEFAULT_REF=main
+DEV_PANEL_TOKEN=          # ochrona /api/dev-agent/* na tunnel
 ```
 
-Telefon: ten sam Wi‑Fi co PC; **nie** otwieraj backendu :4001 bezpośrednio — API idzie przez Vite proxy.
+Istniejące: `GROQ_API_KEY`, `VIDEO_ENGINE`, `PORT`, `RUNCOMFY_*` — bez zmian.
 
 ---
 
 ## Prompt do nowego czatu
 
 ```text
-Kebabkiller Studio — sesja #14: mobile UX + plan odcinka gotowy do testu z telefonu.
+Kebabkiller Studio — wdrożenie Programisty (/dev) wg docs/07_DEV_AGENT_PLAN.md v2.
 
-Przeczytaj HANDOFF_AKTUALNY.md i 05_EPISODE_PIPELINE.md.
-Priorytet: wynik testu 2 klipów z telefonu (LAN 192.168.8.44:5173); jeśli produkcja failed — RunComfy deployment.
+Przeczytaj: 00_START_TUTAJ.md, HANDOFF_AKTUALNY.md, 07_DEV_AGENT_PLAN.md.
+Implementuj fazy 0→5. Branch: cursor/dev-agent-panel-9e33.
+Nie dotykaj gema-0.
 ```
 
 **Koniec sesji:** `HANDOFF`
@@ -80,14 +74,9 @@ Priorytet: wynik testu 2 klipów z telefonu (LAN 192.168.8.44:5173); jeśli prod
 ## Pliki kluczowe
 
 ```text
-frontend/src/pages/EpisodePlan.jsx
-frontend/src/components/MobileNightWelcome.jsx
-frontend/src/components/MobileSceneEditor.jsx
-frontend/src/components/MobileStepNav.jsx
-frontend/src/components/StepGuide.jsx
+docs/07_DEV_AGENT_PLAN.md          ← plan wdrożenia (źródło prawdy)
+frontend/src/pages/DirectorsDesk.jsx
+backend/src/ai/directorDesk/agentServer.js
 frontend/vite.config.js
-backend/src/video/wanConfig.js
-backend/src/video/productionQueue.js
-backend/src/db/episodeModels.js
-backend/scripts/audit-runcomfy.sh
+backend/src/api/routes.js
 ```

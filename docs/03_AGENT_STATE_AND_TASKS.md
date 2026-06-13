@@ -1,6 +1,6 @@
 # 03. Stan Projektu, Problemy i Zadania
 
-**Zaktualizowano:** 2026-06-11 (sesja #14)  
+**Zaktualizowano:** 2026-06-13 (sesja #16)  
 **Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.  
 **Wizja docelowa:** [05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md) · [CAPABILITIES.md](CAPABILITIES.md)
 
@@ -122,6 +122,12 @@ npm test --prefix backend
 - [x] Plan `zaakceptowany` → kolejka renderu scen (`productionQueue.js`)
 - [x] Jeden profil wizualny na odcinek (`productionDirector.js`)
 - [x] `E01_manifest.json` + nazewnictwo klipów (`output/export/E01/`)
+
+### F4 — Programista w panelu (Cursor Cloud Agents)
+- [x] Plan wdrożenia v2 — `docs/07_DEV_AGENT_PLAN.md` (weryfikacja API + MCP)
+- [ ] Backend proxy `/api/dev-agent/*` + SQLite wątki
+- [ ] Frontend `/dev` (chat + SSE + PR link)
+- [ ] Faza 2b: Kebabkiller MCP (agent → dane Studia)
 
 ### Backlog (po F2)
 - [ ] **Doprecyzowanie Scenarzysty** — lepsze prompty, pętla doprecyzowania z twórcą, walidacja multi-beat w opisach scen
