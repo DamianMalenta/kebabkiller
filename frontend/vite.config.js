@@ -11,7 +11,10 @@ console.log(`[vite] Proxy /api, /uploads, /output → ${backendTarget}`);
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    host: true,
     port: 5173,
+    strictPort: true,
+    allowedHosts: 'all',
     proxy: {
       '/api': backendTarget,
       '/uploads': backendTarget,

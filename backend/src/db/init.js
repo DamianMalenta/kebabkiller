@@ -124,6 +124,53 @@ export function initDatabase(dbPath) {
     'ALTER TABLE video_jobs ADD COLUMN canon_acceptance_lock_at TEXT',
     'CREATE INDEX IF NOT EXISTS idx_render_summaries_project ON render_summaries(project_id)',
     'CREATE INDEX IF NOT EXISTS idx_episodes_project ON episodes(project_id)',
+    'ALTER TABLE projects ADD COLUMN desk_status TEXT NOT NULL DEFAULT \'draft\'',
+    'ALTER TABLE projects ADD COLUMN wizard_step TEXT NOT NULL DEFAULT \'series_start\'',
+    'ALTER TABLE projects ADD COLUMN canon_json TEXT',
+    'ALTER TABLE projects ADD COLUMN generator_tags_json TEXT',
+    'ALTER TABLE episode_plans ADD COLUMN project_id TEXT REFERENCES projects(id)',
+    'ALTER TABLE episode_plans ADD COLUMN wizard_step TEXT NOT NULL DEFAULT \'episode_start\'',
+    'ALTER TABLE plan_scenes ADD COLUMN ai_overrides_json TEXT',
+    'ALTER TABLE plan_scenes ADD COLUMN storyboard_mock_json TEXT',
+    'ALTER TABLE asset_images ADD COLUMN ai_metadata_json TEXT',
+    `CREATE TABLE IF NOT EXISTS director_chat_messages (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      episode_plan_id TEXT,
+      role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
+      content TEXT NOT NULL DEFAULT '',
+      intent TEXT,
+      widgets_json TEXT,
+      pending_action_json TEXT,
+      is_committed INTEGER NOT NULL DEFAULT 1,
+      undo_of_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (episode_plan_id) REFERENCES episode_plans(id) ON DELETE SET NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_director_chat_project ON director_chat_messages(project_id)',
+    'CREATE INDEX IF NOT EXISTS idx_director_chat_episode ON director_chat_messages(episode_plan_id)',
+    `CREATE TABLE IF NOT EXISTS director_side_threads (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      episode_plan_id TEXT,
+      title TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      closed_at TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (episode_plan_id) REFERENCES episode_plans(id) ON DELETE SET NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_director_side_threads_project ON director_side_threads(project_id)',
+    `CREATE TABLE IF NOT EXISTS director_side_messages (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+      content TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (thread_id) REFERENCES director_side_threads(id) ON DELETE CASCADE
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_director_side_messages_thread ON director_side_messages(thread_id)',
   ];
 
   for (const sql of migrations) {

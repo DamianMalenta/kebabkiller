@@ -1,7 +1,7 @@
+import { Link, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client.js';
 import ProjectEditor from '../components/ProjectEditor.jsx';
-import EpisodeList from '../components/EpisodeList.jsx';
 
 export default function Projects() {
   const [projects, setProjects] = useState([]);
@@ -12,9 +12,14 @@ export default function Projects() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
+  const [episodes, setEpisodes] = useState([]);
+  const navigate = useNavigate();
+
   const refreshProject = useCallback(async (id) => {
     const fresh = await api.projects.get(id);
     setProjects((prev) => prev.map((p) => (p.id === id ? fresh : p)));
+    const eps = await api.projects.episodes(id);
+    setEpisodes(eps);
     return fresh;
   }, []);
 
@@ -161,9 +166,6 @@ export default function Projects() {
           </aside>
 
           <div className="space-y-6">
-            {loadingDetail && !isCreatingNew && (
-              <p className="text-sm text-zinc-500">Odświeżam szczegóły projektu…</p>
-            )}
             <ProjectEditor
               project={selectedProject}
               isNew={isCreatingNew}
@@ -174,7 +176,48 @@ export default function Projects() {
                 if (projects[0]) handleSelect(projects[0].id);
               }}
             />
-            <EpisodeList projectId={isCreatingNew ? null : selectedId} />
+            {selectedProject && !isCreatingNew && (
+              <div className="rounded-xl border border-amber-800/30 bg-amber-950/10 p-6 text-center shadow-lg md:text-left md:flex md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-amber-500">Przejdź do produkcji</h3>
+                  <p className="mt-1 text-sm text-zinc-400">
+                    W Stole Reżyserskim zaplanujesz odcinki, stworzysz z agentem scenariusze i wyślesz je prosto na karty graficzne do renderu.
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate(`/desk/${selectedProject.id}`)}
+                  className="mt-4 md:mt-0 inline-flex items-center justify-center rounded-xl bg-amber-500 px-6 py-3 font-bold text-zinc-950 shadow-md transition-transform hover:scale-105 hover:bg-amber-400 active:scale-95"
+                >
+                  🎬 Otwórz Stół Reżyserski
+                </button>
+              </div>
+            )}
+            
+            {!isCreatingNew && selectedProject && episodes.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-bold text-zinc-300 mb-4">Lista Odcinków</h3>
+                <div className="grid gap-3">
+                  {episodes.map(ep => (
+                    <button
+                      key={ep.id}
+                      onClick={() => navigate(`/desk/${selectedProject.id}?episode=${ep.id}`)}
+                      className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-left transition hover:border-amber-700/50 hover:bg-zinc-800"
+                    >
+                      <div>
+                        <p className="font-bold text-amber-500">{ep.code}</p>
+                        <p className="text-sm text-zinc-300">{ep.title || 'Szkic'}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-block rounded-full bg-zinc-800 px-2.5 py-1 text-xs text-zinc-400">
+                          {ep.status}
+                        </span>
+                        <p className="mt-1 text-xs text-zinc-500">Otwórz w Stole Reżyserskim →</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

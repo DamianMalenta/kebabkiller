@@ -74,6 +74,14 @@ import {
 } from '../db/productionModels.js';
 import { enqueueVideoJob } from '../video/queue.js';
 import { enqueueEpisodeProduction } from '../video/productionQueue.js';
+import {
+  getDirectorDeskState,
+  handleDirectorMessage,
+  handleSideThreadMessage,
+  closeSideThreadAndMerge,
+} from '../ai/directorDesk/agentServer.js';
+import { buildProjectBrain, setAssetImageMetadata } from '../db/directorDeskModels.js';
+import { buildDeterministicAssetMetadata } from '../ai/directorDesk/assetMetadata.js';
 
 function formatJobResponse(job) {
   return {
@@ -301,7 +309,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   router.get('/projects/:projectId/episodes', (req, res) => {
     const project = getProject(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
-    res.json(listEpisodes(req.params.projectId));
+    res.json(listEpisodePlans(req.params.projectId));
   });
 
   router.post('/projects/:projectId/episodes', (req, res) => {
@@ -426,7 +434,13 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       label: req.body.label,
       isPrimary: req.body.is_primary === '1',
     });
-    res.status(201).json(image);
+    const metadata = buildDeterministicAssetMetadata({
+      asset: existing,
+      label: req.body.label,
+      filename: req.file.originalname,
+    });
+    setAssetImageMetadata(image.id, metadata);
+    res.status(201).json({ ...image, ai_metadata: metadata });
   });
 
   router.delete('/asset-images/:imageId', (req, res) => {
@@ -799,6 +813,71 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       res.setHeader('Content-Type', contentTypes[ext]);
     }
     res.download(filePath);
+  });
+
+  // Director's Desk (V2)
+  router.get('/director-desk/projects/:projectId', (req, res) => {
+    try {
+      const episodePlanId = req.query.episode_plan_id || null;
+      res.json(getDirectorDeskState(req.params.projectId, episodePlanId));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.get('/director-desk/projects/:projectId/brain', (req, res) => {
+    try {
+      const brain = buildProjectBrain(req.params.projectId, {
+        episodePlanId: req.query.episode_plan_id || null,
+      });
+      if (!brain) return res.status(404).json({ error: 'Project not found' });
+      res.json(brain);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/director-desk/projects/:projectId/chat', async (req, res) => {
+    try {
+      const result = await handleDirectorMessage({
+        projectId: req.params.projectId,
+        episodePlanId: req.body.episode_plan_id || null,
+        message: req.body.message,
+        confirmAction: req.body.confirm_action || null,
+        sideThreadId: req.body.side_thread_id || null,
+      });
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/director-desk/side-threads/:threadId/messages', async (req, res) => {
+    try {
+      const result = await handleSideThreadMessage({
+        threadId: req.params.threadId,
+        message: req.body.message,
+        projectId: req.body.project_id,
+        episodePlanId: req.body.episode_plan_id || null,
+      });
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/director-desk/side-threads/:threadId/close', async (req, res) => {
+    try {
+      const result = await closeSideThreadAndMerge({
+        threadId: req.params.threadId,
+        projectId: req.body.project_id,
+        episodePlanId: req.body.episode_plan_id || null,
+        decision: req.body.decision || null,
+      });
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   return router;

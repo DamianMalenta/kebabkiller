@@ -1,6 +1,6 @@
 # 03. Stan Projektu, Problemy i Zadania
 
-**Zaktualizowano:** 2026-06-10 (sesja #13)  
+**Zaktualizowano:** 2026-06-11 (sesja #14)  
 **Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.  
 **Wizja docelowa:** [05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md) · [CAPABILITIES.md](CAPABILITIES.md)
 
@@ -8,8 +8,8 @@
 
 ## OBECNY STATUS (jedno zdanie)
 
-**Kod:** legacy Studio (jeden prompt → jeden job) + panel serialu (F1 UI) + RunComfy zablokowany przez freeze GPU.  
-**Wizja:** Plan odcinka pierwszy → akceptacja → Reżyser produkcji → paczka montażowa (do implementacji F1–F3).
+**Kod:** Plan odcinka F1–F2 w UI (desktop + mobile) + RunComfy zablokowany przez ciężki deployment GPU.  
+**Wizja:** Plan odcinka → akceptacja → Reżyser produkcji → paczka montażowa — **flow zaimplementowany**, czeka test produkcyjny.
 
 ---
 
@@ -56,7 +56,16 @@ npm test --prefix backend
 
 1. **GPU freeze / stale po WAN21** — deployment `b36cb944…` za ciężki (~30+ custom nodes). Fix: ComfyUI-Minimal / nowy deployment.
 2. **Brak powtarzalnego WEBM** — jeden sukces, potem timeout 10 min przy `WAN_LENGTH=81` (naprawione na 33).
-3. **Vite bez `host:true`** — dostęp z telefonu wymaga `npm run dev --prefix frontend -- --host`.
+3. **Vite LAN** — ✅ `host: true` w `frontend/vite.config.js` (telefon: IP:5173, ten sam Wi‑Fi).
+
+## ROZWIĄZANE (sesja #14)
+
+- Frontend plan odcinka: kolejność sekcji, StepGuide, auto-zapis scen, edycja tytułu, fix `canAccept`
+- Mobile: karty scen, sticky Akceptuj, pasek kroków, dolna nawigacja, panel dzień/noc/rano
+- `wanConfig`: WAN_LENGTH dla I2V_PRODUCTION; `.env` bez sprzeczności
+- `productionQueue`: partial/failed → status planu do retry
+- `audit-runcomfy.sh`: curl Windows (Git Bash)
+- Backend testy: 64/64
 
 ## ROZWIĄZANE (sesja #13)
 

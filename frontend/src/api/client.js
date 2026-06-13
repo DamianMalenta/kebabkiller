@@ -94,6 +94,32 @@ export const api = {
     }),
   },
 
+  directorDesk: {
+    getState: (projectId, episodePlanId) => {
+      const q = episodePlanId ? `?episode_plan_id=${encodeURIComponent(episodePlanId)}` : '';
+      return request(`/director-desk/projects/${projectId}${q}`);
+    },
+    getBrain: (projectId, episodePlanId) => {
+      const q = episodePlanId ? `?episode_plan_id=${encodeURIComponent(episodePlanId)}` : '';
+      return request(`/director-desk/projects/${projectId}/brain${q}`);
+    },
+    sendMessage: (projectId, body) =>
+      request(`/director-desk/projects/${projectId}/chat`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    sideThreadMessage: (threadId, body) =>
+      request(`/director-desk/side-threads/${threadId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    closeSideThread: (threadId, body) =>
+      request(`/director-desk/side-threads/${threadId}/close`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  },
+
   director: {
     preview: (body) => request('/director/preview', { method: 'POST', body: JSON.stringify(body) }),
     suggest: (body) => request('/director/suggest', { method: 'POST', body: JSON.stringify(body) }),

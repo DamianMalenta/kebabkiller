@@ -31,7 +31,7 @@ export default function AssetCard({ title, subtitle, imageUrl, badge, onEdit, on
                 <button
                   type="button"
                   onClick={onEdit}
-                  className="rounded-lg border border-zinc-600 px-3 py-1 text-xs hover:bg-zinc-800"
+                  className="rounded-lg border border-zinc-600 px-4 py-2.5 text-sm active:bg-zinc-800 md:px-3 md:py-1 md:text-xs"
                 >
                   Edytuj
                 </button>
@@ -40,7 +40,7 @@ export default function AssetCard({ title, subtitle, imageUrl, badge, onEdit, on
                 <button
                   type="button"
                   onClick={onDelete}
-                  className="rounded-lg border border-red-800 px-3 py-1 text-xs text-red-300 hover:bg-red-950"
+                  className="rounded-lg border border-red-800 px-4 py-2.5 text-sm text-red-300 active:bg-red-950 md:px-3 md:py-1 md:text-xs"
                 >
                   Usuń
                 </button>

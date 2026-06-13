@@ -124,7 +124,11 @@ export function deleteAssetImage(imageId) {
 
 // --- Episode plans ---
 
-export function listEpisodePlans() {
+export function listEpisodePlans(projectId) {
+  if (projectId) {
+    return getDb().prepare('SELECT * FROM episode_plans WHERE project_id = ? ORDER BY created_at ASC').all(projectId)
+      .map((row) => hydrateEpisodePlan(row));
+  }
   return getDb().prepare('SELECT * FROM episode_plans ORDER BY created_at DESC').all()
     .map((row) => hydrateEpisodePlan(row));
 }
@@ -200,8 +204,22 @@ export function listPlanScenes(episodePlanId) {
   `).all(episodePlanId);
 }
 
-export function upsertPlanScene(episodePlanId, scene) {
-  const id = scene.id || uuidv4();
+/** Accept camelCase (internal) or snake_case (HTTP / DB rows from frontend). */
+export function normalizePlanSceneInput(scene) {
+  return {
+    id: scene.id,
+    sortOrder: scene.sortOrder ?? scene.sort_order ?? 0,
+    descriptionPl: scene.descriptionPl ?? scene.description_pl ?? '',
+    durationSec: scene.durationSec ?? scene.duration_sec ?? 4,
+    assetId: scene.assetId ?? scene.asset_id ?? null,
+    assetImageId: scene.assetImageId ?? scene.asset_image_id ?? null,
+    locationAssetId: scene.locationAssetId ?? scene.location_asset_id ?? null,
+  };
+}
+
+export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true } = {}) {
+  const normalized = normalizePlanSceneInput(scene);
+  const id = normalized.id || uuidv4();
   const existing = getDb().prepare('SELECT id FROM plan_scenes WHERE id = ?').get(id);
 
   if (existing) {
@@ -212,12 +230,12 @@ export function upsertPlanScene(episodePlanId, scene) {
           updated_at = datetime('now')
       WHERE id = ?
     `).run(
-      scene.sortOrder ?? 0,
-      scene.descriptionPl ?? '',
-      scene.durationSec ?? 4,
-      scene.assetId ?? null,
-      scene.assetImageId ?? null,
-      scene.locationAssetId ?? null,
+      normalized.sortOrder,
+      normalized.descriptionPl,
+      normalized.durationSec,
+      normalized.assetId,
+      normalized.assetImageId,
+      normalized.locationAssetId,
       id,
     );
   } else {
@@ -227,25 +245,41 @@ export function upsertPlanScene(episodePlanId, scene) {
     `).run(
       id,
       episodePlanId,
-      scene.sortOrder ?? 0,
-      scene.descriptionPl ?? '',
-      scene.durationSec ?? 4,
-      scene.assetId ?? null,
-      scene.assetImageId ?? null,
-      scene.locationAssetId ?? null,
+      normalized.sortOrder,
+      normalized.descriptionPl,
+      normalized.durationSec,
+      normalized.assetId,
+      normalized.assetImageId,
+      normalized.locationAssetId,
     );
   }
-  return getDb().prepare('SELECT * FROM plan_scenes WHERE id = ?').get(id);
+
+  const row = getDb().prepare('SELECT * FROM plan_scenes WHERE id = ?').get(id);
+  if (refreshStatus) {
+    refreshEpisodePlanStatus(episodePlanId);
+  }
+  return row;
 }
 
 export function deletePlanScene(sceneId) {
-  return getDb().prepare('DELETE FROM plan_scenes WHERE id = ?').run(sceneId).changes > 0;
+  const row = getDb().prepare('SELECT episode_plan_id FROM plan_scenes WHERE id = ?').get(sceneId);
+  const changed = getDb().prepare('DELETE FROM plan_scenes WHERE id = ?').run(sceneId).changes > 0;
+  if (changed && row?.episode_plan_id) {
+    refreshEpisodePlanStatus(row.episode_plan_id);
+  }
+  return changed;
 }
 
 export function replacePlanScenes(episodePlanId, scenes) {
   const db = getDb();
   db.prepare('DELETE FROM plan_scenes WHERE episode_plan_id = ?').run(episodePlanId);
-  return scenes.map((scene, index) => upsertPlanScene(episodePlanId, { ...scene, sortOrder: index }));
+  const saved = scenes.map((scene, index) => upsertPlanScene(
+    episodePlanId,
+    { ...scene, sortOrder: index },
+    { refreshStatus: false },
+  ));
+  refreshEpisodePlanStatus(episodePlanId);
+  return saved;
 }
 
 // --- Deliverables ---
@@ -361,15 +395,16 @@ export function validateEpisodePlan(episodePlanId) {
   }
 
   const target = plan.target_duration_sec || 45;
+  const warnings = [];
   if (totalDuration < target * 0.5 || totalDuration > target * 1.5) {
-    errors.push(`Suma scen (${totalDuration.toFixed(1)} s) daleko od celu (${target} s).`);
+    warnings.push(`Suma scen (${totalDuration.toFixed(1)} s) daleko od celu (${target} s) — możesz produkować, ale to info.`);
   }
 
   const status = openDeliverables.length > 0
     ? 'brakuje_materialow'
     : (errors.length === 0 ? 'gotowy_do_akceptacji' : 'szkic');
 
-  return { ok: errors.length === 0, errors, status, totalDurationSec: totalDuration };
+  return { ok: errors.length === 0, errors, warnings, status, totalDurationSec: totalDuration };
 }
 
 export function acceptEpisodePlan(episodePlanId) {

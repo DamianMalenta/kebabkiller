@@ -55,4 +55,27 @@ describe('wanConfig', () => {
     expect(params.denoise).toBe(0.9);
     expect(params.length).toBe(72);
   });
+
+  test('I2V_PRODUCTION without duration_sec uses WAN_LENGTH from env', () => {
+    process.env.WAN_LENGTH = '73';
+    process.env.I2V_PROFILE = 'I2V_PRODUCTION';
+    const params = resolveWanRenderParams({ i2vProfile: 'I2V_PRODUCTION' });
+    expect(params.length).toBe(73);
+    expect(params.denoise).toBe(I2V_PROFILES.I2V_PRODUCTION.denoise);
+  });
+
+  test('SMOKE uses WAN_DENOISE from env', () => {
+    process.env.WAN_DENOISE = '0.7';
+    const params = resolveWanRenderParams({ i2vProfile: 'SMOKE' });
+    expect(params.denoise).toBe(0.7);
+  });
+
+  test('plan scene duration_sec overrides WAN_LENGTH env', () => {
+    process.env.WAN_LENGTH = '73';
+    const params = resolveWanRenderParams({
+      i2vProfile: 'I2V_PRODUCTION',
+      durationSec: 4,
+    });
+    expect(params.length).toBe(96);
+  });
 });

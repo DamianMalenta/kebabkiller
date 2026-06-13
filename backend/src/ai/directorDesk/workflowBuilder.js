@@ -1,0 +1,119 @@
+/** Dynamic RunComfy workflow from negotiated project rules — no hardcoded profiles only. */
+
+import { buildRunComfyWorkflow } from '../../video/runComfyEngine.js';
+import { resolveWanRenderParams, I2V_PROFILES } from '../../video/wanConfig.js';
+
+function mergeTags(tags = []) {
+  return Array.from(new Set(tags.map((t) => String(t).trim()).filter(Boolean)));
+}
+
+export function buildDynamicRenderRules({
+  project,
+  scene,
+  directorPlan,
+  generatorTags = [],
+}) {
+  const overrides = scene?.ai_overrides || {};
+  const canon = project?.canon || {};
+  const profileId = overrides.i2v_profile || canon.default_i2v_profile || 'I2V_PRODUCTION';
+  const profile = I2V_PROFILES[profileId] || I2V_PROFILES.I2V_PRODUCTION;
+
+  const cameraMotion = overrides.camera_motion || directorPlan?.cinematography?.camera_motion;
+  const staticCamera = overrides.static_camera ?? (cameraMotion === 'static' || profile.staticCamera);
+
+  return {
+    i2v_profile: profileId,
+    duration_sec: scene?.duration_sec ?? 4,
+    denoise: overrides.denoise ?? profile.denoise,
+    steps: overrides.steps ?? profile.steps,
+    static_camera: staticCamera,
+    camera_motion: cameraMotion || (staticCamera ? 'static' : 'tracking'),
+    fps: overrides.fps ?? 24,
+    style_tags: mergeTags([
+      ...(canon.style_tags || []),
+      ...generatorTags,
+      ...(overrides.style_tags || []),
+    ]),
+    continuity_mode: overrides.continuity_mode || (scene?.sort_order > 0 ? 'last_frame' : 'composite'),
+    anchor_prompt: overrides.anchor_prompt || profile.anchorPrompt || null,
+  };
+}
+
+export function buildDynamicWorkflowPayload({
+  jobId,
+  userPrompt,
+  directorJson,
+  processedAssets,
+  project,
+  scene,
+  generatorTags,
+}) {
+  const rules = buildDynamicRenderRules({
+    project,
+    scene,
+    directorPlan: directorJson,
+    generatorTags,
+  });
+
+  const enrichedDirector = {
+    ...directorJson,
+    i2v_profile: rules.i2v_profile,
+    duration_sec: rules.duration_sec,
+    wan_denoise: rules.denoise,
+    static_camera: rules.static_camera,
+    dynamic_rules: rules,
+  };
+
+  if (rules.style_tags.length) {
+    enrichedDirector.positive_prompt = [
+      directorJson?.positive_prompt || userPrompt,
+      rules.style_tags.join(', '),
+    ].filter(Boolean).join(', ');
+  }
+
+  if (rules.anchor_prompt && rules.static_camera) {
+    enrichedDirector.positive_prompt = [
+      enrichedDirector.positive_prompt,
+      rules.anchor_prompt,
+    ].filter(Boolean).join(', ');
+  }
+
+  const { workflow_api_json } = buildRunComfyWorkflow(
+    jobId,
+    userPrompt,
+    enrichedDirector,
+    processedAssets,
+  );
+
+  const renderParams = resolveWanRenderParams({
+    i2vProfile: rules.i2v_profile,
+    durationSec: rules.duration_sec,
+    denoise: rules.denoise,
+  });
+
+  return {
+    workflow_api_json,
+    render_params: renderParams,
+    rules,
+    continuity_mode: rules.continuity_mode,
+  };
+}
+
+export function previewWorkflowForScene({
+  jobId = 'preview',
+  userPrompt,
+  directorJson,
+  project,
+  scene,
+  generatorTags,
+}) {
+  return buildDynamicWorkflowPayload({
+    jobId,
+    userPrompt,
+    directorJson: directorJson || { positive_prompt: userPrompt },
+    processedAssets: { startFrame: null },
+    project,
+    scene,
+    generatorTags,
+  });
+}

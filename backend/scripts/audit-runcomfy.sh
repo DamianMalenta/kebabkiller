@@ -37,6 +37,13 @@ need_cmd() {
 need_cmd curl
 need_cmd jq
 
+# Git Bash ships msys curl with broken Schannel CRL on some Windows hosts — prefer Windows curl.
+if [[ "$(uname -s 2>/dev/null)" == MINGW* ]] && [[ -x /c/Windows/System32/curl.exe ]]; then
+  CURL=(/c/Windows/System32/curl.exe --ssl-no-revoke)
+else
+  CURL=(curl)
+fi
+
 load_env_var() {
   local key="$1"
   if [[ -n "${!key:-}" ]]; then
@@ -78,7 +85,7 @@ fi
 
 api_get() {
   local url="$1"
-  curl -fsS "$url" -H "Authorization: Bearer ${RUNCOMFY_API_KEY}" -H "Accept: application/json"
+  "${CURL[@]}" -fsS "$url" -H "Authorization: Bearer ${RUNCOMFY_API_KEY}" -H "Accept: application/json"
 }
 
 hardware_label() {
@@ -179,7 +186,7 @@ if [[ -z "$OBJECT_URL" ]]; then
   echo "Brak object_info_url w payload."
 else
   OBJECT_JSON="$TMP_DIR/object_info.json"
-  if curl -fsS "$OBJECT_URL" -o "$OBJECT_JSON"; then
+  if "${CURL[@]}" -fsS "$OBJECT_URL" -o "$OBJECT_JSON"; then
     CUSTOM_COUNT="$(jq 'keys | length' "$OBJECT_JSON")"
     echo "URL: $OBJECT_URL"
     echo "Zainstalowanych typów nodów: $CUSTOM_COUNT"

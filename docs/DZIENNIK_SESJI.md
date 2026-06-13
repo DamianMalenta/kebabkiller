@@ -4,6 +4,26 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ---
 
+## Sesja #14 — 2026-06-11
+
+**Zakres:** Audyt frontendu, pipeline fixy, mobile UX, dev LAN pod telefon, instrukcje w UI.
+
+### Zrobiono
+- Backend: `normalizePlanSceneInput`, refresh status po scenach, recovery produkcji partial/failed, `wanConfig` + testy (64/64).
+- Frontend plan: StepGuide, kolejność Pomysł→Scenarzysta→Sceny, auto-zapis, tytuł, fix przycisku Akceptuj.
+- Mobile: `vite.config.js` host LAN, MobileCompanionPanel (dzień/noc), karty scen, sticky accept, step jump, bottom nav.
+- RunComfy audit (Windows curl), `.env` alignment (WAN_LENGTH=73, I2V_PRODUCTION).
+- Serwery: restart czysty; health OK localhost + `192.168.8.44:5173`.
+
+### Ustalenia
+- Test 2 klipów: flow Plan→Scenarzysta→Sceny→Akceptuj; render na PC, postęp na telefonie.
+- RunComfy blocker pozostaje po stronie deploymentu (ciężki ComfyUI-Manager).
+
+### Werdykt
+Gotowe do porannego testu z telefonu. Priorytet następnej sesji: wynik produkcji + ewentualnie nowy deployment RunComfy.
+
+---
+
 ## Sesja #13 — 2026-06-10
 
 **Zakres:** Panel Seriale (UI), fix CLIP/style bible w Reżyserze, audyt RunComfy, zombie joby Dashboard.

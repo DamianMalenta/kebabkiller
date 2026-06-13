@@ -2,4 +2,47 @@
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* iOS: inputs < 16px trigger zoom — use text-base on mobile form fields */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.director-desk-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(220px, 25%) 1fr;
+  min-height: 70vh;
+}
+
+.director-sidebar.collapsed {
+  max-width: 3.5rem;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .director-desk-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .director-sidebar.collapsed {
+    max-width: none;
+  }
 }

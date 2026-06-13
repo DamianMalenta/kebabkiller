@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import AssetCard from '../components/AssetCard.jsx';
+import StepGuide from '../components/StepGuide.jsx';
 
 const ASSET_TYPES = [
   { value: 'character', label: 'Postać' },
@@ -88,6 +90,14 @@ export default function Catalog() {
       {error && <p className="rounded-lg bg-red-950 p-3 text-red-300">{error}</p>}
       {message && <p className="rounded-lg bg-emerald-950 p-3 text-emerald-300">{message}</p>}
 
+      <StepGuide step={0} title="Materiały przed planem odcinka" done={assets.some((a) => a.type === 'character' && a.images?.length) && assets.some((a) => a.type === 'location' && a.images?.length)}>
+        <p>
+          Plan odcinka przypisuje do scen <strong className="text-zinc-300">postacie</strong> i{' '}
+          <strong className="text-zinc-300">lokacje</strong> z tego katalogu. Każdy asset potrzebuje co najmniej jednego zdjęcia (JPG/PNG).
+          Po dodaniu wróć na <Link to="/" className="text-amber-400 hover:underline">Dashboard</Link> → Nowy odcinek.
+        </p>
+      </StepGuide>
+
       <div className="flex flex-wrap gap-2">
         <FilterButton active={!filter} onClick={() => setFilter('')}>Wszystkie</FilterButton>
         {ASSET_TYPES.map((t) => (
@@ -128,7 +138,7 @@ export default function Catalog() {
           <input name="image" type="file" accept="image/*" className="mt-1 block w-full text-sm text-zinc-400" />
         </label>
         <div className="flex gap-2">
-          <button type="submit" disabled={saving} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-50">
+          <button type="submit" disabled={saving} className="w-full rounded-xl bg-amber-500 px-4 py-3.5 text-base font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-50 md:w-auto md:rounded-lg md:py-2 md:text-sm">
             {saving ? 'Zapisuję…' : (editingId ? 'Zapisz' : 'Dodaj')}
           </button>
           {editingId && (
@@ -164,7 +174,7 @@ function FilterButton({ active, onClick, children }) {
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg px-3 py-1.5 text-sm ${
+      className={`rounded-lg px-3 py-2.5 text-sm md:py-1.5 ${
         active ? 'bg-amber-500 text-zinc-950 font-semibold' : 'border border-zinc-700 text-zinc-400 hover:bg-zinc-900'
       }`}
     >

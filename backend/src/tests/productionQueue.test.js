@@ -65,4 +65,39 @@ describe('productionQueue', () => {
 
     expect(getLatestProductionRun(plan.id).status).toBe('completed');
   }, 30000);
+
+  test('partial clip failure resets plan to zaakceptowany for retry', async () => {
+    const char = createAsset({ type: 'character', name: 'FailHero', descriptionPl: 'Kebab', canonEn: 'Wrap' });
+    addAssetImage(char.id, { path: '/uploads/h2.jpg', isPrimary: true });
+    const asset = getAsset(char.id);
+
+    const plan = createEpisodePlan({ code: 'E04', title: 'Partial', logline: 'Fail mid-run', targetDurationSec: 12 });
+    replacePlanScenes(plan.id, [
+      { descriptionPl: 'Scena A', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
+      { descriptionPl: 'Scena B', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
+      { descriptionPl: 'Scena C', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
+    ]);
+    acceptEpisodePlan(plan.id);
+
+    let renderCount = 0;
+    const flakyEngine = {
+      name: 'mock-flaky',
+      async render({ outputPath, onProgress }) {
+        renderCount += 1;
+        onProgress?.(50);
+        if (renderCount >= 2) {
+          throw new Error('Simulated GPU failure on clip 2');
+        }
+        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+        fs.writeFileSync(outputPath, Buffer.from('MOCK', 'utf8'));
+        return { outputPath };
+      },
+    };
+
+    await expect(processEpisodeProduction(plan.id, flakyEngine, outputDir)).rejects.toThrow('Simulated GPU failure');
+
+    expect(getLatestProductionRun(plan.id).status).toBe('partial');
+    expect(getLatestProductionRun(plan.id).clips_completed).toBe(1);
+    expect(getEpisodePlan(plan.id).status).toBe('zaakceptowany');
+  }, 30000);
 });

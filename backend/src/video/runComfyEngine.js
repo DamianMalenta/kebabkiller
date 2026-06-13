@@ -87,7 +87,7 @@ export function runComfyPollStatusMessage(status, attempts, elapsedMs) {
   } else if (attempts <= 24) {
     phase = 'Ładowanie Wan 2.1 14B';
   } else {
-    phase = `Render ${WAN_QUALITY.length} klatek`;
+    phase = 'Render Wan I2V';
   }
 
   return `${phase} · poll #${attempts} · ${elapsedMin} min · ${status}`;
@@ -197,6 +197,7 @@ export function buildRunComfyWorkflow(jobId, userPrompt, directorJson, processed
   workflow['56'].inputs = cloneInputs('56', workflow);
   workflow['56'].inputs.seed = seed;
   workflow['56'].inputs.steps = renderParams.steps;
+  // cfg stays at template value (6) — WAN I2V with ModelSamplingSD3 works with cfg 5–9
   workflow['56'].inputs.denoise = renderParams.denoise;
 
   if (processedAssets.startFrame?.type === 'base64') {
@@ -323,8 +324,8 @@ export function createRunComfyEngine(outputDir, config) {
 
       let attempts = 0;
       const pollIntervalMs = Number(process.env.RUNCOMFY_POLL_INTERVAL_MS) || 5000;
-      const maxAttempts = Number(process.env.RUNCOMFY_POLL_MAX_ATTEMPTS) || 120; // ~10 min at 5s
-      const staleAfterMs = Number(process.env.RUNCOMFY_STALE_AFTER_MS) || 10 * 60 * 1000;
+      const maxAttempts = Number(process.env.RUNCOMFY_POLL_MAX_ATTEMPTS) || 360; // ~30 min at 5s (WAN21 cold start ~2-5 min)
+      const staleAfterMs = Number(process.env.RUNCOMFY_STALE_AFTER_MS) || 30 * 60 * 1000;
       const resultProbeEvery = Number(process.env.RUNCOMFY_RESULT_PROBE_EVERY) || 12;
       const pollStartedAt = Date.now();
 

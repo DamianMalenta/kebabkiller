@@ -15,7 +15,7 @@ const PIPELINE_CONFIG = {
   wan21Format: WAN_FORMAT_PROMPT,
   lensMasterBlock: 'High quality, detailed, sharp focus.', // relaxed to allow cinematic shots
   baseNegativePrompt:
-    'low quality, watermark, text overlay, deformed background, melting texture, extra limbs, mutated, bad anatomy', // removed photographic terms like bokeh/dof from negative
+    'low quality, watermark, text overlay, deformed background, melting texture, extra limbs, mutated, bad anatomy',
 };
 
 const ALLOWED_SUBJECT_STATES = new Set([
@@ -257,7 +257,10 @@ function validateKinematics(kinematics) {
 
 function compileKinematicBlock(kinematics) {
   const { subject_state, primary_motion, velocity } = kinematics;
-  return `Action: The subject is ${subject_state}. Motion: ${primary_motion.trim()} at a ${velocity} pace.`;
+  // Translate bare "none" to something WAN 2.1 understands as truly static
+  const rawMotion = primary_motion?.trim() || '';
+  const motionDesc = rawMotion.toLowerCase() === 'none' ? 'holding position, static pose' : rawMotion;
+  return `Action: The subject is ${subject_state}. Motion: ${motionDesc} at a ${velocity} pace.`;
 }
 
 function deriveMotionPhysics(kinematics) {
@@ -334,6 +337,7 @@ function executeAssetBinding(intentPlan, context, { userPrompt = '' } = {}) {
   const styleBlock = buildStyleTagsBlock(intentPlan);
 
   const hasCompositeRefs = Boolean(char?.reference_path && bg?.reference_path);
+  // Zmieniamy łączenie na przecinki, żeby Wan lepiej czytał (comma-separated tags)
   const finalPositivePrompt = [
     visualBlock,
     styleBlock,
@@ -344,7 +348,7 @@ function executeAssetBinding(intentPlan, context, { userPrompt = '' } = {}) {
     kinematicBlock,
   ]
     .filter(Boolean)
-    .join(' ');
+    .join(', ');
 
   const rawNegatives = [char?.negative_prompt || '', PIPELINE_CONFIG.baseNegativePrompt]
     .join(', ')

@@ -14,6 +14,8 @@ import {
   listProductionClips,
 } from '../db/productionModels.js';
 import { buildEpisodeVisualProfile, buildSceneDirectorPlan } from '../ai/productionDirector.js';
+import { buildDynamicRenderRules } from '../ai/directorDesk/workflowBuilder.js';
+import { getDirectorProject } from '../db/directorDeskModels.js';
 import { getAsset } from '../db/episodeModels.js';
 
 const activeProductions = new Map();
@@ -73,10 +75,42 @@ function buildReadme(plan, manifest) {
   ].join('\n');
 }
 
+function parseSceneOverrides(scene) {
+  if (!scene?.ai_overrides_json) return {};
+  try {
+    return JSON.parse(scene.ai_overrides_json);
+  } catch {
+    return {};
+  }
+}
+
+function enrichDirectorJson(directorJson, plan, scene) {
+  if (!plan?.project_id) return directorJson;
+  const project = getDirectorProject(plan.project_id);
+  if (!project) return directorJson;
+
+  const rules = buildDynamicRenderRules({
+    project,
+    scene: { ...scene, ai_overrides: parseSceneOverrides(scene) },
+    directorPlan: directorJson,
+    generatorTags: project.generator_tags || [],
+  });
+
+  return {
+    ...directorJson,
+    i2v_profile: rules.i2v_profile,
+    duration_sec: rules.duration_sec,
+    wan_denoise: rules.denoise,
+    dynamic_rules: rules,
+    continuity_mode: rules.continuity_mode,
+  };
+}
+
 async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, onClipProgress) {
   updateProductionClip(clip.id, { status: 'directing', progress: 10 });
 
-  const directorJson = await buildSceneDirectorPlan(plan, scene, visualProfile);
+  let directorJson = await buildSceneDirectorPlan(plan, scene, visualProfile);
+  directorJson = enrichDirectorJson(directorJson, plan, scene);
   updateProductionClip(clip.id, { directorJson, status: 'rendering', progress: 25 });
 
   const ext = engine.name === 'mock' ? '.webm' : '.webm';
@@ -191,9 +225,7 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir)
       errorMessage: err.message,
       clipsCompleted: completed,
     });
-    if (completed === 0) {
-      updateEpisodePlan(episodePlanId, { status: 'zaakceptowany' });
-    }
+    updateEpisodePlan(episodePlanId, { status: 'zaakceptowany' });
     throw err;
   } finally {
     activeProductions.delete(episodePlanId);

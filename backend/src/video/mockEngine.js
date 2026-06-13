@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ensureOutputDir, resolveOutputPath } from './paths.js';
 import { createRunComfyEngine } from './runComfyEngine.js';
+import { createFalEngine } from './falEngine.js';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -57,6 +58,10 @@ export function createVideoEngine(config) {
     return createRunComfyEngine(config.OUTPUT_DIR, config);
   }
 
+  if (engineType === 'fal') {
+    return createFalEngine(config.OUTPUT_DIR, config);
+  }
+
   if (engineType === 'mock') {
     return createMockEngine(config.OUTPUT_DIR);
   }
@@ -66,7 +71,7 @@ export function createVideoEngine(config) {
     async render({ jobId, onProgress }) {
       onProgress?.(50);
       throw new Error(
-        `Video engine "${engineType}" is not yet implemented. Set VIDEO_ENGINE=mock or VIDEO_ENGINE=runcomfy.`,
+        `Video engine "${engineType}" is not yet implemented. Dostępne silniki: mock, fal, runcomfy.`,
       );
     },
   };

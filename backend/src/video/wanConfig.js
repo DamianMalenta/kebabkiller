@@ -74,7 +74,10 @@ export function secondsToFrames(seconds, fps = WAN_FPS) {
   return clampFrames(clampedSec * fps);
 }
 
-/** Resolve GPU params for a single clip render. */
+/** Resolve GPU params for a single clip render.
+ *  Length: duration_sec > wan_length > WAN_LENGTH env (wszystkie profile).
+ *  Denoise: jawny override > profil (I2V_PRODUCTION 0.85) | SMOKE → WAN_DENOISE env.
+ */
 export function resolveWanRenderParams(options = {}) {
   const profileId = (options.i2vProfile || options.i2v_profile || parseI2vProfileId()).toUpperCase();
   const profile = I2V_PROFILES[profileId] || I2V_PROFILES.SMOKE;
@@ -84,13 +87,18 @@ export function resolveWanRenderParams(options = {}) {
     length = secondsToFrames(options.durationSec ?? options.duration_sec);
   } else if (options.wanLength != null || options.wan_length != null) {
     length = clampFrames(options.wanLength ?? options.wan_length);
-  } else if (profileId === 'SMOKE') {
-    length = parseWanLength();
   } else {
-    length = profile.defaultLength;
+    length = parseWanLength();
   }
 
-  const denoise = options.denoise ?? options.wan_denoise ?? profile.denoise ?? parseWanDenoise();
+  let denoise;
+  if (options.denoise != null || options.wan_denoise != null) {
+    denoise = options.denoise ?? options.wan_denoise;
+  } else if (profileId === 'SMOKE') {
+    denoise = parseWanDenoise();
+  } else {
+    denoise = profile.denoise ?? parseWanDenoise();
+  }
 
   return {
     profile: profile.id,

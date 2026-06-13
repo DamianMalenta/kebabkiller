@@ -41,6 +41,10 @@ CREATE TABLE IF NOT EXISTS projects (
   series_memory_updated_at TEXT,
   default_character_id TEXT,
   default_background_id TEXT,
+  desk_status TEXT NOT NULL DEFAULT 'draft',
+  wizard_step TEXT NOT NULL DEFAULT 'series_start',
+  canon_json TEXT,
+  generator_tags_json TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (default_character_id) REFERENCES characters(id),
@@ -143,6 +147,7 @@ CREATE TABLE IF NOT EXISTS asset_images (
   label TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_primary INTEGER NOT NULL DEFAULT 0,
+  ai_metadata_json TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
 );
@@ -158,8 +163,11 @@ CREATE TABLE IF NOT EXISTS episode_plans (
   target_duration_sec INTEGER NOT NULL DEFAULT 45,
   status TEXT NOT NULL DEFAULT 'szkic',
   catalog_selection_json TEXT,
+  project_id TEXT,
+  wizard_step TEXT NOT NULL DEFAULT 'episode_start',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_episode_plans_status ON episode_plans(status);
@@ -173,6 +181,8 @@ CREATE TABLE IF NOT EXISTS plan_scenes (
   asset_id TEXT,
   asset_image_id TEXT,
   location_asset_id TEXT,
+  ai_overrides_json TEXT,
+  storyboard_mock_json TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (episode_plan_id) REFERENCES episode_plans(id) ON DELETE CASCADE,
@@ -240,3 +250,49 @@ CREATE TABLE IF NOT EXISTS production_clips (
 );
 
 CREATE INDEX IF NOT EXISTS idx_production_clips_run ON production_clips(production_run_id);
+
+-- Director's Desk (V2)
+
+CREATE TABLE IF NOT EXISTS director_chat_messages (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  episode_plan_id TEXT,
+  role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
+  content TEXT NOT NULL DEFAULT '',
+  intent TEXT,
+  widgets_json TEXT,
+  pending_action_json TEXT,
+  is_committed INTEGER NOT NULL DEFAULT 1,
+  undo_of_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (episode_plan_id) REFERENCES episode_plans(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_director_chat_project ON director_chat_messages(project_id);
+CREATE INDEX IF NOT EXISTS idx_director_chat_episode ON director_chat_messages(episode_plan_id);
+
+CREATE TABLE IF NOT EXISTS director_side_threads (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  episode_plan_id TEXT,
+  title TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  closed_at TEXT,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (episode_plan_id) REFERENCES episode_plans(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_director_side_threads_project ON director_side_threads(project_id);
+
+CREATE TABLE IF NOT EXISTS director_side_messages (
+  id TEXT PRIMARY KEY,
+  thread_id TEXT NOT NULL,
+  role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+  content TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (thread_id) REFERENCES director_side_threads(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_director_side_messages_thread ON director_side_messages(thread_id);

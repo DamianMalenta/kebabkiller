@@ -2,11 +2,19 @@ import { expandScenePrompt } from './director.js';
 import { applyI2vProductionProfile } from './i2vProduction.js';
 import { getAsset } from '../db/episodeModels.js';
 import { getDb } from '../db/init.js';
-import { WAN_FPS, WAN_QUALITY } from '../video/wanConfig.js';
+import { WAN_FPS, WAN_QUALITY, parseI2vProfileId } from '../video/wanConfig.js';
 import { inferKinematicsFromPolish } from './kinematicsFromPrompt.js';
 
 const BASE_NEGATIVE =
   'low quality, watermark, text overlay, deformed background, melting texture, extra limbs, mutated, bad anatomy';
+
+/** F2 always uses production profile; .env I2V_PROFILE=SMOKE must not weaken episode renders. */
+const EPISODE_I2V_PROFILE = 'I2V_PRODUCTION';
+
+function resolveEpisodeI2vProfile() {
+  const fromEnv = parseI2vProfileId();
+  return fromEnv === 'I2V_PRODUCTION' ? fromEnv : EPISODE_I2V_PROFILE;
+}
 
 /** One visual profile for the entire episode (F2). */
 export function buildEpisodeVisualProfile(plan) {
@@ -30,7 +38,7 @@ export function buildEpisodeVisualProfile(plan) {
   }
 
   return {
-    i2v_profile: 'I2V_PRODUCTION',
+    i2v_profile: resolveEpisodeI2vProfile(),
     fps: WAN_FPS,
     resolution: { width: WAN_QUALITY.width, height: WAN_QUALITY.height },
     preferences: plan.preferences || '',
@@ -61,21 +69,44 @@ function resolveSceneAssetRefs(scene) {
 }
 
 function buildSceneUserPrompt(plan, scene) {
-  const parts = [scene.description_pl];
-  if (plan.preferences?.trim()) parts.push(plan.preferences.trim());
-  if (plan.logline?.trim()) parts.push(`Episode context: ${plan.logline.trim()}`);
-  return parts.filter(Boolean).join('. ');
+  // Wyrzucamy sklejanie całego kontekstu odcinka (logline) i preferencji do promptu.
+  // Zostawiamy TYLKO czysty opis akcji tej konkretnej sceny.
+  return scene.description_pl || '';
+}
+
+// Strips identity/environment text blocks from LLM prompt when composite refs are available.
+// Prevents WAN 2.1 confusion between composite image and redundant text descriptions.
+function stripRedundantTextBlocks(prompt, refs) {
+  if (!prompt || !refs.characterAsset || !refs.locationAsset) return prompt;
+
+  let cleaned = prompt;
+  const stringsToRemove = [
+    refs.characterAsset.canon_en,
+    refs.characterAsset.description_pl,
+    refs.locationAsset.canon_en,
+    refs.locationAsset.description_pl,
+  ].filter(Boolean);
+
+  for (const s of stringsToRemove) {
+    // Remove the string and any trailing ", " or ", "
+    cleaned = cleaned.replace(new RegExp(`[,\\s]*${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[,\\s]*`, 'g'), ', ').trim();
+  }
+
+  // Clean up multiple commas / leading-trailing commas
+  return cleaned.replace(/^[,\s]+|[,\s]+$/g, '').replace(/,\s*,/g, ',').trim();
 }
 
 function enrichProductionPlan(directorPlan, scene, refs, visualProfile) {
+  const i2vProfile = visualProfile.i2v_profile || EPISODE_I2V_PROFILE;
   const enriched = applyI2vProductionProfile(directorPlan, {
-    i2vProfile: 'I2V_PRODUCTION',
+    i2vProfile,
     durationSec: scene.duration_sec,
   });
 
   enriched.character_ref = refs.characterRef || enriched.character_ref;
   enriched.background_ref = refs.backgroundRef || enriched.background_ref;
-  enriched.i2v_profile = 'I2V_PRODUCTION';
+  enriched.i2v_profile = i2vProfile;
+  
   enriched.episode_preferences = visualProfile.preferences;
 
   const hasComposite = Boolean(enriched.character_ref && enriched.background_ref);
@@ -84,10 +115,18 @@ function enrichProductionPlan(directorPlan, scene, refs, visualProfile) {
     if (refs.characterAsset?.canon_en) canonParts.push(refs.characterAsset.canon_en);
     if (refs.locationAsset?.canon_en) canonParts.push(refs.locationAsset.canon_en);
   }
+  
+  // When composite is available: strip redundant identity/environment text the LLM already added
+  // (LLM runs with legacy refs where reference_path=null, so it adds text descriptions to prompt)
+  if (hasComposite && enriched.positive_prompt) {
+    enriched.positive_prompt = stripRedundantTextBlocks(enriched.positive_prompt, refs);
+  }
+
+  // Dodajemy twarde preferencje stylu z Kanonu do promptu
   if (visualProfile.preferences) canonParts.push(visualProfile.preferences);
 
   if (canonParts.length > 0) {
-    enriched.positive_prompt = [enriched.positive_prompt, ...canonParts].filter(Boolean).join(' ');
+    enriched.positive_prompt = [enriched.positive_prompt, ...canonParts].filter(Boolean).join(', ');
   }
 
   const negParts = [visualProfile.negative_prompt, enriched.negative_prompt]
@@ -99,6 +138,18 @@ function enrichProductionPlan(directorPlan, scene, refs, visualProfile) {
 
   if (refs.locationAsset?.name) {
     enriched.location_name = refs.locationAsset.name;
+  }
+
+  // Extra fields for fal.ai engine (Kling prompt builder reads these)
+  if (refs.characterAsset) {
+    enriched.character_description = refs.characterAsset.canon_en || refs.characterAsset.description_pl || null;
+  }
+  if (refs.locationAsset) {
+    enriched.background_description = refs.locationAsset.canon_en || refs.locationAsset.description_pl || null;
+  }
+  if (enriched.kinematics) {
+    const k = enriched.kinematics;
+    enriched.action_description = `${k.subject_state || 'standing'}, ${k.primary_motion || 'still'} motion at ${k.velocity || 'normal'} pace`;
   }
 
   return enriched;
@@ -116,12 +167,12 @@ function compileDeterministicScenePlan(userPrompt, scene, refs, visualProfile) {
   const hasComposite = Boolean(refs.characterRef && refs.backgroundRef);
   const positivePrompt = [
     cinemaBlock,
-    'High quality, detailed, sharp focus.',
+    'High quality, detailed, sharp focus',
     'Vertical 9:16 video, 480x832',
     ...(hasComposite ? [] : [environmentBlock, identityBlock]),
     kinematicBlock,
     visualProfile.preferences,
-  ].filter(Boolean).join(' ');
+  ].filter(Boolean).join(', ');
 
   return enrichProductionPlan({
     scene_summary: scene.description_pl,
@@ -146,7 +197,7 @@ export async function buildSceneDirectorPlan(plan, scene, visualProfile) {
     directorPlan = await expandScenePrompt(userPrompt, {
       characterId: refs.legacyCharacterId,
       backgroundId: refs.legacyBackgroundId,
-      i2vProfile: 'I2V_PRODUCTION',
+      i2vProfile: visualProfile.i2v_profile,
       durationSec: scene.duration_sec,
     });
   } catch (err) {
