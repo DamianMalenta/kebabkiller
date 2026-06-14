@@ -8,7 +8,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 
 ## Status faz
 
-- [ ] Faza A (keystone) — jeden planista + PlanValidator + frozen plan + naprawa docs
+- [x] Faza A (keystone) — jeden kanał zapisu scen + PlanValidator + frozen plan + sprzątnięcie wizarda/frontendu + legacy POST=410 + naprawa docs (sesja #18)
 - [ ] Faza B — deterministyczny Reżyser (@ID compiler, stały seed, koniec preview != prod)
 - [ ] Faza C — Klatka Zero + rozbicie I2V_PRODUCTION + żywe tło + IP-Adapter
 - [ ] Faza D — realne Domino + picker klatki + resume partial
