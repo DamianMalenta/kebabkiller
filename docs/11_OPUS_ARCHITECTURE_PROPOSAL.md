@@ -10,7 +10,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 
 - [x] Faza A (keystone) — jeden kanał zapisu scen + PlanValidator + frozen plan + sprzątnięcie wizarda/frontendu + legacy POST=410 + naprawa docs (sesja #18)
 - [x] Faza B — deterministyczny Reżyser: `ref_id` (@ID), jeden builder, stały seed z planu, produkcja = podgląd, golden test (sesja #19)
-- [ ] Faza C — Klatka Zero + rozbicie I2V_PRODUCTION + żywe tło + IP-Adapter
+- [ ] Faza C — Klatka Zero + rozbicie I2V_PRODUCTION + żywe tło + IP-Adapter _(częściowo: część bez GPU ZROBIONA — sesja #20; IP-Adapter + realny klip + AI-gen klatki ODŁOŻONE do lekkiego deploymentu RunComfy — patrz sekcja D)_
 - [ ] Faza D — realne Domino + picker klatki + resume partial
 - [ ] Faza E — AI-Inżynier MVP (pętla naprawcza z cofaniem)
 - [ ] Faza F — Studio-lustro UI + sprzątanie martwego kodu
@@ -69,6 +69,7 @@ flowchart LR
 - Postac = wycinek PNG z alfa (`@char`); podwojny zamek: composite + IP-Adapter. Tlo = `@loc`, geometria trzymana struktura (depth), tlo zyje promptem animacji.
 - **Green-screen na martwej plycie odrzucony** — stabilnosc osiagamy struktura (depth) + IP-Adapter, nie zamrazaniem tla.
 - Klatka Zero (scena 1) = osobny tani etap. **Pierwsza klatka to problem OBRAZU, nie wideo** — iterujesz tanio na statycznym obrazie, zanim ruszy drogie GPU. Cztery zrodla: (1) skladanie `@char + @loc` (domyslne, 0 zl), (2) upload gotowej klatki, (3) generowanie 1 obrazu AI, (4) klatka z biblioteki / poprzedniego odcinka. Domino z pickerem dla scen 2+.
+- **Pozycja/skala Klatki Zero = KASKADA (sesja #20):** rozwiazywanie `override sceny → domyslna na assecie (@char) → fallback (hardcoded)`. NIE scena-only (retrofit dop. w Fazie F), NIE asset-only (zabija rezyserie ujec). Storage (czysta karta, bez backfillu): override sceny w `plan_scenes.ai_overrides_json.composite`; domyslna assetu w nowej nullable kolumnie `assets.composite_default_json`. Resolwer `resolveCompositeConfig` ([backend/src/video/compositeStartFrame.js](../backend/src/video/compositeStartFrame.js)). W Fazie C tylko model danych + resolwer dla composite — NIE cala kaskada UI `engine_profile` (to Faza F).
 - Koszty ku zeru: mock/obraz najpierw, GPU po akceptacji. **LLM local-first** — router intencji i rozmowa na lokalnym modelu (Ollama/llama.cpp), chmura tylko jako fallback / heavy "rozpisz pomysl".
 - gema-0: poza architektura (zero zaleznosci).
 - **Czysta karta — brak migracji danych historycznych.** Stare projekty nie sa potrzebne. Baza SQLite (`backend/data/studio.db`) moze byc w kazdej chwili skasowana i odtworzona przez seed (`init.js`). Migracje schematu (np. kolumna `ref_id` w Fazie B) **nie musza robic backfillu** — zakladaja czysty stan.
@@ -82,6 +83,15 @@ flowchart LR
 - **Faza B (ZREALIZOWANA, sesja #19):** deterministyczny Reżyser — `@ID` compiler (kolumna `ref_id` w assetach, namespace z `type`, BEZ `kind`), jeden builder, staly seed, produkcja uzywa tej samej logiki co podglad (koniec preview != prod), wstrzykniecie `style_tags`/anchor. Done: 2x ten sam plan = ten sam payload.
   - **Realne zmiany:** (1) `assets.ref_id` — stabilny, niemutowalny slug `type+name` (np. `char_kebabkiller`, bez `@`); migracja BEZ backfillu (`init.js`+`schema.sql`); namespace wyprowadzany z `type`. (2) JEDEN deterministyczny builder `compileScenePlan`/`buildSceneDirectorPlan` (`productionDirector.js`) — `expandScenePrompt` (LLM) **usuniety** z toru renderu; stara `compileDeterministicScenePlan`/`enrichProductionPlan`/`stripRedundantTextBlocks` zastapione; legacy `director.js`/`i2vProduction.js` (poza torem renderu) nietkniete. (3) `deterministicSeed(planId:sceneId)` (`wanConfig.js`) — `Math.random()` usuniety z `runComfyEngine.js`. (4) wspolny `enrichDirectorForRender` (`workflowBuilder.js`) wolany przez podglad i produkcje; rozjechany `enrichDirectorJson` (`productionQueue.js`) zastapiony. (5) **Strażnik:** `productionPayloadGolden.test.js`. Testy: 92 → 110 pass.
 - **Faza C:** Klatka Zero (compose cutout+tlo, pozycja z panelu) + rozbicie `I2V_PRODUCTION` (kamera / animacja tla / beats) + zywe tlo + node IP-Adapter. Done: podglad kolazu 0 zl; 1 klip z zywym tlem i stala geometria.
+  - **Faza C — zrobione (bez GPU), sesja #20:** podzielono fazę na czesc 0 zl / niezalezna od GPU (zrobiona) i czesc GPU (odlozona — patrz nizej). Zrealizowane:
+    1. **Rozbicie `I2V_PROFILES` na niezalezne osie** kamera / tlo / beats ([backend/src/video/wanConfig.js](../backend/src/video/wanConfig.js)) — `camera.static` NIE zamraza juz tla; usuniety zlepek `staticCamera`/`singleBeat` ("zastepuj nie sklejaj").
+    2. **Zywe tlo odpiete od kamery** — `LIVING_BACKGROUND_PROMPT` (dym/ogien/neony, geometria stala) wstrzykiwany niezaleznie od `static_camera`, sterowalny override `background_motion=frozen` ([backend/src/ai/directorDesk/workflowBuilder.js](../backend/src/ai/directorDesk/workflowBuilder.js), [backend/src/ai/i2vProduction.js](../backend/src/ai/i2vProduction.js)). Anchor "feet on ground" = uziemienie POSTACI, zostaje.
+    3. **Klatka Zero — kaskada composite** (`scene → asset → fallback`): `assets.composite_default_json` (model + resolwer + pozycja/skala sterowalne), endpoint **podgladu kolazu 0 zl** `POST /composite/preview` (zero GPU), panel UI (suwaki pozycja/skala/zrodlo, live preview).
+    - **Strażnik:** golden `productionPayloadGolden` zielony (swiadoma aktualizacja — node 55 niesie teraz "Living background"); `runComfyEngine.js` NIETKNIETY. Testy: 110 → 115 pass.
+  - **Faza C — ODŁOŻONE (GPU, bloker z sekcji F):** czeka na lekki deployment RunComfy.
+    - **node IP-Adapter** w `wan_workflow_api.json` (drugi zamek tozsamosci) + edycja toru renderu wpinajaca composite/osie do realnego workflow.
+    - **realny render klipu** z zywym tlem i stala geometria (1 klip = kryterium "done" calej Fazy C).
+    - **zrodlo (3) Klatki Zero: generowanie 1 obrazu AI** (pozostale zrodla compose/upload/biblioteka — zrobione).
 - **Faza D:** realne Domino (ekstrakcja ostatniej klatki -> start nastepnej) + picker klatki + resume partial. Done: odcinek 3 scen = 3 spojne klipy + manifest, retry tylko brakujacej sceny.
 - **Faza E:** AI-Inżynier MVP — `/api/system-agent`, petla naprawcza z checkpointami git + bramka testow + Dziennik Napraw + [Cofnij]. Done: sztuczny blad -> trafna diagnoza + diff + zastosowanie z mozliwoscia cofniecia.
 - **Faza F:** Studio-lustro UI — `engine_profile` w panelu (kaskada Studio/Serial/Odcinek/Scena z rodowodem wartosci), skorka per serial; sprzatniecie osieroconego kodu.
