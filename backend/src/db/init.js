@@ -171,6 +171,14 @@ export function initDatabase(dbPath) {
       FOREIGN KEY (thread_id) REFERENCES director_side_threads(id) ON DELETE CASCADE
     )`,
     'CREATE INDEX IF NOT EXISTS idx_director_side_messages_thread ON director_side_messages(thread_id)',
+    `CREATE TABLE IF NOT EXISTS dev_agent_messages (
+      id TEXT PRIMARY KEY,
+      role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
+      content TEXT NOT NULL DEFAULT '',
+      tool_calls_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_dev_agent_messages_created ON dev_agent_messages(created_at)',
   ];
 
   for (const sql of migrations) {

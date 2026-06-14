@@ -133,8 +133,8 @@ export function MobileQuickNav({ onNewEpisode }) {
       aria-label="Szybka nawigacja"
     >
       <div className="mx-auto flex max-w-lg items-stretch justify-around gap-0.5">
-        <QuickNavLink to="/" label="Start" />
         <QuickNavLink to="/catalog" label="Katalog" />
+        <QuickNavLink to="/projects" label="Seriale" />
         <button
           type="button"
           onClick={onNewEpisode}
@@ -142,8 +142,8 @@ export function MobileQuickNav({ onNewEpisode }) {
         >
           + Plan
         </button>
-        <QuickNavLink to={onEpisode ? location.pathname : '/'} label={onEpisode ? 'Plan' : 'Odcinki'} activeOverride={onEpisode} />
-        <QuickNavLink to="/settings" label="Wiedza" />
+        <QuickNavLink to="/desk" label="Reżyser" />
+        <QuickNavLink to="/dev" label="Dev" />
       </div>
     </nav>
   );

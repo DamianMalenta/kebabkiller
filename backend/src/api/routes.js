@@ -82,6 +82,8 @@ import {
 } from '../ai/directorDesk/agentServer.js';
 import { buildProjectBrain, setAssetImageMetadata } from '../db/directorDeskModels.js';
 import { buildDeterministicAssetMetadata } from '../ai/directorDesk/assetMetadata.js';
+import { handleDevMessage, getDevAgentState } from '../ai/devAgent.js';
+import { clearDevHistory } from '../db/devAgentModels.js';
 
 function formatJobResponse(job) {
   return {
@@ -877,6 +879,37 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       res.json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Programista (/dev agent)
+  router.get('/dev-agent/state', (_req, res) => {
+    try {
+      res.json(getDevAgentState());
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/dev-agent/chat', async (req, res) => {
+    try {
+      const { message } = req.body;
+      if (!message?.trim()) {
+        return res.status(400).json({ error: 'message is required' });
+      }
+      const result = await handleDevMessage(message.trim());
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.delete('/dev-agent/history', (_req, res) => {
+    try {
+      clearDevHistory();
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 

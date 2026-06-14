@@ -147,6 +147,16 @@ export const api = {
     delete: (id) => request(`/episodes/${id}`, { method: 'DELETE' }),
   },
 
+  devAgent: {
+    getState: () => request('/dev-agent/state'),
+    sendMessage: (message) =>
+      request('/dev-agent/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+      }),
+    clearHistory: () => request('/dev-agent/history', { method: 'DELETE' }),
+  },
+
   jobs: {
     list: () => request('/jobs'),
     get: (id) => request(`/jobs/${id}`),
