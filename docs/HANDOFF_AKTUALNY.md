@@ -1,7 +1,7 @@
 # HANDOFF AKTUALNY — stan na teraz
 
-**Ostatnia aktualizacja:** 2026-06-11 (sesja #14)  
-**Sesja:** mobile UX + pipeline polish + dev LAN
+**Ostatnia aktualizacja:** 2026-06-14 (sesja #15)  
+**Sesja:** Programista (/dev) panel — AI developer agent
 
 ---
 
@@ -17,8 +17,9 @@ Deployment RunComfy = środowisko GPU; panel overrides ≠ payload ze Studia.
 
 - **Plan odcinka (F1):** UI z krokami 0–6, Scenarzysta, auto-zapis scen, walidacja, akceptacja → produkcja. ✅
 - **Mobile:** Vite `host:true`, LAN `http://192.168.8.44:5173`, karty scen, sticky „Akceptuj”, dolny pasek nav, panel dzień/noc. ✅
-- **Backend:** `wanConfig` (WAN_LENGTH dla I2V), recovery partial/failed → retry; testy **64/64**. ✅
-- **Dev serwery:** backend **4001**, frontend **5173** — health OK (localhost + LAN). ✅
+- **Backend:** `wanConfig` (WAN_LENGTH dla I2V), recovery partial/failed → retry; testy **77/77**. ✅
+- **Dev serwery:** backend **4000**, frontend **5173** — health OK. ✅
+- **Programista (/dev):** panel AI developer agent — system info + Groq chat + fallback deterministyczny. ✅
 - **RunComfy:** deployment `b36cb944…` ciężki (ComfyUI-Manager) — bloker żywego WEBM. ❌
 - **Backlog:** F3 recenzja; Scenarzysta + `series_memory`; picker `asset_image_id`.
 
@@ -26,9 +27,10 @@ Deployment RunComfy = środowisko GPU; panel overrides ≠ payload ze Studia.
 
 ## Co zrobić jako pierwsze
 
-1. **Test z telefonu (Wi‑Fi):** http://192.168.8.44:5173 → Katalog → Nowy odcinek → kroki 1–6 → Akceptuj → obserwuj Produkcję.
-2. Jeśli render **failed** — logi backendu + RunComfy; ewentualnie nowy deployment Minimal (patrz `docs/RUNCOMFY_DEPLOYMENT.md`).
-3. Po udanym teście 2 klipów — rozważyć F3 lub podpięcie Scenarzysty do pamięci serialu.
+1. **Programista (/dev):** http://localhost:5173/dev — sprawdź system, joby, plany. Gdy GROQ_API_KEY ustawiony — działa AI chat. Bez klucza — fallback deterministyczny.
+2. **Test z telefonu (Wi‑Fi):** http://192.168.8.44:5173 → Katalog → Nowy odcinek → kroki 1–6 → Akceptuj → obserwuj Produkcję.
+3. Jeśli render **failed** — logi backendu + RunComfy; ewentualnie nowy deployment Minimal (patrz `docs/RUNCOMFY_DEPLOYMENT.md`).
+4. Po udanym teście 2 klipów — rozważyć F3 lub podpięcie Scenarzysty do pamięci serialu.
 
 ---
 
@@ -42,7 +44,8 @@ Deployment RunComfy = środowisko GPU; panel overrides ≠ payload ze Studia.
 | `canAccept` tylko właściwe statusy | ✅ |
 | Auto-zapis scen (select + blur) | ✅ |
 | `wanConfig` + `.env` spójne (WAN_LENGTH=73, I2V_PRODUCTION) | ✅ |
-| Backend testy | ✅ 64/64 |
+| Backend testy | ✅ 77/77 |
+| Programista (/dev) panel + API + DB | ✅ |
 | RunComfy stabilny | ❌ |
 | Scenarzysta + series_memory | ❌ backlog |
 | F3 recenzja klipów | ❌ |

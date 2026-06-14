@@ -4,6 +4,29 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ---
 
+## Sesja #15 — 2026-06-14
+
+**Zakres:** Wdrożenie Programisty (/dev) — panel AI developer agent wg `docs/07_DEV_AGENT_PLAN.md` v2.
+
+### Zrobiono
+- Stworzono `docs/07_DEV_AGENT_PLAN.md` — plan faz 0→5 Programisty.
+- **Faza 1:** migracja DB — tabela `dev_agent_messages` (id, role, content, tool_calls_json, created_at).
+- **Faza 2:** `backend/src/ai/devAgent.js` — agent Groq z narzędziami systemowymi:
+  - Narzędzia: `getSystemHealth`, `listJobs`, `getJobDetails`, `listEpisodePlans`, `getProductionStatus`, `getBackendConfig`
+  - Agentic loop (max 3 rundy tool calls), fallback deterministyczny bez klucza API.
+- **Faza 3:** API routes — `GET /dev-agent/state`, `POST /dev-agent/chat`, `DELETE /dev-agent/history`.
+- **Faza 4:** `backend/src/db/devAgentModels.js` + rozszerzenie `api.devAgent.*` w kliencie frontendu.
+- **Faza 5:** `frontend/src/pages/DevPanel.jsx` — 2-kolumnowy layout (systeminfo + czat), `devAgent.js`.
+  - Nawigacja: link "Programista" w pasku górnym (desktop) i dolnym (mobile).
+  - CSS `.dev-grid` responsywny (breakpoint 900px).
+- **Fix:** `backend/package.json` — usunięto `--use-system-ca` (Node v22.14.0 nie obsługuje).
+- Testy: 77/77 ✅.
+
+### Werdykt
+Panel Programisty (/dev) wdrożony i przetestowany. UI renderuje systeminfo + czat. Bez GROQ_API_KEY: fallback deterministyczny z pełną informacją o stanie systemu.
+
+---
+
 ## Sesja #14 — 2026-06-11
 
 **Zakres:** Audyt frontendu, pipeline fixy, mobile UX, dev LAN pod telefon, instrukcje w UI.
