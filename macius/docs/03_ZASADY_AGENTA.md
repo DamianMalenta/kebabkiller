@@ -17,9 +17,18 @@ Pełny kontrakt. Skrót jest w [`../AGENTS.md`](../AGENTS.md) i [00_START_TUTAJ.
 - Nie wymyślaj API, zależności, wersji. Jeśli nie wiesz — sprawdź plik lub powiedz „nie ustalono".
 - Audyt = **fakty z kodu** (lintery, AST, grep), nie wrażenia.
 
-## 3. Bezpieczeństwo zmian (gdy już piszemy kod produktu)
+## 3. Kopie lokalne — wolno wszystko (ważne!)
 
-> Marzenie W3/W4: bezpiecznie na docelowych serwerach.
+`gema0/` i `kebabkiller/` w `macius/` to **lokalne kopie** wrzucone z repo. **Można je dowolnie
+przerabiać, ciąć, usuwać i eksperymentować** — oryginały (zdalne repozytoria) zostają bezpieczne.
+
+Rozsądne dobre praktyki (nie zakazy):
+- **Audyt przed mocnym cięciem** `gema0/` — żeby wiedzieć, co wycinasz (audyt to fotografia stanu).
+- **Commituj na bieżąco** — to kopie, więc baw się śmiało, ale miej historię do cofania.
+
+## 4. Bezpieczeństwo zmian — TYLKO żywa produkcja (gdy wdrażamy produkt na realne serwery)
+
+> Marzenie W3/W4. To dotyczy **wdrożonego produktu na prod**, NIE lokalnych kopii w `macius/`.
 
 1. **Izolacja** — praca w osobnej gałędzi/worktree, nigdy w main/prod.
 2. **Diff-only** + allowlista plików; brak edycji poza zakresem.
@@ -31,15 +40,10 @@ Pełny kontrakt. Skrót jest w [`../AGENTS.md`](../AGENTS.md) i [00_START_TUTAJ.
 
 (Rozwinięte w lejku Symbiont: `../../projekt-symbiont/docs/05_BEZPIECZENSTWO.md`.)
 
-## 4. gema0 — read-only
-
-- **Nie modyfikuj `gema0/`.** To wierne źródło do audytu (i zasada repo „nie dotykaj gema-0").
-- Wszystkie wnioski, poprawki, propozycje → `macius/`.
-
 ## 5. Git
 
 - Osobna gałąź per temat; osobny PR; czytelne, atomowe commity (jeden logiczny zysk = jeden commit).
-- Nie mieszaj w jednym PR zmian z różnych światów (gema0-analiza vs. kod macius vs. kebabkiller).
+- Dla czytelności staraj się nie mieszać w jednym PR zmian z różnych obszarów (gema0 vs. macius vs. kebabkiller).
 - Bez force-push i amendów bez wyraźnej zgody.
 
 ## 6. Dokumentowanie wyników
@@ -56,5 +60,5 @@ Pełny kontrakt. Skrót jest w [`../AGENTS.md`](../AGENTS.md) i [00_START_TUTAJ.
 - [ ] Wynik oparty o fakty (cytaty ścieżek), nie zgadywanie.
 - [ ] Zapisany w odpowiednim miejscu wg szablonu.
 - [ ] `HANDOFF_AKTUALNY.md` zaktualizowany, wpis w `DZIENNIK_SESJI.md`.
-- [ ] Jeśli kod: gałąź + PR + zielone testy; produkcja nietknięta.
-- [ ] `gema0/` nietknięty.
+- [ ] Jeśli zmiany w kopiach (`gema0/`/`kebabkiller/`): scommitowane, by dało się cofnąć.
+- [ ] Jeśli wdrożenie na żywą produkcję: gałąź + PR + zielone testy; prod nietknięty wprost.

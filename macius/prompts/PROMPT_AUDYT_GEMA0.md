@@ -3,7 +3,8 @@
 Warunek: `gema0/` jest już w workspace. Skopiuj do nowego okna:
 
 ```text
-Pracujemy w workspace MACIUS. Zadanie: TWARDY AUDYT katalogu gema0/. TRYB: tylko analiza, ZERO kodu, READ-ONLY.
+Pracujemy w workspace MACIUS. Zadanie: TWARDY AUDYT katalogu gema0/. TRYB: tylko analiza, ZERO kodu (na razie).
+gema0/ to lokalna KOPIA — później wolno ją dowolnie przerabiać, ale na etapie audytu tylko OBSERWUJEMY (nie zmieniamy), żeby mieć rzetelną fotografię stanu.
 
 Przeczytaj najpierw: macius/AGENTS.md, macius/docs/00_START_TUTAJ.md, macius/docs/01_MISJA.md,
 macius/docs/04_AUDYT_GEMA0.md, macius/templates/AUDYT_TEMPLATE.md.
@@ -18,6 +19,6 @@ Wykonaj audyt gema0/ wg metodyki z 04_AUDYT_GEMA0.md — FAKTY z kodu, cytuj śc
 7. Rekomendacja wejścia w fuzję.
 
 Użyj darmowych narzędzi (ripgrep, cloc/tokei, lintery, gitleaks, npm audit/pip-audit, madge/depcheck) — bez płatnych usług.
-NIE modyfikuj gema0/. Wynik zapisz do: macius/audyty/AUDYT_GEMA0_<dzisiejsza-data>.md wg szablonu.
-Najpierw pokaż mi plan audytu (jakie komendy/sekcje) i poczekaj na "OK".
+Na czas audytu nie zmieniaj gema0/ (tylko obserwacja). Wynik zapisz do: macius/audyty/AUDYT_GEMA0_<dzisiejsza-data>.md wg szablonu.
+Najpierw pokaż mi plan audytu (jakie komendy/sekcje) i poczekaj na "OK". Po audycie przeróbki gema0/ są dozwolone (to kopia).
 ```

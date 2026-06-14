@@ -1,6 +1,6 @@
 # audyty/ — wyniki audytów
 
-Tu trafiają **raporty audytów** generowane przez agentów (read-only wobec źródeł).
+Tu trafiają **raporty audytów** generowane przez agentów (faza obserwacji — fotografia stanu przed przeróbkami).
 
 - Nazewnictwo: `AUDYT_GEMA0_<RRRR-MM-DD>.md` (kolejne audyty = kolejne daty, nie nadpisuj).
 - Format: wg [`../templates/AUDYT_TEMPLATE.md`](../templates/AUDYT_TEMPLATE.md).

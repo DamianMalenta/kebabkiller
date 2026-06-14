@@ -14,8 +14,8 @@
 - [ ] Oparte o fakty (cytaty), nie zgadywanie
 - [ ] Wynik zapisany wg szablonu w odpowiednim miejscu
 - [ ] HANDOFF + dziennik zaktualizowane
-- [ ] (jeśli kod) gałąź + PR + testy zielone; produkcja nietknięta
-- [ ] `gema0/` nietknięty
+- [ ] Zmiany scommitowane (możliwość cofnięcia — to kopie, więc baw się śmiało)
+- [ ] (jeśli wdrożenie na żywą produkcję) gałąź + PR + testy zielone; prod nietknięty wprost
 
 ## Ryzyka / uwagi
 -

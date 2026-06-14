@@ -26,6 +26,10 @@ To centrum dowodzenia nazywa się **macius**. Wszystko, co robisz, zaczyna się 
 
 Dzięki temu nic się nie zepsuje przez przypadek. Ty masz kontrolę na każdym kroku.
 
+> 💡 **Ważne i wyzwalające:** `kebabkiller` i `gema0` w Twoim katalogu to **kopie**. Możesz je
+> dowolnie przerabiać, ciąć, wyrzucać i eksperymentować — **oryginały w internecie (repo) są bezpieczne**.
+> Jedyne, o co prosimy: zanim mocno potniesz `gema0`, zrób **audyt** (Krok 3), żeby wiedzieć, co tniesz.
+
 ---
 
 ## 🧭 Mapa drogi (5 kroków)
@@ -93,7 +97,8 @@ git remote remove zrodlo
 ## KROK 3 — Audyt gema0 (agent bada, Ty patrzysz) ⭐
 
 To najważniejszy krok. Agent przeczyta gema0 i powie Ci **faktami**: co jest dobre do użycia,
-a co do wyrzucenia. Bez tego łączenie projektów byłoby zgadywaniem.
+a co do wyrzucenia. Bez tego łączenie (i cięcie) projektów byłoby zgadywaniem. Audyt = „fotografia"
+stanu gema0 **przed** przeróbkami — potem przerabiasz go bez obaw (to kopia).
 
 ☐ **3.1** W Cursorze otwórz folder `macius` (ten główny, z trzema podfolderami).
 ☐ **3.2** Otwórz **nowe okno czatu** z agentem.
@@ -141,7 +146,7 @@ Dalej idziesz roadmapą: bezpieczne naprawy przez PR → bramka darmowych modeli
 
 1. **„Najpierw pokaż plan, nie pisz kodu."** — zawsze na start nowego zadania.
 2. **„OK, rób."** — dopiero gdy plan Ci pasuje.
-3. **„Nie dotykaj gema0 — tylko czytaj."** — gdy pracujecie nad audytem.
+3. **„To kopie — możesz je śmiało przerabiać, ale najpierw zrób audyt."** — gema0 i kebabkiller wolno ciąć.
 
 > Masz gotowe prompty w folderze [`../prompts/`](../prompts/) — nie musisz nic wymyślać, kopiuj i wklejaj.
 

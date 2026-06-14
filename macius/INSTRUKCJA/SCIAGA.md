@@ -23,7 +23,7 @@ git remote remove zrodlo
 ## 3 złote zdania do agenta
 1. „Najpierw pokaż plan, nie pisz kodu."
 2. „OK, rób." (gdy plan pasuje)
-3. „Nie dotykaj gema0 — tylko czytaj."
+3. „To kopie — możesz przerabiać, ale najpierw audyt." (gema0/kebabkiller wolno ciąć; oryginały bezpieczne)
 
 ## Kolejność działań
 | Krok | Co robisz | Gotowy prompt |
@@ -38,4 +38,5 @@ git remote remove zrodlo
 - Stan „co teraz" → `macius/docs/HANDOFF_AKTUALNY.md`
 
 ## Zasada bezpieczeństwa
-Agent nigdy nie zmienia żywej produkcji wprost. Zmiana zawsze: gałąź → testy → PR → możliwość cofnięcia.
+- Lokalne kopie (`gema0/`, `kebabkiller/`) → **przerabiaj śmiało** (oryginały w repo bezpieczne); commituj, by móc cofnąć.
+- Żywa produkcja (wdrożony produkt) → agent **nigdy** nie zmienia jej wprost: gałąź → testy → PR → rollback.

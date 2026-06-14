@@ -48,8 +48,8 @@ bezpieczny na produkcji, dostępny z każdego miejsca, ~0 zł).
 
 1. **PLAN domyślnie.** Kod dopiero po „OK, rób".
 2. **Anty-halucynacja:** cytuj realne ścieżki, nie zgaduj.
-3. **Trzy światy:** `gema0/` (audyt, read-only), `kebabkiller/` (źródło/host), `macius/` (nowa praca). Nie mieszać.
-4. **Nie dotykaj `gema0/`** — audyt jest read-only.
+3. **Trzy obszary:** `gema0/` (audyt/kanibalizacja), `kebabkiller/` (produkt/host), `macius/` (centrum).
+4. **To kopie — wolno wszystko.** `gema0/` i `kebabkiller/` przerabiaj/tnij swobodnie (oryginały w repo są bezpieczne). Praktyki: audyt przed cięciem + commituj na bieżąco.
 5. **Wyniki:** audyty → `audyty/`, decyzje → `decyzje/`, wg szablonów.
 6. **Po sesji:** aktualizuj `HANDOFF_AKTUALNY.md` + dopisz do `DZIENNIK_SESJI.md`.
 

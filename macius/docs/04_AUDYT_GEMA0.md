@@ -3,7 +3,11 @@
 **Cel:** zamienić prototyp gema0 w **fakty**: co działa, co jest wartościowe, co jest długiem, co
 odrzucić. To **fundament** decyzji o fuzji (bez audytu fuzja = zgadywanie).
 
-**Zasada:** audyt = **fakty z kodu**, nie wrażenia. **read-only**, `gema0/` nietknięty. Wynik → `audyty/`.
+**Zasada:** audyt = **fakty z kodu**, nie wrażenia. Wynik → `audyty/`.
+
+> **Audyt to faza obserwacji** — robimy „fotografię" stanu gema0 *zanim* zaczniemy ciąć. Sam `gema0/`
+> to lokalna kopia i **wolno go potem dowolnie przerabiać/wycinać** (oryginał w repo jest bezpieczny).
+> Audyt robimy najpierw tylko po to, żeby świadomie wiedzieć, co reużyć, a co wyrzucić.
 
 ---
 

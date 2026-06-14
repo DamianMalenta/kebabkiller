@@ -1,7 +1,7 @@
 # ADR-0001 — Założenie workspace macius jako głównego przejścia do dokumentacji
 
 - **Data:** 2026-06-14
-- **Status:** zaakceptowana
+- **Status:** zaakceptowana (część o „read-only" zaktualizowana — patrz ADR-0002)
 - **Kontekst workspace:** macius
 
 ## Kontekst
@@ -13,8 +13,8 @@ do dokumentacji** i osobną, idealną infrastrukturę dla agentów AI.
 ## Decyzja
 Tworzymy katalog **`macius/`** jako **główny punkt wejścia** dla agentów. Układ lokalny:
 `macius/` (repo) zawiera `kebabkiller/`, `gema0/` (wrzucane przez właściciela) oraz `macius/`
-(ta infrastruktura). Start agenta = `macius/docs/00_START_TUTAJ.md`. gema0 i kebabkiller są źródłami
-read-only; cała nowa praca dzieje się w `macius/`.
+(ta infrastruktura). Start agenta = `macius/docs/00_START_TUTAJ.md`. gema0 i kebabkiller to **lokalne
+kopie** (od ADR-0002 — read-write, wolno przerabiać); centrum pracy = `macius/`.
 
 ## Rozważane opcje
 | Opcja | Plusy | Minusy |

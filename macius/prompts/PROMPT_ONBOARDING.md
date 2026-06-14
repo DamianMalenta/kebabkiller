@@ -15,8 +15,8 @@ NAJPIERW przeczytaj (w tej kolejności, cytuj realne ścieżki, nie zgaduj):
 CEL: zbudować jedno innowacyjne oprogramowanie (agent Symbiont) na bazie twardego audytu gema0 + marzeń właściciela.
 
 TRZY ŚWIATY (nie mieszać):
-- gema0/ → audyt, READ-ONLY, NIE modyfikować
-- kebabkiller/ → źródło/wzór + 1. host, read-only
+- gema0/ → KOPIA: audyt + kanibalizacja (wolno przerabiać/ciąć, najlepiej po audycie)
+- kebabkiller/ → KOPIA: działający produkt + 1. host (wolno edytować, gdy zadanie wymaga)
 - macius/ → cała nowa praca
 
 ZASADY: PLAN domyślnie (kod dopiero po "OK, rób"); anty-halucynacja (cytuj ścieżki);

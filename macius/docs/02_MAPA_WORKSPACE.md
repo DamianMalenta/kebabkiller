@@ -8,18 +8,24 @@
 
 ```
 macius/                      ← repo git "macius"
-├── kebabkiller/             ← ŹRÓDŁO 1: istniejący produkt + 1. host pilotażowy (read-only)
-├── gema0/                   ← ŹRÓDŁO 2: prototyp do twardego audytu (read-only, NIE dotykać)
-└── macius/                  ← PRACA: cała nowa robota (docs, audyty, decyzje, plan, później kod)
+├── kebabkiller/             ← KOPIA: działający produkt + 1. host (edytuj swobodnie wg potrzeb)
+├── gema0/                   ← KOPIA: prototyp do audytu i kanibalizacji (przerabiaj/tnij do woli)
+└── macius/                  ← PRACA: centrum dowodzenia (docs, audyty, decyzje, plan, kod)
 ```
 
-## Trzy światy i reguły dostępu
+> **To wszystko są lokalne KOPIE z repo.** Można je dowolnie przerabiać, ciąć, usuwać, eksperymentować —
+> **oryginały (zdalne repozytoria) zostają nietknięte i bezpieczne.** Nie ma „świętych" folderów.
 
-| Świat | Folder | Dostęp | Po co |
-|-------|--------|--------|-------|
-| **Kebabkiller** | `kebabkiller/` | **read-only** (chyba że zadanie jawnie jego dotyczy) | wzór architektury + pierwszy host dla Symbionta |
-| **gema0** | `gema0/` | **read-only, NIE modyfikować** | przedmiot twardego audytu; źródło komponentów do ewentualnego reużycia |
-| **macius** | `macius/` | **read-write** | nowa praca: analizy, audyty, decyzje, roadmapa, kod produktu docelowego |
+## Trzy obszary i reguły dostępu
+
+| Obszar | Folder | Dostęp | Po co |
+|--------|--------|--------|-------|
+| **Kebabkiller** | `kebabkiller/` | **read-write** (kopia) | działający produkt + 1. host; źródło wzorców; edytuj gdy zadanie wymaga |
+| **gema0** | `gema0/` | **read-write** (kopia) | materiał do audytu i kanibalizacji; przerabiaj/wycinaj swobodnie |
+| **macius** | `macius/` | **read-write** | centrum: analizy, audyty, decyzje, roadmapa, kod produktu docelowego |
+
+> Jedyne rozsądne praktyki (nie zakazy): **najpierw audyt, potem cięcie** (żeby wiedzieć, co tniesz)
+> oraz **commituj na bieżąco** (żeby każdą zmianę dało się cofnąć).
 
 ## Gdzie co zapisywać
 
@@ -29,7 +35,7 @@ macius/                      ← repo git "macius"
 | Decyzja architektoniczna | `macius/decyzje/ADR-XXXX-<temat>.md` (wg `templates/ADR_TEMPLATE.md`) |
 | Propozycja architektury / fuzji | `macius/docs/` lub `macius/decyzje/` (wg `templates/PROPOZYCJA_TEMPLATE.md`) |
 | Zadanie/backlog | wg `templates/ZADANIE_TEMPLATE.md` |
-| Kod produktu docelowego (później) | osobny podkatalog w `macius/` (np. `macius/symbiont/`), NIE w `gema0/`/`kebabkiller/` |
+| Kod produktu docelowego (później) | najlepiej osobny podkatalog w `macius/` (np. `macius/symbiont/`) — albo bezpośrednio przerobiony `gema0/`/`kebabkiller/`, jeśli tak zdecyduje audyt/fuzja |
 
 ---
 
@@ -52,5 +58,6 @@ repo `macius` pojawią się również pliki Kebabkillera (`backend/`, `frontend/
 
 ## Zasada złota
 
-> **Audyt i wnioski o gema0 → piszemy w `macius/`, nigdy w `gema0/`.**
-> gema0 pozostaje nietknięty jako wierne źródło prawdy do audytu.
+> **To są kopie — baw się śmiało.** gema0 i kebabkiller możesz przerabiać, ciąć i przepisywać.
+> Oryginały żyją w zdalnych repo. Jedyne, czego pilnujemy: **audyt przed dużym cięciem** i
+> **commit na bieżąco** (żeby móc cofnąć). Raporty/decyzje i tak trzymamy w `macius/`.

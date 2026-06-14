@@ -14,8 +14,10 @@ Upewnij się, że jesteś w swoim folderze `macius` (komenda `cd sciezka/do/maci
 → Napisz mu: **„Zatrzymaj się. Najpierw plan, bez pisania kodu. Czekam i zatwierdzę."**
 Na przyszłość zaczynaj zadanie zdaniem „Najpierw pokaż plan, nie pisz kodu."
 
-## „Agent chce ruszyć gema0 / coś w gema0 zmienić"
-→ Napisz: **„Nie dotykaj gema0. To tylko do czytania (audyt)."** gema0 zostaje nietknięty.
+## „Czy agent może zmieniać gema0 / kebabkiller?"
+→ **Tak.** To lokalne kopie — wolno je przerabiać, ciąć, wyrzucać. Oryginały w repo zostają bezpieczne.
+Jedyna prośba: zanim mocno potniesz `gema0`, niech agent **najpierw zrobi audyt** (Krok 3), żebyś
+wiedział, co tracisz. I niech **commituje na bieżąco**, żeby dało się cofnąć.
 
 ## „Po pobraniu mam w folderze masę plików kebabkillera, których nie chciałem"
 → To normalne, jeśli poszedłeś „grubym" pullem. Najprościej użyj **Drogi B** ze ściągi

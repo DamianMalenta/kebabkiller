@@ -14,17 +14,21 @@ alwaysApply: false
 3. `macius/docs/01_MISJA.md`
 4. `macius/docs/HANDOFF_AKTUALNY.md`
 
-## Trzy światy (NIE mieszać)
-- `gema0/` — twardy audyt, **read-only, NIE modyfikować**.
-- `kebabkiller/` — źródło/wzór + 1. host, read-only.
-- `macius/` — cała nowa praca (analizy, audyty, decyzje, plan, kod produktu).
+## To są KOPIE — wolno wszystko
+`gema0/` i `kebabkiller/` to lokalne kopie z repo. **Przerabiaj, tnij, usuwaj, eksperymentuj swobodnie** —
+oryginały (zdalne repo) zostają bezpieczne.
+
+## Trzy obszary (role, nie zakazy edycji)
+- `gema0/` — audyt + kanibalizacja (edytuj swobodnie, najlepiej po audycie).
+- `kebabkiller/` — działający produkt + 1. host (edytuj, gdy zadanie wymaga).
+- `macius/` — centrum: analizy, audyty, decyzje, plan, kod produktu.
 
 ## Zasady
 - Domyślnie **PLAN, nie Agent** — kod dopiero po „OK, rób".
 - Anty-halucynacja: czytaj realne pliki, **cytuj ścieżki** (np. `gema0/src/...`).
+- Audyt przed dużym cięciem `gema0/`; commituj na bieżąco (bezpiecznik do cofania).
 - Wyniki: audyty → `macius/audyty/`, decyzje → `macius/decyzje/`, wg `macius/templates/`.
-- Bezpieczeństwo zmian: gałąź → diff → testy → PR → rollback; nigdy edycji prod wprost.
-- Nie modyfikuj `gema0/`.
+- Bezpieczeństwo dotyczy **żywej produkcji** (wdrożony produkt): gałąź → testy → PR → rollback; nigdy edycji prod wprost.
 
 ## Koniec sesji
 Aktualizuj `macius/docs/HANDOFF_AKTUALNY.md` + dopisz wpis do `macius/docs/DZIENNIK_SESJI.md`.
