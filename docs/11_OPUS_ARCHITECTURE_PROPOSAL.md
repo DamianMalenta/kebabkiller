@@ -102,7 +102,7 @@ flowchart LR
 
 ## F. Ryzyka
 
-- Jeden przebieg I2V (Faza C) wymaga wezlow ControlNet/depth + IP-Adapter na GPU; obecny deployment RunComfy jest za ciezki (bloker) — dobor lekkiego deploymentu to warunek Fazy C.
+- ~~Jeden przebieg I2V (Faza C) wymaga wezlow ControlNet/depth + IP-Adapter na GPU; obecny deployment RunComfy jest za ciezki (bloker)~~ **BLOKER FREEZE ROZWIAZANY 2026-06-15**: hardware podbity `AMPERE_24`→`AMPERE_48`, smoke `succeeded` (WEBM z node 52). Baza ma juz wezly IPAdapter/ControlNet. Pozostaje: (a) wpiecie IP-Adapter/ControlNet do workflow = Faza C-GPU, (b) opcjonalnie lzejsza baza (cold start ~7 min). Szczegoly: `docs/RUNCOMFY_DEPLOYMENT.md`.
 - AI-Inżynier z prawem zapisu (Faza E) — bramka testow + checkpoint git obowiazkowe; zapis tylko do whitelisty (nigdy `.env` ani zlote pliki).
 
 ## G. Uwaga dla nowej sesji (anti-pokrecenie)

@@ -2,6 +2,15 @@
 
 **Cel:** uniknąć freeze GPU po `Model WAN21 prepared…` i uzyskać stabilny output WEBM (node 52).
 
+## STAN 2026-06-15 — BLOKER FREEZE ROZWIĄZANY ✅
+
+Audyt deploymentu `KebabKiller-WAN-Minimal` (`7a8411f1-aad2-4fbb-8c07-6c1d0e724ad7`) wykazał:
+- **Przyczyna freeze:** hardware `AMPERE_24` (24 GB) — za mało na Wan 14B. **Fix:** podbito na `AMPERE_48` (A6000, 48 GB) przez MCP `update_deployment`. `min_instances:0` (brak kosztu na biegu jałowym).
+- **Smoke OK:** request `98fbbc41-...` zakończony `succeeded` — node 52 wyprodukował `ComfyUI_00001_.webm` (animated). Czas z cold startem ~6 min 48 s. Plik: `backend/output/smoke_98fbbc41.webm`.
+- **Uwaga 1 — graf na serwerze ma bug:** deployowany `workflow_api_json` ma poprzestawiane wejścia `KSampler` node 56 (`cfg='uni_pc'`, `sampler_name='simple'`, `scheduler=1`) → request na nim leci `failed`. **Studio renderuje lokalnym (poprawnym) `wan_workflow_api.json`**, więc realna ścieżka działa. Warto kiedyś naprawić graf w panelu RunComfy dla spójności.
+- **Uwaga 2 — środowisko nadal ciężkie:** `object_info` = 2436 typów węzłów + ComfyUI-Manager → długi cold start (~5-7 min). Lekka baza (niżej) to opcjonalna optymalizacja, nie bloker.
+- **Faza C-GPU:** baza ma już rodziny `IPAdapter*` i Wan ControlNet/camera — dodanie ich do workflow nie wymaga nowego środowiska.
+
 ## Problem (stan 2026-06)
 
 Ciężki deployment z ~30+ custom nodes + ComfyUI Manager powoduje zawieszenie po załadowaniu Wan 2.1. Pipeline kodu w Studio jest gotowy; bloker to środowisko GPU.
