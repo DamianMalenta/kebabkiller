@@ -15,7 +15,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 - [ ] Faza E — AI-Inżynier MVP (pętla naprawcza z cofaniem)
 - [ ] Faza F — Studio-lustro UI + sprzątanie martwego kodu
 
-**Kamień milowy 2026-06-15 (sesja #20):** GPU odblokowane — bloker freeze rozwiązany (RunComfy `AMPERE_24`→`AMPERE_48`). Potwierdzony **render e2e przez backend Studia**: zaakceptowany plan → `produce` → klip WEBM (`output/export/.../*.webm`). Cały łańcuch B+C (kompilacja @ID → enrich żywego tła + style_tags → composite Klatki Zero → workflow RunComfy → WEBM + manifest) działa na A6000. Uwaga: graf zapisany na deploymencie ma bug `KSampler` (Studio używa lokalnego `wan_workflow_api.json`, więc render OK). Cold start ciężkiego środowiska ~7 min → kandydat do odchudzenia. Szczegóły: `docs/RUNCOMFY_DEPLOYMENT.md`. Następne: Faza C-GPU (IP-Adapter + ControlNet/depth).
+**Ustalenie diagnostyczne 2026-06-15 (sesja #20) — UWAGA: to PROTEZA, nie docelowa architektura.** Zdiagnozowano przyczynę freeze: za mały VRAM (`AMPERE_24` 24 GB na Wan 14B). Łańcuch B+C zwalidowano e2e na GPU (zaakceptowany plan → `produce` → klip WEBM `output/export/.../*.webm`: kompilacja @ID → enrich żywego tła + style_tags → composite Klatki Zero → workflow RunComfy → WEBM + manifest). **ALE** zrobiono to stopgapem — podbiciem hardware **starego, ciężkiego deploymentu** (`AMPERE_24`→`AMPERE_48`, 2436 nodów + Manager, cold start ~7 min). To **sprzeczne z planem** ("zastępuj nie sklejaj" + `RUNCOMFY_DEPLOYMENT.md`: „nie reużywaj starego z Managerem"). **Docelowo (Faza C-GPU): NOWY lekki deployment ComfyUI-Minimal.** Faza C-GPU pozostaje NIEZAKOŃCZONA (IP-Adapter + ControlNet/depth + realny klip z zamkiem tożsamości — wciąż do zrobienia). Stan ubocznych zmian sesji #20: hardware starego deploymentu pozostawiony na `AMPERE_48`, harness `backend/scripts/seed-smoke.mjs` + placeholdery zostawione. Szczegóły: `docs/RUNCOMFY_DEPLOYMENT.md`.
 
 ## A. Błędy logiczne znalezione w kodzie (zweryfikowane)
 
@@ -104,7 +104,7 @@ flowchart LR
 
 ## F. Ryzyka
 
-- ~~Jeden przebieg I2V (Faza C) wymaga wezlow ControlNet/depth + IP-Adapter na GPU; obecny deployment RunComfy jest za ciezki (bloker)~~ **BLOKER FREEZE ROZWIAZANY 2026-06-15**: hardware podbity `AMPERE_24`→`AMPERE_48`, smoke `succeeded` (WEBM z node 52). Baza ma juz wezly IPAdapter/ControlNet. Pozostaje: (a) wpiecie IP-Adapter/ControlNet do workflow = Faza C-GPU, (b) opcjonalnie lzejsza baza (cold start ~7 min). Szczegoly: `docs/RUNCOMFY_DEPLOYMENT.md`.
+- Jeden przebieg I2V (Faza C) wymaga wezlow ControlNet/depth + IP-Adapter na GPU. **Bloker = brak lekkiego deploymentu** (stary jest za ciezki: 2436 nodow + Manager). Diagnoza sesji #20: freeze byl od VRAM (24 GB za malo) — potwierdzone, ale "naprawione" PROTEZA (podbicie hardware starego). Docelowo wg planu: NOWY lekki deployment ComfyUI-Minimal (`RUNCOMFY_DEPLOYMENT.md`: „nie reuzywaj starego z Managerem"). Faza C-GPU NIEZAKONCZONA.
 - AI-Inżynier z prawem zapisu (Faza E) — bramka testow + checkpoint git obowiazkowe; zapis tylko do whitelisty (nigdy `.env` ani zlote pliki).
 
 ## G. Uwaga dla nowej sesji (anti-pokrecenie)
