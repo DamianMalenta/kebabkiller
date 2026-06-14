@@ -133,6 +133,7 @@ export function getToolDefinitions(allowedNames) {
           duration_sec: { type: 'number' },
           sort_order: { type: 'number' },
           asset_id: { type: 'string' },
+          asset_image_id: { type: 'string' },
           location_asset_id: { type: 'string' },
         },
         required: ['description_pl'],
@@ -234,6 +235,7 @@ export function getToolDefinitions(allowedNames) {
         properties: {
           scene_id: { type: 'string' },
           asset_id: { type: 'string' },
+          asset_image_id: { type: 'string' },
           location_asset_id: { type: 'string' },
         },
         required: ['scene_id'],
@@ -379,6 +381,7 @@ export async function executeTool(name, args, ctx) {
                 duration_sec: args.duration_sec ?? s.duration_sec,
                 sort_order: args.sort_order ?? s.sort_order,
                 asset_id: args.asset_id ?? s.asset_id,
+                asset_image_id: args.asset_image_id ?? s.asset_image_id,
                 location_asset_id: args.location_asset_id ?? s.location_asset_id,
               }
             : s,
@@ -390,6 +393,7 @@ export async function executeTool(name, args, ctx) {
           duration_sec: args.duration_sec ?? 4,
           sort_order: args.sort_order ?? scenes.length,
           asset_id: args.asset_id ?? null,
+          asset_image_id: args.asset_image_id ?? null,
           location_asset_id: args.location_asset_id ?? null,
         });
       }
@@ -473,6 +477,7 @@ export async function executeTool(name, args, ctx) {
           ? {
               ...s,
               asset_id: args.asset_id ?? s.asset_id,
+              asset_image_id: args.asset_image_id ?? s.asset_image_id,
               location_asset_id: args.location_asset_id ?? s.location_asset_id,
             }
           : s,
