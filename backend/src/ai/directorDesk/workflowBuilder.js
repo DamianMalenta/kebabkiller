@@ -39,14 +39,17 @@ export function buildDynamicRenderRules({
   };
 }
 
-export function buildDynamicWorkflowPayload({
-  jobId,
-  userPrompt,
+/**
+ * JEDNA wspólna funkcja enrichment dla podglądu I produkcji (Faza B, krok 4).
+ * Wstrzykuje styl projektu (style_tags) + anchor do positive_prompt i dokleja
+ * parametry I2V/continuity z reguł. Koniec „preview != prod" — oba tory wołają to samo.
+ */
+export function enrichDirectorForRender({
   directorJson,
-  processedAssets,
+  userPrompt,
   project,
   scene,
-  generatorTags,
+  generatorTags = [],
 }) {
   const rules = buildDynamicRenderRules({
     project,
@@ -62,6 +65,7 @@ export function buildDynamicWorkflowPayload({
     wan_denoise: rules.denoise,
     static_camera: rules.static_camera,
     dynamic_rules: rules,
+    continuity_mode: rules.continuity_mode,
   };
 
   if (rules.style_tags.length) {
@@ -77,6 +81,26 @@ export function buildDynamicWorkflowPayload({
       rules.anchor_prompt,
     ].filter(Boolean).join(', ');
   }
+
+  return { enrichedDirector, rules };
+}
+
+export function buildDynamicWorkflowPayload({
+  jobId,
+  userPrompt,
+  directorJson,
+  processedAssets,
+  project,
+  scene,
+  generatorTags,
+}) {
+  const { enrichedDirector, rules } = enrichDirectorForRender({
+    directorJson,
+    userPrompt,
+    project,
+    scene,
+    generatorTags,
+  });
 
   const { workflow_api_json } = buildRunComfyWorkflow(
     jobId,

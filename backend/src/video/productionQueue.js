@@ -14,7 +14,7 @@ import {
   listProductionClips,
 } from '../db/productionModels.js';
 import { buildEpisodeVisualProfile, buildSceneDirectorPlan } from '../ai/productionDirector.js';
-import { buildDynamicRenderRules } from '../ai/directorDesk/workflowBuilder.js';
+import { enrichDirectorForRender } from '../ai/directorDesk/workflowBuilder.js';
 import { getDirectorProject } from '../db/directorDeskModels.js';
 import { getAsset } from '../db/episodeModels.js';
 
@@ -84,33 +84,32 @@ function parseSceneOverrides(scene) {
   }
 }
 
-function enrichDirectorJson(directorJson, plan, scene) {
+/**
+ * Produkcja = podgląd: ten sam enrichment co Director's Desk (wstrzyknięcie
+ * style_tags + anchor do positive_prompt). Bez projektu (np. plan bez serialu)
+ * zwracamy plan bez zmian.
+ */
+function enrichDirectorForProduction(directorJson, plan, scene) {
   if (!plan?.project_id) return directorJson;
   const project = getDirectorProject(plan.project_id);
   if (!project) return directorJson;
 
-  const rules = buildDynamicRenderRules({
+  const { enrichedDirector } = enrichDirectorForRender({
+    directorJson,
+    userPrompt: scene.description_pl,
     project,
     scene: { ...scene, ai_overrides: parseSceneOverrides(scene) },
-    directorPlan: directorJson,
     generatorTags: project.generator_tags || [],
   });
 
-  return {
-    ...directorJson,
-    i2v_profile: rules.i2v_profile,
-    duration_sec: rules.duration_sec,
-    wan_denoise: rules.denoise,
-    dynamic_rules: rules,
-    continuity_mode: rules.continuity_mode,
-  };
+  return enrichedDirector;
 }
 
 async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, onClipProgress) {
   updateProductionClip(clip.id, { status: 'directing', progress: 10 });
 
   let directorJson = await buildSceneDirectorPlan(plan, scene, visualProfile);
-  directorJson = enrichDirectorJson(directorJson, plan, scene);
+  directorJson = enrichDirectorForProduction(directorJson, plan, scene);
   updateProductionClip(clip.id, { directorJson, status: 'rendering', progress: 25 });
 
   const ext = engine.name === 'mock' ? '.webm' : '.webm';
