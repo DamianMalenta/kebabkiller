@@ -71,7 +71,9 @@ flowchart LR
 - Klatka Zero (scena 1) = osobny tani etap. **Pierwsza klatka to problem OBRAZU, nie wideo** — iterujesz tanio na statycznym obrazie, zanim ruszy drogie GPU. Cztery zrodla: (1) skladanie `@char + @loc` (domyslne, 0 zl), (2) upload gotowej klatki, (3) generowanie 1 obrazu AI, (4) klatka z biblioteki / poprzedniego odcinka. Domino z pickerem dla scen 2+.
 - Koszty ku zeru: mock/obraz najpierw, GPU po akceptacji. **LLM local-first** — router intencji i rozmowa na lokalnym modelu (Ollama/llama.cpp), chmura tylko jako fallback / heavy "rozpisz pomysl".
 - gema-0: poza architektura (zero zaleznosci).
-- **Czysta karta — brak migracji danych historycznych.** Stare projekty nie sa potrzebne. Baza SQLite (`backend/data/studio.db`) moze byc w kazdej chwili skasowana i odtworzona przez seed (`init.js`). Migracje schematu (np. kolumny `ref_id`/`kind` w Fazie B) **nie musza robic backfillu** — zakladaja czysty stan.
+- **Czysta karta — brak migracji danych historycznych.** Stare projekty nie sa potrzebne. Baza SQLite (`backend/data/studio.db`) moze byc w kazdej chwili skasowana i odtworzona przez seed (`init.js`). Migracje schematu (np. kolumna `ref_id` w Fazie B) **nie musza robic backfillu** — zakladaja czysty stan.
+- **ZASADA NADRZEDNA: „Zastepuj, nie sklejaj".** Stary kod byl pokrecony i niespojny. Gdy legacy jest niespojny — buduj JEDNA czysta implementacje i **usun stara**; **nie** zostawiaj zlych rozwiazan jako fallback, nie godz kilku zlych pomyslow w hybryde („potwora"). Granica: trzymaj sie zakresu biezacej fazy (nie rozlewaj sie na kolejne).
+- **Kontrakt @ID (zamkniety):** w `assets` dodajemy **tylko** kolumne `ref_id` (stabilny, **niemutowalny** slug, np. `char_kebabkiller`, bez `@`). Namespace (`char/loc/prop/detail`) **wyprowadzamy z istniejacego `type`** — NIE dodajemy redundantnej kolumny `kind`. `@` dokleja kompilator promptu przy budowie. Zmiana nazwy wyswietlanej NIE zmienia `ref_id`.
 
 ## D. Fazy (z kryterium "done")
 
