@@ -32,6 +32,7 @@ audytów plików** oraz bezpiecznym programistą na docelowych serwerach.
 | Jak instaluje się „w rdzeń" i dostaje tożsamość | [06_INSTALACJA_JAKO_MODUL.md](06_INSTALACJA_JAKO_MODUL.md) |
 | Realny plan etapami (MVP → dalej) | [07_ROADMAPA.md](07_ROADMAPA.md) |
 | **Jak rozdzielić od Kebabkiller (nie pomieszać)** | **[08_ROZDZIELENIE_OD_KEBABKILLER.md](08_ROZDZIELENIE_OD_KEBABKILLER.md)** |
+| **Spięcie z gema-0 (zadanie analityczne, bez kodu)** | **[09_SPIECIE_Z_GEMA0_BRIEFING.md](09_SPIECIE_Z_GEMA0_BRIEFING.md)** |
 | Historia sesji tego projektu | [DZIENNIK_SESJI.md](DZIENNIK_SESJI.md) |
 
 ---
