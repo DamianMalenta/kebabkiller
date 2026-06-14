@@ -11,6 +11,38 @@ const PLAN_STATUSES = new Set([
   'gotowy',
 ]);
 
+/**
+ * Statusy, w których plan jest "zamrożony" — granica Scenarzysta→Reżyser.
+ * Wartości pochodzą z istniejącej logiki: refreshEpisodePlanStatus pomija te
+ * statusy, /produce dopuszcza je do renderu, a acceptEpisodePlan ustawia
+ * 'zaakceptowany'. Po zamrożeniu fabuła/sceny nie mogą się już zmienić.
+ */
+export const FROZEN_PLAN_STATUSES = new Set([
+  'zaakceptowany',
+  'w_produkcji',
+  'gotowy',
+]);
+
+export function isPlanFrozen(status) {
+  return FROZEN_PLAN_STATUSES.has(status);
+}
+
+/** Rzuca błędem, gdy plan jest zamrożony (zaakceptowany / w produkcji / gotowy). */
+export function assertPlanEditable(episodePlanId) {
+  const row = getDb()
+    .prepare('SELECT status FROM episode_plans WHERE id = ?')
+    .get(episodePlanId);
+  if (!row) {
+    throw new Error('Plan odcinka nie istnieje.');
+  }
+  if (isPlanFrozen(row.status)) {
+    throw new Error(
+      `Plan jest zamrożony (status: ${row.status}) — edycja scen niedozwolona. Cofnij akceptację, aby zmieniać fabułę.`,
+    );
+  }
+  return row.status;
+}
+
 function parseJsonField(value, fallback = null) {
   if (!value) return fallback;
   try {
@@ -217,7 +249,8 @@ export function normalizePlanSceneInput(scene) {
   };
 }
 
-export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true } = {}) {
+export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true, enforceEditable = true } = {}) {
+  if (enforceEditable) assertPlanEditable(episodePlanId);
   const normalized = normalizePlanSceneInput(scene);
   const id = normalized.id || uuidv4();
   const existing = getDb().prepare('SELECT id FROM plan_scenes WHERE id = ?').get(id);
@@ -263,6 +296,7 @@ export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true } =
 
 export function deletePlanScene(sceneId) {
   const row = getDb().prepare('SELECT episode_plan_id FROM plan_scenes WHERE id = ?').get(sceneId);
+  if (row?.episode_plan_id) assertPlanEditable(row.episode_plan_id);
   const changed = getDb().prepare('DELETE FROM plan_scenes WHERE id = ?').run(sceneId).changes > 0;
   if (changed && row?.episode_plan_id) {
     refreshEpisodePlanStatus(row.episode_plan_id);
@@ -271,12 +305,13 @@ export function deletePlanScene(sceneId) {
 }
 
 export function replacePlanScenes(episodePlanId, scenes) {
+  assertPlanEditable(episodePlanId);
   const db = getDb();
   db.prepare('DELETE FROM plan_scenes WHERE episode_plan_id = ?').run(episodePlanId);
   const saved = scenes.map((scene, index) => upsertPlanScene(
     episodePlanId,
     { ...scene, sortOrder: index },
-    { refreshStatus: false },
+    { refreshStatus: false, enforceEditable: false },
   ));
   refreshEpisodePlanStatus(episodePlanId);
   return saved;

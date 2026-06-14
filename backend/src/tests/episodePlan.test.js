@@ -10,9 +10,26 @@ import {
   getEpisodePlan,
   addAssetImage,
   replacePlanScenes,
+  upsertPlanScene,
+  deletePlanScene,
   validateEpisodePlan,
   acceptEpisodePlan,
+  isPlanFrozen,
 } from '../db/episodeModels.js';
+
+function buildAcceptablePlan(code) {
+  const asset = createAsset({ type: 'character', name: `Hero-${code}`, descriptionPl: 'Hero' });
+  addAssetImage(asset.id, { path: `/uploads/${code}.jpg`, isPrimary: true });
+  const imageId = (getAsset(asset.id).images || [])[0]?.id;
+  const plan = createEpisodePlan({ code, logline: 'Test fabuła', targetDurationSec: 20 });
+  replacePlanScenes(plan.id, Array.from({ length: 5 }, (_, i) => ({
+    descriptionPl: `Scena ${i + 1}`,
+    durationSec: 4,
+    assetId: asset.id,
+    assetImageId: imageId,
+  })));
+  return { plan, asset, imageId };
+}
 
 let dbPath;
 
@@ -133,5 +150,63 @@ describe('episode plan validation', () => {
 
     const validation = validateEpisodePlan(plan.id);
     expect(validation.ok).toBe(true);
+  });
+});
+
+describe('PlanValidator — limity silnika', () => {
+  test('odrzuca scenę poza limitem czasu/klatek silnika', () => {
+    const asset = createAsset({ type: 'character', name: 'KebabLimit', descriptionPl: 'Hero' });
+    addAssetImage(asset.id, { path: '/uploads/limit.jpg', isPrimary: true });
+    const imageId = (getAsset(asset.id).images || [])[0]?.id;
+    const plan = createEpisodePlan({ code: 'ELIMIT', logline: 'Za długa scena', targetDurationSec: 30 });
+    replacePlanScenes(plan.id, [
+      { descriptionPl: 'Bardzo długa scena', durationSec: 30, assetId: asset.id, assetImageId: imageId },
+    ]);
+
+    const result = validateEpisodePlan(plan.id);
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => /2.?10 s|limit/i.test(e))).toBe(true);
+
+    expect(() => acceptEpisodePlan(plan.id)).toThrow();
+  });
+});
+
+describe('frozen plan — granica Scenarzysta→Reżyser', () => {
+  test('zaakceptowany plan jest zamrożony', () => {
+    const { plan } = buildAcceptablePlan('EFROZEN1');
+    const accepted = acceptEpisodePlan(plan.id);
+    expect(accepted.status).toBe('zaakceptowany');
+    expect(isPlanFrozen(accepted.status)).toBe(true);
+  });
+
+  test('replacePlanScenes rzuca na zamrożonym planie', () => {
+    const { plan, asset, imageId } = buildAcceptablePlan('EFROZEN2');
+    acceptEpisodePlan(plan.id);
+    expect(() => replacePlanScenes(plan.id, [
+      { descriptionPl: 'Nowa', durationSec: 4, assetId: asset.id, assetImageId: imageId },
+    ])).toThrow(/zamrożony/);
+  });
+
+  test('upsertPlanScene rzuca na zamrożonym planie', () => {
+    const { plan, asset, imageId } = buildAcceptablePlan('EFROZEN3');
+    acceptEpisodePlan(plan.id);
+    expect(() => upsertPlanScene(plan.id, {
+      descriptionPl: 'Doklejka', durationSec: 4, assetId: asset.id, assetImageId: imageId,
+    })).toThrow(/zamrożony/);
+  });
+
+  test('deletePlanScene rzuca na zamrożonym planie', () => {
+    const { plan } = buildAcceptablePlan('EFROZEN4');
+    const sceneId = getEpisodePlan(plan.id).scenes[0].id;
+    acceptEpisodePlan(plan.id);
+    expect(() => deletePlanScene(sceneId)).toThrow(/zamrożony/);
+  });
+
+  test('szkic planu nadal edytowalny', () => {
+    const { plan, asset, imageId } = buildAcceptablePlan('EFROZEN5');
+    expect(isPlanFrozen(getEpisodePlan(plan.id).status)).toBe(false);
+    expect(() => upsertPlanScene(plan.id, {
+      descriptionPl: 'Edycja w szkicu', durationSec: 4, assetId: asset.id, assetImageId: imageId,
+    })).not.toThrow();
   });
 });
