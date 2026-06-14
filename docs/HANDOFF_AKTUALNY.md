@@ -7,8 +7,8 @@
 
 ## ŹRÓDŁO PRAWDY (czytaj to, nie sprzeczne docs)
 
-**Plan architektury:** `.cursor/plans/kebabkiller_studio_architektura_8bceddbd.plan.md`  
-Dokumentacja w `docs/` ma **wiele sprzecznych wersji** — NIE traktuj jej jako prawdy. Prawda = **plan architektury + realny kod**.
+**Plan architektury:** `docs/11_OPUS_ARCHITECTURE_PROPOSAL.md` (śledzony w repo — działa w każdym oknie/klonie)  
+Dokumentacja w `docs/` ma **wiele sprzecznych wersji** — NIE traktuj jej jako prawdy. Prawda = **`docs/11_OPUS_ARCHITECTURE_PROPOSAL.md` + realny kod**.
 
 ---
 
@@ -82,10 +82,10 @@ npm test --prefix backend
 ## Prompt do nowego czatu
 
 ```text
-Wdrażamy plan: .cursor/plans/kebabkiller_studio_architektura_8bceddbd.plan.md
+Wdrażamy plan: docs/11_OPUS_ARCHITECTURE_PROPOSAL.md
 
 Tryb PLAN — zero edycji kodu, dopóki nie napiszę "OK, rób".
-Źródło prawdy = ten plan + realny kod. IGNORUJ sprzeczne docs.
+Źródło prawdy = docs/11_OPUS_ARCHITECTURE_PROPOSAL.md + realny kod. IGNORUJ sprzeczne docs.
 Najpierw przeczytaj plan + kod: screenwriter.js, directorDesk/agentTools.js,
 wizardStateMachine.js, episodeModels.js, api/routes.js, DirectorsDesk.jsx.
 Pracujemy TYLKO nad FAZĄ A. Pokaż krótki plan Fazy A (pliki, kolejność, testy).
@@ -100,7 +100,7 @@ Przed i po zmianach: npm test --prefix backend.
 ## Pliki kluczowe
 
 ```text
-.cursor/plans/kebabkiller_studio_architektura_8bceddbd.plan.md   ← źródło prawdy
+docs/11_OPUS_ARCHITECTURE_PROPOSAL.md                           ← źródło prawdy
 backend/src/ai/screenwriter.js
 backend/src/ai/directorDesk/agentTools.js
 backend/src/ai/directorDesk/wizardStateMachine.js
