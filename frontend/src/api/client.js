@@ -63,37 +63,6 @@ export const api = {
     deleteImage: (imageId) => request(`/asset-images/${imageId}`, { method: 'DELETE' }),
   },
 
-  episodePlans: {
-    list: () => request('/episode-plans'),
-    get: (id) => request(`/episode-plans/${id}`),
-    create: (body) => request('/episode-plans', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id, body) => request(`/episode-plans/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-    delete: (id) => request(`/episode-plans/${id}`, { method: 'DELETE' }),
-    replaceScenes: (id, scenes) => request(`/episode-plans/${id}/scenes`, {
-      method: 'PUT',
-      body: JSON.stringify({ scenes }),
-    }),
-    validate: (id) => request(`/episode-plans/${id}/validate`),
-    accept: (id, body = {}) => request(`/episode-plans/${id}/accept`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-    produce: (id) => request(`/episode-plans/${id}/produce`, { method: 'POST' }),
-    production: (id) => request(`/episode-plans/${id}/production`),
-    assist: (id, body) => request(`/episode-plans/${id}/assist`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-    resolveDeliverable: (deliverableId, formData) => request(`/deliverables/${deliverableId}/resolve`, {
-      method: 'POST',
-      body: formData,
-    }),
-    addDeliverable: (planId, body) => request(`/episode-plans/${planId}/deliverables`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-  },
-
   directorDesk: {
     getState: (projectId, episodePlanId) => {
       const q = episodePlanId ? `?episode_plan_id=${encodeURIComponent(episodePlanId)}` : '';
@@ -137,8 +106,6 @@ export const api = {
     update: (id, body) => request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
     episodes: (projectId) => request(`/projects/${projectId}/episodes`),
-    createEpisode: (projectId, body) =>
-      request(`/projects/${projectId}/episodes`, { method: 'POST', body: JSON.stringify(body) }),
   },
 
   episodes: {
