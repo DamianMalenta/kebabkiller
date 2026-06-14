@@ -30,7 +30,6 @@ import {
   deleteProject,
   listEpisodes,
   getEpisode,
-  createEpisode,
   updateEpisode,
   deleteEpisode,
   getSeriesContextForLlm,
@@ -312,25 +311,14 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     res.json(listEpisodePlans(req.params.projectId));
   });
 
-  router.post('/projects/:projectId/episodes', (req, res) => {
-    try {
-      const project = getProject(req.params.projectId);
-      if (!project) return res.status(404).json({ error: 'Project not found' });
-      if (!req.body.title?.trim()) {
-        return res.status(400).json({ error: 'Tytuł odcinka jest wymagany.' });
-      }
-      const item = createEpisode({
-        projectId: req.params.projectId,
-        episodeNumber: req.body.episode_number,
-        title: req.body.title,
-        synopsisPl: req.body.synopsis_pl,
-        directorNotes: req.body.director_notes,
-        status: req.body.status,
-      });
-      res.status(201).json(item);
-    } catch (err) {
-      res.status(400).json({ error: err.message });
-    }
+  // Legacy: tworzenie odcinka starym flow (tabela `episodes`) jest wycofane.
+  // Odcinki powstają wyłącznie przez kreator w Director's Desk (episode_plans).
+  // GET tego path nadal zwraca listę episode_plans (poniżej / wyżej).
+  router.post('/projects/:projectId/episodes', (_req, res) => {
+    res.status(410).json({
+      error: 'Endpoint wycofany. Użyj kreatora odcinka w Director\'s Desk (/desk).',
+      use_instead: 'director-desk',
+    });
   });
 
   router.get('/episodes/:id', (req, res) => {
