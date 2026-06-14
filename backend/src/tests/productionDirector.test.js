@@ -93,4 +93,59 @@ describe('productionDirector', () => {
     expect(directorPlan.wan_length).toBe(96);
     expect(formatClipCode('E02', 0)).toBe('E02_SC01');
   });
+
+  test('buildSceneDirectorPlan jest deterministyczny (zero LLM) — 2× ten sam plan = identyczny', async () => {
+    const char = createAsset({ type: 'character', name: 'DetHero', descriptionPl: 'Hero', canonEn: 'Wrap' });
+    const loc = createAsset({ type: 'location', name: 'DetPiec', descriptionPl: 'Kuchnia', canonEn: 'Brick oven' });
+    const plan = createEpisodePlan({ code: 'E05', logline: 'Determinizm', targetDurationSec: 8 });
+    replacePlanScenes(plan.id, [
+      { descriptionPl: 'Kebabkiller stoi i przechyla się', durationSec: 4, assetId: char.id, locationAssetId: loc.id },
+    ]);
+    const fullPlan = (await import('../db/episodeModels.js')).getEpisodePlan(plan.id);
+    const profile = buildEpisodeVisualProfile(fullPlan);
+    const scene = fullPlan.scenes[0];
+
+    const a = await buildSceneDirectorPlan(fullPlan, scene, profile);
+    const b = await buildSceneDirectorPlan(fullPlan, scene, profile);
+    expect(b).toEqual(a);
+  });
+
+  test('@ID: scena wiąże ref_id assetów (kompilator dokleja @)', async () => {
+    const char = createAsset({ type: 'character', name: 'Killer Drugi', descriptionPl: 'Hero', canonEn: 'Wrap' });
+    const loc = createAsset({ type: 'location', name: 'Piec Drugi', descriptionPl: 'Kuchnia', canonEn: 'Brick oven' });
+    const plan = createEpisodePlan({ code: 'E06', logline: 'IDtest', targetDurationSec: 8 });
+    replacePlanScenes(plan.id, [
+      { descriptionPl: 'Scena', durationSec: 4, assetId: char.id, locationAssetId: loc.id },
+    ]);
+    const fullPlan = (await import('../db/episodeModels.js')).getEpisodePlan(plan.id);
+    const profile = buildEpisodeVisualProfile(fullPlan);
+    const directorPlan = await buildSceneDirectorPlan(fullPlan, fullPlan.scenes[0], profile);
+
+    expect(directorPlan.character_ref_id).toBe('@char_killer_drugi');
+    expect(directorPlan.location_ref_id).toBe('@loc_piec_drugi');
+    expect(directorPlan.asset_refs).toEqual(['@char_killer_drugi', '@loc_piec_drugi']);
+  });
+
+  test('kolejność bloków positive_prompt jest stała i kanoniczna', async () => {
+    const char = createAsset({ type: 'character', name: 'BlockHero', descriptionPl: 'Hero', canonEn: 'WrapCanon' });
+    const loc = createAsset({ type: 'location', name: 'BlockPiec', descriptionPl: 'Kuchnia', canonEn: 'OvenCanon' });
+    const plan = createEpisodePlan({ code: 'E07', logline: 'Bloki', targetDurationSec: 8, preferences: 'dark mood' });
+    replacePlanScenes(plan.id, [
+      { descriptionPl: 'Kebabkiller stoi', durationSec: 4, assetId: char.id, locationAssetId: loc.id },
+    ]);
+    const fullPlan = (await import('../db/episodeModels.js')).getEpisodePlan(plan.id);
+    const profile = buildEpisodeVisualProfile(fullPlan);
+    const { positive_prompt: prompt } = await buildSceneDirectorPlan(fullPlan, fullPlan.scenes[0], profile);
+
+    // Brak composite (brak obrazów) → environment + identity obecne w prompcie.
+    const idxCinema = prompt.indexOf('Cinematography');
+    const idxQuality = prompt.indexOf('High quality');
+    const idxFormat = prompt.indexOf('Vertical 9:16');
+    const idxAction = prompt.indexOf('Action:');
+    expect(idxCinema).toBeGreaterThanOrEqual(0);
+    expect(idxQuality).toBeGreaterThan(idxCinema);
+    expect(idxFormat).toBeGreaterThan(idxQuality);
+    expect(idxAction).toBeGreaterThan(idxFormat);
+    expect(prompt.endsWith('dark mood')).toBe(true);
+  });
 });

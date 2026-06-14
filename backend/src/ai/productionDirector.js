@@ -1,8 +1,6 @@
-import { expandScenePrompt } from './director.js';
-import { applyI2vProductionProfile } from './i2vProduction.js';
 import { getAsset } from '../db/episodeModels.js';
 import { getDb } from '../db/init.js';
-import { WAN_FPS, WAN_QUALITY, parseI2vProfileId } from '../video/wanConfig.js';
+import { WAN_FPS, WAN_QUALITY, parseI2vProfileId, resolveWanRenderParams } from '../video/wanConfig.js';
 import { inferKinematicsFromPolish } from './kinematicsFromPrompt.js';
 
 const BASE_NEGATIVE =
@@ -74,97 +72,32 @@ function buildSceneUserPrompt(plan, scene) {
   return scene.description_pl || '';
 }
 
-// Strips identity/environment text blocks from LLM prompt when composite refs are available.
-// Prevents WAN 2.1 confusion between composite image and redundant text descriptions.
-function stripRedundantTextBlocks(prompt, refs) {
-  if (!prompt || !refs.characterAsset || !refs.locationAsset) return prompt;
-
-  let cleaned = prompt;
-  const stringsToRemove = [
-    refs.characterAsset.canon_en,
-    refs.characterAsset.description_pl,
-    refs.locationAsset.canon_en,
-    refs.locationAsset.description_pl,
-  ].filter(Boolean);
-
-  for (const s of stringsToRemove) {
-    // Remove the string and any trailing ", " or ", "
-    cleaned = cleaned.replace(new RegExp(`[,\\s]*${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[,\\s]*`, 'g'), ', ').trim();
-  }
-
-  // Clean up multiple commas / leading-trailing commas
-  return cleaned.replace(/^[,\s]+|[,\s]+$/g, '').replace(/,\s*,/g, ',').trim();
-}
-
-function enrichProductionPlan(directorPlan, scene, refs, visualProfile) {
-  const i2vProfile = visualProfile.i2v_profile || EPISODE_I2V_PROFILE;
-  const enriched = applyI2vProductionProfile(directorPlan, {
-    i2vProfile,
-    durationSec: scene.duration_sec,
-  });
-
-  enriched.character_ref = refs.characterRef || enriched.character_ref;
-  enriched.background_ref = refs.backgroundRef || enriched.background_ref;
-  enriched.i2v_profile = i2vProfile;
-  
-  enriched.episode_preferences = visualProfile.preferences;
-
-  const hasComposite = Boolean(enriched.character_ref && enriched.background_ref);
-  const canonParts = [];
-  if (!hasComposite) {
-    if (refs.characterAsset?.canon_en) canonParts.push(refs.characterAsset.canon_en);
-    if (refs.locationAsset?.canon_en) canonParts.push(refs.locationAsset.canon_en);
-  }
-  
-  // When composite is available: strip redundant identity/environment text the LLM already added
-  // (LLM runs with legacy refs where reference_path=null, so it adds text descriptions to prompt)
-  if (hasComposite && enriched.positive_prompt) {
-    enriched.positive_prompt = stripRedundantTextBlocks(enriched.positive_prompt, refs);
-  }
-
-  // Dodajemy twarde preferencje stylu z Kanonu do promptu
-  if (visualProfile.preferences) canonParts.push(visualProfile.preferences);
-
-  if (canonParts.length > 0) {
-    enriched.positive_prompt = [enriched.positive_prompt, ...canonParts].filter(Boolean).join(', ');
-  }
-
-  const negParts = [visualProfile.negative_prompt, enriched.negative_prompt]
-    .join(', ')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  enriched.negative_prompt = Array.from(new Set(negParts)).join(', ');
-
-  if (refs.locationAsset?.name) {
-    enriched.location_name = refs.locationAsset.name;
-  }
-
-  // Extra fields for fal.ai engine (Kling prompt builder reads these)
-  if (refs.characterAsset) {
-    enriched.character_description = refs.characterAsset.canon_en || refs.characterAsset.description_pl || null;
-  }
-  if (refs.locationAsset) {
-    enriched.background_description = refs.locationAsset.canon_en || refs.locationAsset.description_pl || null;
-  }
-  if (enriched.kinematics) {
-    const k = enriched.kinematics;
-    enriched.action_description = `${k.subject_state || 'standing'}, ${k.primary_motion || 'still'} motion at ${k.velocity || 'normal'} pace`;
-  }
-
-  return enriched;
-}
-
-function compileDeterministicScenePlan(userPrompt, scene, refs, visualProfile) {
+/**
+ * JEDEN kanoniczny builder promptu sceny (Faza B) — w pełni deterministyczny, zero LLM.
+ *
+ * Stała kolejność bloków positive_prompt (jedno źródło prawdy dla podglądu i produkcji):
+ *   1. Cinematography  2. Quality  3. Format 9:16
+ *   4. [Environment, Identity] — TYLKO gdy brak composite (char+bg jako obraz startowy)
+ *   5. Action (kinematyka z opisu PL)  6. Preferencje stylu odcinka
+ *
+ * Styl projektu (style_tags) i anchor wstrzykuje wspólny enrichment workflowBuilder.js
+ * (krok 4) — NIE tutaj, żeby nie dublować logiki w dwóch miejscach.
+ *
+ * @ID: assety wiązane po stabilnym ref_id (kompilator dokleja `@`), bez „pierwszej postaci z bazy".
+ */
+function compileScenePlan(userPrompt, scene, refs, visualProfile) {
   const kinematics = inferKinematicsFromPolish(userPrompt);
+  const i2vProfile = visualProfile.i2v_profile || EPISODE_I2V_PROFILE;
+  const params = resolveWanRenderParams({ i2vProfile, durationSec: scene.duration_sec });
+
   const cinemaBlock = 'Cinematography: medium shot, static, natural light.';
   const kinematicBlock = `Action: The subject is ${kinematics.subject_state}. Motion: ${kinematics.primary_motion} at a ${kinematics.velocity} pace.`;
-
   const identityBlock = refs.characterAsset?.canon_en || refs.characterAsset?.description_pl || '';
   const environmentBlock = refs.locationAsset?.canon_en
     || (refs.locationAsset?.description_pl ? `Setting: ${refs.locationAsset.description_pl}.` : '');
 
   const hasComposite = Boolean(refs.characterRef && refs.backgroundRef);
+
   const positivePrompt = [
     cinemaBlock,
     'High quality, detailed, sharp focus',
@@ -174,37 +107,44 @@ function compileDeterministicScenePlan(userPrompt, scene, refs, visualProfile) {
     visualProfile.preferences,
   ].filter(Boolean).join(', ');
 
-  return enrichProductionPlan({
+  const negativeParts = [visualProfile.negative_prompt, BASE_NEGATIVE]
+    .join(', ')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const negativePrompt = Array.from(new Set(negativeParts)).join(', ');
+
+  const characterRefId = refs.characterAsset?.ref_id ? `@${refs.characterAsset.ref_id}` : null;
+  const locationRefId = refs.locationAsset?.ref_id ? `@${refs.locationAsset.ref_id}` : null;
+
+  return {
     scene_summary: scene.description_pl,
     render_strategy: 'native_i2v',
     cinematography: { camera_shot: 'medium shot', camera_motion: 'static', lighting: 'natural light' },
     kinematics,
     positive_prompt: positivePrompt,
-    negative_prompt: BASE_NEGATIVE,
+    negative_prompt: negativePrompt,
     character_ref: refs.characterRef,
     background_ref: refs.backgroundRef,
+    character_ref_id: characterRefId,
+    location_ref_id: locationRefId,
+    asset_refs: [characterRefId, locationRefId].filter(Boolean),
+    i2v_profile: params.profile,
+    wan_length: params.length,
+    wan_denoise: params.denoise,
+    duration_sec: params.length / WAN_FPS,
+    location_name: refs.locationAsset?.name || null,
+    character_description: refs.characterAsset?.canon_en || refs.characterAsset?.description_pl || null,
+    background_description: refs.locationAsset?.canon_en || refs.locationAsset?.description_pl || null,
+    action_description: `${kinematics.subject_state || 'standing'}, ${kinematics.primary_motion || 'still'} motion at ${kinematics.velocity || 'normal'} pace`,
+    episode_preferences: visualProfile.preferences,
     _source: 'deterministic',
-  }, scene, refs, visualProfile);
+  };
 }
 
-/** Build GPU director plan for a single scene from accepted episode plan. */
-export async function buildSceneDirectorPlan(plan, scene, visualProfile) {
+/** Build GPU director plan for a single scene from accepted episode plan (deterministyczny, zero LLM). */
+export function buildSceneDirectorPlan(plan, scene, visualProfile) {
   const refs = resolveSceneAssetRefs(scene);
   const userPrompt = buildSceneUserPrompt(plan, scene);
-
-  let directorPlan;
-  try {
-    directorPlan = await expandScenePrompt(userPrompt, {
-      characterId: refs.legacyCharacterId,
-      backgroundId: refs.legacyBackgroundId,
-      i2vProfile: visualProfile.i2v_profile,
-      durationSec: scene.duration_sec,
-    });
-  } catch (err) {
-    console.warn('[ProductionDirector] LLM failed, using deterministic plan:', err.message);
-    directorPlan = compileDeterministicScenePlan(userPrompt, scene, refs, visualProfile);
-    return directorPlan;
-  }
-
-  return enrichProductionPlan(directorPlan, scene, refs, visualProfile);
+  return compileScenePlan(userPrompt, scene, refs, visualProfile);
 }
