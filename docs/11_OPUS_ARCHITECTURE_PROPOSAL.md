@@ -9,7 +9,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 ## Status faz
 
 - [x] Faza A (keystone) — jeden kanał zapisu scen + PlanValidator + frozen plan + sprzątnięcie wizarda/frontendu + legacy POST=410 + naprawa docs (sesja #18)
-- [ ] Faza B — deterministyczny Reżyser (@ID compiler, stały seed, koniec preview != prod)
+- [x] Faza B — deterministyczny Reżyser: `ref_id` (@ID), jeden builder, stały seed z planu, produkcja = podgląd, golden test (sesja #19)
 - [ ] Faza C — Klatka Zero + rozbicie I2V_PRODUCTION + żywe tło + IP-Adapter
 - [ ] Faza D — realne Domino + picker klatki + resume partial
 - [ ] Faza E — AI-Inżynier MVP (pętla naprawcza z cofaniem)
@@ -78,7 +78,8 @@ flowchart LR
 ## D. Fazy (z kryterium "done")
 
 - **Faza A (keystone, pierwsza):** jeden planista + twardy `PlanValidator` (kod) jako granica Scenarzysta->Reżyser + frozen plan; usuniecie duplikacji i martwego frontendu; **naprawa mylacych docs** (`HANDOFF_AKTUALNY.md`, `03_AGENT_STATE_AND_TASKS.md`) tak, by kazda nowa sesja startowala z prawdy (UI = Director's Desk; EpisodePlan = legacy; zrodlo prawdy = ten dokument). Done: plan poza limitami odrzucony przez kod; jeden kanal zapisu scen; docs startowe zgodne z kodem.
-- **Faza B:** deterministyczny Reżyser — `@ID` compiler (kolumny `ref_id`/`kind` w assetach), jeden builder, staly seed, produkcja uzywa tej samej logiki co podglad (koniec preview != prod), wstrzykniecie `style_tags`/anchor. Done: 2x ten sam plan = ten sam payload.
+- **Faza B (ZREALIZOWANA, sesja #19):** deterministyczny Reżyser — `@ID` compiler (kolumna `ref_id` w assetach, namespace z `type`, BEZ `kind`), jeden builder, staly seed, produkcja uzywa tej samej logiki co podglad (koniec preview != prod), wstrzykniecie `style_tags`/anchor. Done: 2x ten sam plan = ten sam payload.
+  - **Realne zmiany:** (1) `assets.ref_id` — stabilny, niemutowalny slug `type+name` (np. `char_kebabkiller`, bez `@`); migracja BEZ backfillu (`init.js`+`schema.sql`); namespace wyprowadzany z `type`. (2) JEDEN deterministyczny builder `compileScenePlan`/`buildSceneDirectorPlan` (`productionDirector.js`) — `expandScenePrompt` (LLM) **usuniety** z toru renderu; stara `compileDeterministicScenePlan`/`enrichProductionPlan`/`stripRedundantTextBlocks` zastapione; legacy `director.js`/`i2vProduction.js` (poza torem renderu) nietkniete. (3) `deterministicSeed(planId:sceneId)` (`wanConfig.js`) — `Math.random()` usuniety z `runComfyEngine.js`. (4) wspolny `enrichDirectorForRender` (`workflowBuilder.js`) wolany przez podglad i produkcje; rozjechany `enrichDirectorJson` (`productionQueue.js`) zastapiony. (5) **Strażnik:** `productionPayloadGolden.test.js`. Testy: 92 → 110 pass.
 - **Faza C:** Klatka Zero (compose cutout+tlo, pozycja z panelu) + rozbicie `I2V_PRODUCTION` (kamera / animacja tla / beats) + zywe tlo + node IP-Adapter. Done: podglad kolazu 0 zl; 1 klip z zywym tlem i stala geometria.
 - **Faza D:** realne Domino (ekstrakcja ostatniej klatki -> start nastepnej) + picker klatki + resume partial. Done: odcinek 3 scen = 3 spojne klipy + manifest, retry tylko brakujacej sceny.
 - **Faza E:** AI-Inżynier MVP — `/api/system-agent`, petla naprawcza z checkpointami git + bramka testow + Dziennik Napraw + [Cofnij]. Done: sztuczny blad -> trafna diagnoza + diff + zastosowanie z mozliwoscia cofniecia.
@@ -109,7 +110,7 @@ Fazy B→C→D dzielą te same pliki na torze renderu, więc nie są niezależne
 | `backend/src/video/productionQueue.js` | styl, preview=prod | — | resume + Domino | — |
 | `backend/src/ai/directorDesk/workflowBuilder.js` | @ID compiler | osie I2V | — | — |
 | `backend/src/video/wanConfig.js` / `i2vProduction.js` | — | rozbicie profilu | — | engine_profile |
-| `backend/src/db/episodeModels.js` | kolumny `ref_id`/`kind` | — | — | — |
+| `backend/src/db/episodeModels.js` | kolumna `ref_id` (bez `kind`) | — | — | — |
 
 `runComfyEngine.js` to główny punkt zapalny B/C/D.
 
