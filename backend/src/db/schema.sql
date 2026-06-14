@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS assets (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL CHECK(type IN ('character', 'location', 'prop', 'detail')),
   name TEXT NOT NULL,
+  ref_id TEXT,
   description_pl TEXT NOT NULL DEFAULT '',
   canon_en TEXT,
   legacy_character_id TEXT,
@@ -139,6 +140,7 @@ CREATE TABLE IF NOT EXISTS assets (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_name_type ON assets(name, type);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_ref_id ON assets(ref_id);
 
 CREATE TABLE IF NOT EXISTS asset_images (
   id TEXT PRIMARY KEY,

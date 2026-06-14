@@ -43,6 +43,39 @@ export function assertPlanEditable(episodePlanId) {
   return row.status;
 }
 
+/**
+ * Namespace @ID wyprowadzany z istniejącego `type` (NIE z osobnej kolumny `kind`).
+ * Jedno źródło prawdy typu assetu.
+ */
+const ASSET_NAMESPACE = {
+  character: 'char',
+  location: 'loc',
+  prop: 'prop',
+  detail: 'detail',
+};
+
+export function assetNamespace(type) {
+  return ASSET_NAMESPACE[type] || 'asset';
+}
+
+function slugifyAssetName(value) {
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+}
+
+/**
+ * Stabilny, niemutowalny slug @ID przechowywany BEZ `@` (np. `char_kebabkiller`).
+ * `@` dokleja kompilator promptu (Faza B, krok 2). Zmiana nazwy ≠ zmiana ref_id.
+ */
+export function buildAssetRefId(type, name) {
+  return `${assetNamespace(type)}_${slugifyAssetName(name)}`;
+}
+
 function parseJsonField(value, fallback = null) {
   if (!value) return fallback;
   try {
@@ -87,14 +120,16 @@ export function getAsset(id) {
 
 export function createAsset({ type, name, descriptionPl, canonEn, legacyCharacterId, legacyBackgroundId }) {
   const id = uuidv4();
+  const refId = buildAssetRefId(type, name);
   try {
     getDb().prepare(`
-      INSERT INTO assets (id, type, name, description_pl, canon_en, legacy_character_id, legacy_background_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO assets (id, type, name, ref_id, description_pl, canon_en, legacy_character_id, legacy_background_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       type,
       name,
+      refId,
       descriptionPl ?? '',
       canonEn ?? null,
       legacyCharacterId ?? null,
@@ -495,6 +530,7 @@ export function getCatalogForScreenwriter() {
   return listAssets().map((a) => ({
     id: a.id,
     type: a.type,
+    ref_id: a.ref_id,
     name: a.name,
     description_pl: a.description_pl,
     canon_en: a.canon_en,

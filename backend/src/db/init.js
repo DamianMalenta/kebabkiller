@@ -133,6 +133,9 @@ export function initDatabase(dbPath) {
     'ALTER TABLE plan_scenes ADD COLUMN ai_overrides_json TEXT',
     'ALTER TABLE plan_scenes ADD COLUMN storyboard_mock_json TEXT',
     'ALTER TABLE asset_images ADD COLUMN ai_metadata_json TEXT',
+    // Faza B (@ID compiler): stabilny, niemutowalny ref_id assetu. BEZ backfillu (czysta karta).
+    'ALTER TABLE assets ADD COLUMN ref_id TEXT',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_ref_id ON assets(ref_id)',
     `CREATE TABLE IF NOT EXISTS director_chat_messages (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
