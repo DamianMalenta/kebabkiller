@@ -1,7 +1,12 @@
 import { jest, describe, test, expect, beforeAll, afterAll } from '@jest/globals';
 import path from 'node:path';
 import sharp from 'sharp';
-import { buildStartFrameAsset, resolveUploadPath } from '../video/compositeStartFrame.js';
+import {
+  buildStartFrameAsset,
+  resolveUploadPath,
+  resolveCompositeConfig,
+  DEFAULT_COMPOSITE,
+} from '../video/compositeStartFrame.js';
 import { createUploadFixtures, destroyUploadFixtures } from './helpers/imageFixtures.js';
 
 describe('compositeStartFrame', () => {
@@ -83,5 +88,52 @@ describe('compositeStartFrame', () => {
     const meta = await sharp(buffer).metadata();
     expect(meta.width).toBe(480);
     expect(meta.height).toBe(832);
+  });
+
+  describe('kaskada composite (Faza C): scene ?? asset ?? hardcoded', () => {
+    test('resolveCompositeConfig — scena wygrywa, potem asset, potem fallback', () => {
+      const scene = { scale: 0.3, position: { x: 0.2, y: 0.5 } };
+      const asset = { scale: 0.8, position: { x: 0.9, y: 0.9 } };
+
+      // scena > asset
+      expect(resolveCompositeConfig(scene, asset).scale).toBe(0.3);
+      expect(resolveCompositeConfig(scene, asset).position.x).toBe(0.2);
+      // brak sceny → asset
+      expect(resolveCompositeConfig(null, asset).scale).toBe(0.8);
+      // brak obu → hardcoded fallback
+      const fb = resolveCompositeConfig(null, null);
+      expect(fb.scale).toBe(DEFAULT_COMPOSITE.scale);
+      expect(fb.position).toEqual(DEFAULT_COMPOSITE.position);
+      expect(fb.source).toBe('compose');
+    });
+
+    test('brakujące pola override dopełnia DEFAULT_COMPOSITE', () => {
+      const cfg = resolveCompositeConfig({ scale: 0.4 }, null);
+      expect(cfg.scale).toBe(0.4);
+      expect(cfg.position).toEqual(DEFAULT_COMPOSITE.position);
+      expect(cfg.heightScale).toBe(DEFAULT_COMPOSITE.heightScale);
+    });
+
+    test('composite override (scale/pozycja) zmienia złożoną klatkę vs domyślna', async () => {
+      const base = await buildStartFrameAsset({
+        characterRef: fixtures.characterRef,
+        backgroundRef: fixtures.backgroundRef,
+        uploadsDir: fixtures.dir,
+      });
+      const steered = await buildStartFrameAsset({
+        characterRef: fixtures.characterRef,
+        backgroundRef: fixtures.backgroundRef,
+        uploadsDir: fixtures.dir,
+        composite: { scale: 0.25, position: { x: 0.15, y: 0.4 } },
+      });
+
+      expect(steered?.source).toBe('composite');
+      // Override realnie wpływa na piksele → inna klatka niż domyślna.
+      expect(steered.data).not.toBe(base.data);
+
+      const meta = await sharp(Buffer.from(steered.data.split(',')[1], 'base64')).metadata();
+      expect(meta.width).toBe(480);
+      expect(meta.height).toBe(832);
+    });
   });
 });

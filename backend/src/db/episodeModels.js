@@ -88,7 +88,11 @@ function parseJsonField(value, fallback = null) {
 function hydrateAsset(row) {
   if (!row) return null;
   const images = listAssetImages(row.id);
-  return { ...row, images };
+  return {
+    ...row,
+    composite_default: parseJsonField(row.composite_default_json, null),
+    images,
+  };
 }
 
 function hydrateEpisodePlan(row) {
@@ -151,6 +155,7 @@ export function updateAsset(id, fields) {
         name = COALESCE(?, name),
         description_pl = COALESCE(?, description_pl),
         canon_en = COALESCE(?, canon_en),
+        composite_default_json = COALESCE(?, composite_default_json),
         updated_at = datetime('now')
     WHERE id = ?
   `).run(
@@ -158,8 +163,18 @@ export function updateAsset(id, fields) {
     fields.name ?? null,
     fields.descriptionPl ?? null,
     fields.canonEn !== undefined ? fields.canonEn : null,
+    // null = pole bez zmian (COALESCE). Jawny null kasujący wymaga osobnego setera (clearAssetCompositeDefault).
+    fields.compositeDefault !== undefined ? JSON.stringify(fields.compositeDefault) : null,
     id,
   );
+  return getAsset(id);
+}
+
+/** Domyślny composite (pozycja+skala @char) per asset — kaskada Klatki Zero. null kasuje. */
+export function setAssetCompositeDefault(id, composite) {
+  getDb().prepare(`
+    UPDATE assets SET composite_default_json = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(composite == null ? null : JSON.stringify(composite), id);
   return getAsset(id);
 }
 
@@ -327,6 +342,26 @@ export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true, en
     refreshEpisodePlanStatus(episodePlanId);
   }
   return row;
+}
+
+/**
+ * Override composite Klatki Zero na poziomie SCENY (najwyższy priorytet kaskady).
+ * Render-tuning wizualny (nie fabuła) — zapis do ai_overrides_json bez blokady zamrożenia.
+ * null kasuje override sceny (cofnięcie do domyślnej assetu / fallbacku).
+ */
+export function setSceneCompositeOverride(sceneId, composite) {
+  const row = getDb().prepare('SELECT ai_overrides_json FROM plan_scenes WHERE id = ?').get(sceneId);
+  if (!row) return null;
+  const overrides = parseJsonField(row.ai_overrides_json, {}) || {};
+  if (composite == null) {
+    delete overrides.composite;
+  } else {
+    overrides.composite = composite;
+  }
+  getDb().prepare(`
+    UPDATE plan_scenes SET ai_overrides_json = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(JSON.stringify(overrides), sceneId);
+  return getDb().prepare('SELECT * FROM plan_scenes WHERE id = ?').get(sceneId);
 }
 
 export function deletePlanScene(sceneId) {

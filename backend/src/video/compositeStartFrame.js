@@ -20,6 +20,43 @@ export function resolveUploadPath(referencePath, uploadsDir) {
   return path.join(uploadsDir, path.basename(normalized));
 }
 
+/**
+ * Domyślny composite (fallback "hardcoded" w kaskadzie) — odtwarza dotychczasowe
+ * składanie: postać ~52% szerokości / 42% wysokości kadru, wyśrodkowana, dolna krawędź
+ * na 90% wysokości (10% marginesu od dołu).
+ *   scale       → szerokość postaci jako ułamek szerokości kadru
+ *   heightScale → maks. wysokość postaci jako ułamek wysokości kadru (fit: inside)
+ *   position.x  → poziomy środek postaci (0..1)
+ *   position.y  → pionowe położenie DOLNEJ krawędzi postaci (0..1)
+ */
+export const DEFAULT_COMPOSITE = Object.freeze({
+  scale: 0.52,
+  heightScale: 0.42,
+  position: Object.freeze({ x: 0.5, y: 0.9 }),
+});
+
+/**
+ * Kaskada Klatki Zero (Faza C): override sceny → domyślna na assecie (@char) → fallback.
+ * Wybór na poziomie obiektu (scena wygrywa w całości), brakujące pola dopełnia DEFAULT_COMPOSITE.
+ */
+export function resolveCompositeConfig(sceneComposite, assetComposite) {
+  const chosen = sceneComposite ?? assetComposite ?? null;
+  const pos = chosen?.position ?? {};
+  return {
+    scale: Number.isFinite(chosen?.scale) ? chosen.scale : DEFAULT_COMPOSITE.scale,
+    heightScale: Number.isFinite(chosen?.heightScale) ? chosen.heightScale : DEFAULT_COMPOSITE.heightScale,
+    position: {
+      x: Number.isFinite(pos.x) ? pos.x : DEFAULT_COMPOSITE.position.x,
+      y: Number.isFinite(pos.y) ? pos.y : DEFAULT_COMPOSITE.position.y,
+    },
+    source: chosen?.source ?? 'compose',
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function toDataUri(buffer, mimeType = 'image/jpeg') {
   return `data:${mimeType};base64,${buffer.toString('base64')}`;
 }
@@ -39,7 +76,9 @@ export async function buildStartFrameAsset({
   uploadsDir,
   width = 480,
   height = 832,
+  composite,
 }) {
+  const cfg = resolveCompositeConfig(composite, null);
   const charPath = resolveUploadPath(characterRef, uploadsDir);
   const bgPath = resolveUploadPath(backgroundRef, uploadsDir);
 
@@ -66,20 +105,24 @@ export async function buildStartFrameAsset({
     return { type: 'base64', data: toDataUri(frame), source: 'background' };
   }
 
-  console.log(`[StartFrame] Składanie composite ${width}x${height}: tło + postać`);
+  console.log(
+    `[StartFrame] Składanie composite ${width}x${height}: tło + postać `
+    + `(scale=${cfg.scale}, pos=${cfg.position.x}/${cfg.position.y})`,
+  );
   const backgroundLayer = await sharp(bgBuffer)
     .resize(width, height, { fit: 'cover', position: 'centre' })
     .toBuffer();
 
-  const charMaxWidth = Math.round(width * 0.52);
-  const charMaxHeight = Math.round(height * 0.42);
+  const charMaxWidth = Math.max(1, Math.round(width * cfg.scale));
+  const charMaxHeight = Math.max(1, Math.round(height * cfg.heightScale));
   const characterLayer = await sharp(charBuffer)
     .resize(charMaxWidth, charMaxHeight, { fit: 'inside' })
     .toBuffer();
 
   const { width: charW, height: charH } = await sharp(characterLayer).metadata();
-  const left = Math.max(0, Math.round((width - charW) / 2));
-  const top = Math.max(0, Math.round(height - charH - height * 0.1));
+  // position.x = poziomy środek postaci; position.y = pionowa DOLNA krawędź postaci.
+  const left = clamp(Math.round(width * cfg.position.x - charW / 2), 0, Math.max(0, width - charW));
+  const top = clamp(Math.round(height * cfg.position.y - charH), 0, Math.max(0, height - charH));
 
   const composed = await sharp(backgroundLayer)
     .composite([{ input: characterLayer, left, top }])

@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS assets (
   ref_id TEXT,
   description_pl TEXT NOT NULL DEFAULT '',
   canon_en TEXT,
+  composite_default_json TEXT,
   legacy_character_id TEXT,
   legacy_background_id TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),

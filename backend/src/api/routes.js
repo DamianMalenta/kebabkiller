@@ -52,6 +52,8 @@ import {
   deleteAsset,
   addAssetImage,
   deleteAssetImage,
+  setAssetCompositeDefault,
+  setSceneCompositeOverride,
   listEpisodePlans,
   getEpisodePlan,
   createEpisodePlan,
@@ -81,6 +83,13 @@ import {
 } from '../ai/directorDesk/agentServer.js';
 import { buildProjectBrain, setAssetImageMetadata } from '../db/directorDeskModels.js';
 import { buildDeterministicAssetMetadata } from '../ai/directorDesk/assetMetadata.js';
+import { buildStartFrameAsset, resolveCompositeConfig } from '../video/compositeStartFrame.js';
+
+function primaryImagePath(asset) {
+  if (!asset?.images?.length) return null;
+  const primary = asset.images.find((i) => i.is_primary) || asset.images[0];
+  return primary?.path || null;
+}
 
 function formatJobResponse(job) {
   return {
@@ -436,6 +445,63 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       return res.status(404).json({ error: 'Image not found' });
     }
     res.status(204).end();
+  });
+
+  // Faza C — Klatka Zero: domyślny composite (pozycja+skala @char) per asset.
+  router.put('/assets/:id/composite-default', (req, res) => {
+    const existing = getAsset(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Asset not found' });
+    const updated = setAssetCompositeDefault(req.params.id, req.body.composite ?? null);
+    res.json(updated);
+  });
+
+  // Faza C — Klatka Zero: override composite na poziomie sceny (najwyższy priorytet kaskady).
+  router.put('/episode-plans/:planId/scenes/:sceneId/composite', (req, res) => {
+    const scene = setSceneCompositeOverride(req.params.sceneId, req.body.composite ?? null);
+    if (!scene) return res.status(404).json({ error: 'Scene not found' });
+    res.json(scene);
+  });
+
+  /**
+   * Faza C — PODGLĄD KOLAŻU Klatki Zero (0 zł, ZERO GPU).
+   * Składa @char (wycinek) na @loc (tło) z kaskadą composite: scena → asset → fallback.
+   * Źródła: compose (domyślne) / upload gotowej klatki / klatka z biblioteki.
+   * Źródło "generowanie AI" = GPU → ODŁOŻONE (poza zakresem).
+   */
+  router.post('/composite/preview', async (req, res) => {
+    try {
+      const body = req.body || {};
+      const characterAsset = body.characterAssetId ? getAsset(body.characterAssetId) : null;
+      const locationAsset = body.locationAssetId ? getAsset(body.locationAssetId) : null;
+
+      const characterRef = body.characterRef || primaryImagePath(characterAsset);
+      const backgroundRef = body.backgroundRef || primaryImagePath(locationAsset);
+
+      // Kaskada: override sceny → domyślna assetu (@char) → fallback (hardcoded w resolverze).
+      const composite = resolveCompositeConfig(body.sceneComposite, characterAsset?.composite_default);
+
+      const startFrame = await buildStartFrameAsset({
+        characterRef,
+        backgroundRef,
+        uploadsDir,
+        composite,
+      });
+
+      if (!startFrame) {
+        return res.status(422).json({ error: 'Brak obrazów postaci i tła do złożenia kolażu.' });
+      }
+
+      res.json({
+        data: startFrame.data,
+        source: startFrame.source,
+        composite,
+        width: 480,
+        height: 832,
+        cost: 0,
+      });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   // F1: Episode plans

@@ -136,6 +136,8 @@ export function initDatabase(dbPath) {
     // Faza B (@ID compiler): stabilny, niemutowalny ref_id assetu. BEZ backfillu (czysta karta).
     'ALTER TABLE assets ADD COLUMN ref_id TEXT',
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_ref_id ON assets(ref_id)',
+    // Faza C (Klatka Zero): domyślny composite (pozycja+skala @char) per asset. Nullable, BEZ backfillu.
+    'ALTER TABLE assets ADD COLUMN composite_default_json TEXT',
     `CREATE TABLE IF NOT EXISTS director_chat_messages (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
