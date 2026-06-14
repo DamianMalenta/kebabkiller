@@ -282,8 +282,8 @@ export function getWizardContext(projectId, episodePlanId) {
     episodePlanId: episode?.id,
     logline: episode?.logline,
     sceneCount: episode?.scenes?.length ?? 0,
-    assetsReady: episode
-      ? episode.scenes.every((s) => s.description_pl?.trim())
+    assetsReady: episode && episode.scenes.length > 0
+      ? episode.scenes.every((s) => s.description_pl?.trim() && (s.asset_id || s.asset_image_id))
       : false,
     storyboardApproved: episode?.status === 'gotowy_do_akceptacji' || episode?.status === 'zaakceptowany',
   };
