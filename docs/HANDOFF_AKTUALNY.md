@@ -1,7 +1,14 @@
 # HANDOFF AKTUALNY — stan na teraz
 
-**Ostatnia aktualizacja:** 2026-06-13 (sesja #16)  
-**Sesja:** plan Programista (/dev) + fix Vite tunnel
+**Ostatnia aktualizacja:** 2026-06-14 (sesja #17)  
+**Sesja:** audyt kodu + ostateczna architektura (3 AI + deterministyczny rdzeń)
+
+---
+
+## ŹRÓDŁO PRAWDY (czytaj to, nie sprzeczne docs)
+
+**Plan architektury:** `.cursor/plans/kebabkiller_studio_architektura_8bceddbd.plan.md`  
+Dokumentacja w `docs/` ma **wiele sprzecznych wersji** — NIE traktuj jej jako prawdy. Prawda = **plan architektury + realny kod**.
 
 ---
 
@@ -9,62 +16,81 @@
 
 Nie usuwać `director.js`, `mockEngine.js`, `runComfyEngine.js`.  
 `wan_workflow_api.json` = lokalny szablon; Studio wysyła pełny `workflow_api_json`.  
-Deployment RunComfy = środowisko GPU; panel overrides ≠ payload ze Studia.
+Nie dotykać `gema-0`.
 
 ---
 
-## TL;DR
+## TL;DR — realny stan kodu (zweryfikowany audytem)
 
-- **Programista w panelu:** plan wdrożenia v2 gotowy → **`docs/07_DEV_AGENT_PLAN.md`** (Cursor Cloud Agents API + `/dev`). ❌ nie wdrożone
-- **Vite + Cloudflare tunnel:** `allowedHosts: true` zmergowane (PR #7). ✅
-- **Stół Reżyserski** (`/desk`): chat + wizard + agentTools. ✅
-- **RunComfy / produkcja GPU:** nadal bloker deploymentu. ❌
-- **Backlog produktowy:** F3 recenzja; Scenarzysta + `series_memory`
-
----
-
-## Co zrobić jako pierwsze
-
-1. **Wdrożenie Programisty:** nowy czat → prompt z `docs/07_DEV_AGENT_PLAN.md` → fazy 0–5.
-2. Przed kodem: `CURSOR_API_KEY` + `GET /v1/repositories` (repo na liście GitHub App).
-3. Po MVP: faza 2b Kebabkiller MCP (agent czyta odcinki/produkcję ze Studia).
+- **Aktywny UI:** Director's Desk (`/desk` → `/api/director-desk/*`) + Katalog + Projekty. ✅
+- **Stary flow EpisodePlan:** USUNIĘTY z UI; w repo zostały **osierocone** komponenty (`JobStatus.jsx`, `MobileSceneEditor.jsx`, cały `api.episodePlans`) — do sprzątnięcia. ⚠️
+- **Render/produkcja:** działa przez `/episode-plans/:id/produce`, ale ma błędy logiczne (niżej). ⚠️
+- **RunComfy GPU:** deployment za ciężki — bloker żywego WEBM. ❌
+- **AI-Inżynier Studia:** nie istnieje w kodzie. ❌
 
 ---
 
-## Stan techniczny
+## KIERUNEK (zatwierdzony) — 3 rozdzielone AI + deterministyczny rdzeń
 
-| Element | Status |
-|---------|--------|
-| Plan Programista (`07_DEV_AGENT_PLAN.md` v2) | ✅ |
-| Vite tunnel (`allowedHosts: true`) | ✅ |
-| Stół Reżyserski `/desk` | ✅ |
-| Programista `/dev` (kod) | ❌ |
-| Kebabkiller MCP (faza 2b) | ❌ backlog |
-| RunComfy stabilny | ❌ |
+- **Scenarzysta** — plan w granicach `CAPABILITIES`, bez odlatywania.
+- **Reżyser produkcji** — deterministyczna paczka GPU z zaakceptowanego planu (zero LLM w torze renderu).
+- **AI-Inżynier Studia** — naprawa oprogramowania na żywo, z cofaniem (NIE drugi Reżyser).
+- **Rdzeń (kod, nie AI):** PlanValidator, `@ID` compiler, stały seed, Domino, Strażnik Kosztów.
+
+## ODRZUCONE kierunki (nie wracać)
+
+- Programista `/dev` wg `07_DEV_AGENT_PLAN.md`, Cursor Cloud Agents jako tor naprawy, PR #9 (Groq /dev) jako Reżyser/Programista, Cursor w iframe, merge gema-0, „jeden chat robi wszystko".
 
 ---
 
-## `.env` — nowe klucze (Programista, po wdrożeniu)
+## Błędy logiczne do naprawy (potwierdzone w kodzie)
 
-```env
-CURSOR_API_KEY=           # Dashboard → API Keys
-CURSOR_REPO_URL=https://github.com/DamianMalenta/kebabkiller
-CURSOR_DEFAULT_REF=main
-DEV_PANEL_TOKEN=          # ochrona /api/dev-agent/* na tunnel
+1. **Domino martwe** — `continuity_mode:'last_frame'` ustawiany, nigdy nieczytany (`productionQueue.js` → `runComfyEngine.js`).
+2. **Brak determinizmu** — losowy seed `Math.random()` w `runComfyEngine.js:184` + LLM temp 0.2–0.4.
+3. **Podgląd ≠ produkcja** — produkcja omija `buildDynamicWorkflowPayload`; styl serialu nie trafia do `positive_prompt`.
+4. **Brak stabilnych ID** — assety to losowe `uuid`; `executeAssetBinding` bierze pierwszą postać z bazy.
+5. **Tło zamrożone** — `I2V_PRODUCTION` mrozi kadr (denoise+static+anchor); brak osi animacji tła.
+6. **Dwóch planistów + 3 kanały zapisu scen** (screenwriter / agentTools / REST).
+7. **Brak IP-Adapter** w workflow mimo deklaracji w prompcie.
+
+---
+
+## Co zrobić jako pierwsze — FAZA A (keystone)
+
+Pure-code, zero GPU, odwracalne:
+1. **Jeden planista** — scalić logikę (usunąć duplikację screenwriter vs agentTools vs REST).
+2. **Twardy PlanValidator (kod)** jako granica Scenarzysta→Reżyser + frozen plan.
+3. **Sprzątnięcie martwego frontendu** (osierocone komponenty starego flow).
+4. **Naprawa docs** — HANDOFF + `03_AGENT_STATE_AND_TASKS.md` startują z prawdy.
+
+**Done:** plan poza limitami silnika odrzucony przez kod; jeden kanał zapisu scen; testy zielone.
+
+---
+
+## JAK URUCHOMIĆ
+
+```bash
+cd kebabkiller
+npm run dev
+npm test --prefix backend
 ```
 
-Istniejące: `GROQ_API_KEY`, `VIDEO_ENGINE`, `PORT`, `RUNCOMFY_*` — bez zmian.
+- Frontend: http://localhost:5173 · Backend: `PORT` z `backend/.env` (proxy Vite czyta ten sam plik).
 
 ---
 
 ## Prompt do nowego czatu
 
 ```text
-Kebabkiller Studio — wdrożenie Programisty (/dev) wg docs/07_DEV_AGENT_PLAN.md v2.
+Wdrażamy plan: .cursor/plans/kebabkiller_studio_architektura_8bceddbd.plan.md
 
-Przeczytaj: 00_START_TUTAJ.md, HANDOFF_AKTUALNY.md, 07_DEV_AGENT_PLAN.md.
-Implementuj fazy 0→5. Branch: cursor/dev-agent-panel-9e33.
-Nie dotykaj gema-0.
+Tryb PLAN — zero edycji kodu, dopóki nie napiszę "OK, rób".
+Źródło prawdy = ten plan + realny kod. IGNORUJ sprzeczne docs.
+Najpierw przeczytaj plan + kod: screenwriter.js, directorDesk/agentTools.js,
+wizardStateMachine.js, episodeModels.js, api/routes.js, DirectorsDesk.jsx.
+Pracujemy TYLKO nad FAZĄ A. Pokaż krótki plan Fazy A (pliki, kolejność, testy).
+Nie dotykaj: director.js, mockEngine.js, runComfyEngine.js, gema-0, .env.
+Przed i po zmianach: npm test --prefix backend.
 ```
 
 **Koniec sesji:** `HANDOFF`
@@ -74,9 +100,11 @@ Nie dotykaj gema-0.
 ## Pliki kluczowe
 
 ```text
-docs/07_DEV_AGENT_PLAN.md          ← plan wdrożenia (źródło prawdy)
-frontend/src/pages/DirectorsDesk.jsx
-backend/src/ai/directorDesk/agentServer.js
-frontend/vite.config.js
+.cursor/plans/kebabkiller_studio_architektura_8bceddbd.plan.md   ← źródło prawdy
+backend/src/ai/screenwriter.js
+backend/src/ai/directorDesk/agentTools.js
+backend/src/ai/directorDesk/wizardStateMachine.js
+backend/src/db/episodeModels.js
 backend/src/api/routes.js
+frontend/src/pages/DirectorsDesk.jsx
 ```
