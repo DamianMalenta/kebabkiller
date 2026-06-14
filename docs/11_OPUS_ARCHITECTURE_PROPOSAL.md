@@ -15,6 +15,8 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 - [ ] Faza E — AI-Inżynier MVP (pętla naprawcza z cofaniem)
 - [ ] Faza F — Studio-lustro UI + sprzątanie martwego kodu
 
+**Kamień milowy 2026-06-15 (sesja #20):** GPU odblokowane — bloker freeze rozwiązany (RunComfy `AMPERE_24`→`AMPERE_48`). Potwierdzony **render e2e przez backend Studia**: zaakceptowany plan → `produce` → klip WEBM (`output/export/.../*.webm`). Cały łańcuch B+C (kompilacja @ID → enrich żywego tła + style_tags → composite Klatki Zero → workflow RunComfy → WEBM + manifest) działa na A6000. Uwaga: graf zapisany na deploymencie ma bug `KSampler` (Studio używa lokalnego `wan_workflow_api.json`, więc render OK). Cold start ciężkiego środowiska ~7 min → kandydat do odchudzenia. Szczegóły: `docs/RUNCOMFY_DEPLOYMENT.md`. Następne: Faza C-GPU (IP-Adapter + ControlNet/depth).
+
 ## A. Błędy logiczne znalezione w kodzie (zweryfikowane)
 
 - **Domino jest martwe.** `continuity_mode: 'last_frame'` ustawiane w [backend/src/ai/directorDesk/workflowBuilder.js](../backend/src/ai/directorDesk/workflowBuilder.js) i kopiowane w [backend/src/video/productionQueue.js](../backend/src/video/productionQueue.js) (`enrichDirectorJson`), ale **nigdy nieczytane** — [backend/src/video/runComfyEngine.js](../backend/src/video/runComfyEngine.js) zawsze składa klatkę z assetów sceny. Brak realnej ciągłości.
