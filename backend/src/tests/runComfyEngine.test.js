@@ -14,6 +14,7 @@ import {
   WEBM_OUTPUT_NODE_ID,
   WEBP_OUTPUT_NODE_ID,
 } from '../video/runComfyEngine.js';
+import { deterministicSeed } from '../video/wanConfig.js';
 import { mockRunComfyFetch } from './helpers/runComfyFetchMock.js';
 
 const RUNCOMFY_CONFIG = {
@@ -83,6 +84,37 @@ describe('buildRunComfyWorkflow', () => {
   test('template does not ship node 51 WEBP saver', () => {
     const payload = buildRunComfyWorkflow('job-3', 'prompt', {}, {});
     expect(Object.keys(payload.workflow_api_json)).not.toContain(WEBP_OUTPUT_NODE_ID);
+  });
+
+  test('uzywa seeda z directorJson (determinizm z planu)', () => {
+    const payload = buildRunComfyWorkflow('job-seed', 'prompt', {
+      positive_prompt: 'p',
+      negative_prompt: 'n',
+      seed: 424242,
+    }, {});
+    expect(payload.workflow_api_json['56'].inputs.seed).toBe(424242);
+  });
+
+  test('bez seeda — deterministyczny z promptu (brak Math.random), 2× identyczny', () => {
+    const dj = { positive_prompt: 'powtarzalny prompt', negative_prompt: 'neg' };
+    const a = buildRunComfyWorkflow('job-a', 'prompt', dj, {});
+    const b = buildRunComfyWorkflow('job-b', 'prompt', dj, {});
+    expect(a.workflow_api_json['56'].inputs.seed).toBe(b.workflow_api_json['56'].inputs.seed);
+    expect(a.workflow_api_json['56'].inputs.seed).toBe(deterministicSeed('powtarzalny prompt|neg'));
+  });
+});
+
+describe('deterministicSeed', () => {
+  test('ten sam klucz → ten sam seed; różne klucze → różne seedy', () => {
+    expect(deterministicSeed('plan1:scene1')).toBe(deterministicSeed('plan1:scene1'));
+    expect(deterministicSeed('plan1:scene1')).not.toBe(deterministicSeed('plan1:scene2'));
+  });
+
+  test('seed jest nieujemną liczbą całkowitą w zakresie ~1e12', () => {
+    const seed = deterministicSeed('plan1:scene1');
+    expect(Number.isInteger(seed)).toBe(true);
+    expect(seed).toBeGreaterThanOrEqual(0);
+    expect(seed).toBeLessThan(1_000_000_000_000);
   });
 });
 

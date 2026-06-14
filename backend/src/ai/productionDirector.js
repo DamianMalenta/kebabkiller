@@ -1,6 +1,6 @@
 import { getAsset } from '../db/episodeModels.js';
 import { getDb } from '../db/init.js';
-import { WAN_FPS, WAN_QUALITY, parseI2vProfileId, resolveWanRenderParams } from '../video/wanConfig.js';
+import { WAN_FPS, WAN_QUALITY, parseI2vProfileId, resolveWanRenderParams, deterministicSeed } from '../video/wanConfig.js';
 import { inferKinematicsFromPolish } from './kinematicsFromPrompt.js';
 
 const BASE_NEGATIVE =
@@ -146,5 +146,8 @@ function compileScenePlan(userPrompt, scene, refs, visualProfile) {
 export function buildSceneDirectorPlan(plan, scene, visualProfile) {
   const refs = resolveSceneAssetRefs(scene);
   const userPrompt = buildSceneUserPrompt(plan, scene);
-  return compileScenePlan(userPrompt, scene, refs, visualProfile);
+  const directorJson = compileScenePlan(userPrompt, scene, refs, visualProfile);
+  // Seed z PLANU: kazda scena ma wlasny powtarzalny seed (hash planId:sceneId).
+  directorJson.seed = deterministicSeed(`${plan.id}:${scene.id}`);
+  return directorJson;
 }
