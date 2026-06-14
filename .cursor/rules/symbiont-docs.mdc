@@ -1,0 +1,27 @@
+---
+description: Projekt Symbiont — osobny lejek (agent-moduł), NIE Kebabkiller Studio
+globs: "projekt-symbiont/**"
+alwaysApply: false
+---
+
+# Projekt SYMBIONT — agent
+
+> To OSOBNY projekt od Kebabkiller Studio. Nie mieszaj lejków.
+> Wiedza Symbionta żyje WYŁĄCZNIE w `projekt-symbiont/`. Kebabkiller = `docs/`.
+
+## Start sesji (minimum)
+1. `projekt-symbiont/docs/00_START_TUTAJ.md`
+2. `projekt-symbiont/docs/HANDOFF_AKTUALNY.md`
+3. `projekt-symbiont/docs/01_WIZJA_I_MARZENIE.md`
+
+## Zasady
+- Domyślnie **PLAN, nie Agent** — kod Symbionta dopiero po wyraźnym „OK, rób".
+- Nie dopisuj planów Symbionta do `docs/` (to lejek Kebabkillera).
+- Praca nad Symbiontem → gałąź `cursor/symbiont-<temat>-...`, osobny PR.
+- Kod Symbionta (w przyszłości) poza `backend/`/`frontend/` — osobny katalog `symbiont/`.
+- Kebabkiller jest tylko **pierwszym hostem (pilotem)** — nie przebudowuj go „przy okazji".
+- Zasady rozdzielenia: `projekt-symbiont/docs/08_ROZDZIELENIE_OD_KEBABKILLER.md`.
+
+## Koniec sesji
+Gdy user napisze `HANDOFF` w kontekście Symbionta → aktualizuj TYLKO pliki w `projekt-symbiont/`
+(nadpisz `HANDOFF_AKTUALNY.md`, dopisz wpis do `DZIENNIK_SESJI.md`).
