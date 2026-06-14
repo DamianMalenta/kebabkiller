@@ -7,7 +7,7 @@ Pracujemy w workspace MACIUS. Zadanie: zestawić gema0 (z audytu) z marzeniem (S
 fuzję w jeden innowacyjny produkt. TRYB: analiza + propozycja, ZERO kodu.
 
 Przeczytaj: macius/docs/00_START_TUTAJ.md, 01_MISJA.md, 05_PRODUKT_DOCELOWY.md, 06_ROADMAPA_FUZJI.md,
-najnowszy raport w macius/audyty/, oraz (jeśli jest) ../../projekt-symbiont/docs/03_ARCHITEKTURA.md.
+najnowszy raport w macius/audyty/, oraz macius/wizja-symbiont/03_ARCHITEKTURA.md.
 
 Zrób:
 1. Zestawienie gema0 × Symbiont (tabela: co wnosi gema0 [cytaty], co Symbiont, pokrycia, kolizje).

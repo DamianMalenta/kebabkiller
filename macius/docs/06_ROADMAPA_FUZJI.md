@@ -21,7 +21,7 @@ produktu (darmowy audyt read-only), dopiero później edycje i deploy. PLAN-firs
 ## Etap 2 — Szkielet macius (produkt) + tożsamość
 
 - [ ] Załóż `macius/symbiont/` (kod produktu) — osobno od `gema0/`/`kebabkiller/`.
-- [ ] Wybór silnika agenta + stacku Rdzenia (patrz `../../projekt-symbiont/docs/02_BADANIE_ROZWIAZAN.md`).
+- [ ] Wybór silnika agenta + stacku Rdzenia (patrz [`../wizja-symbiont/02_BADANIE_ROZWIAZAN.md`](../wizja-symbiont/02_BADANIE_ROZWIAZAN.md)).
 - [ ] Schemat `symbiont.identity.json` + rejestr hostów.
 - **Done:** Rdzeń stoi, pierwszy host (np. gema0 lub Kebabkiller) zarejestrowany w panelu.
 
@@ -34,7 +34,7 @@ produktu (darmowy audyt read-only), dopiero później edycje i deploy. PLAN-firs
 
 ## Etap 4 — Bezpieczne naprawy przez PR
 
-- [ ] Tor: worktree → diff-only → CI → PR → rollback (`../../projekt-symbiont/docs/05_BEZPIECZENSTWO.md`).
+- [ ] Tor: worktree → diff-only → CI → PR → rollback ([`../wizja-symbiont/05_BEZPIECZENSTWO.md`](../wizja-symbiont/05_BEZPIECZENSTWO.md)).
 - [ ] Panel: „napraw X" → diff → PR (link) → status CI.
 - **Done:** naprawa bez dotykania żywej produkcji.
 
@@ -58,5 +58,5 @@ produktu (darmowy audyt read-only), dopiero później edycje i deploy. PLAN-firs
 
 ## Powiązanie z lejkiem Symbiont
 
-Etapy 2–6 są rozwinięte technicznie w `../../projekt-symbiont/docs/07_ROADMAPA.md`.
+Etapy 2–6 są rozwinięte technicznie w [`../wizja-symbiont/07_ROADMAPA.md`](../wizja-symbiont/07_ROADMAPA.md).
 Macius spina je z **konkretem gema0** (co reużyć) i prowadzi pracę agentów.

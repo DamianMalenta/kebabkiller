@@ -56,41 +56,24 @@ Niżej każdy krok dokładnie. Odhaczaj ☐ → ☑ jak skończysz.
 
 ---
 
-## KROK 2 — Zbuduj katalog „macius" (Twoje centrum dowodzenia)
+## KROK 2 — Złóż czyste repo „macius" (Twoje centrum dowodzenia)
 
-Chcemy taki układ na dysku:
+Masz dedykowane, czyste repo: **https://github.com/DamianMalenta/macius**. Docelowy układ:
 
 ```
-macius/                  ← nowy katalog (Twoje repo)
-├── kebabkiller/         ← tu wrzucasz kod kebabkiller
-├── gema0/               ← tu wrzucasz kod gema0
-└── macius/              ← tu wpadnie ta instrukcja i cała architektura
+(repo macius)
+├── macius/              ← ta instrukcja + architektura + dołączona wizja
+├── kebabkiller/         ← Twoja kopia kodu kebabkiller
+└── gema0/               ← Twoja kopia prototypu gema0
 ```
 
-☐ **2.1** Utwórz nowy, pusty folder i nazwij go `macius`.
-☐ **2.2** Wrzuć do środka folder **`kebabkiller`** (aktualny kod) i folder **`gema0`** (aktualny kod).
-☐ **2.3** Dorzuć do środka folder **`macius`** z tą architekturą. Masz **dwie drogi do wyboru**:
+☐ **2.1** Wykonaj **gotowy przepis** krok po kroku z osobnego pliku:
+**[`JAK_POBRAC_DO_REPO_MACIUS.md`](JAK_POBRAC_DO_REPO_MACIUS.md)** (są tam komendy *i* wersja bez komend / ZIP).
+☐ **2.2** W skrócie: sklonuj puste repo `macius` → pobierz do niego folder `macius` → wrzuć kopie
+`kebabkiller/` i `gema0/` (usuń z nich ukryte `.git`) → `commit` i `push`.
+☐ **2.3** Sprawdź układ: w repo masz trzy foldery: `macius`, `kebabkiller`, `gema0`. ✅
 
-**🟢 DROGA A — najprostsza (przez paczkę ZIP, bez komend):**
-1. Wejdź na PR z architekturą na GitHubie (link dostałeś w czacie, „macius infra").
-2. Pobierz kod gałęzi jako ZIP (przycisk „Code → Download ZIP" na tej gałęzi).
-3. Z rozpakowanego ZIP-a skopiuj **tylko folder `macius`** do swojego katalogu `macius`.
-4. Gotowe. Pomiń komendy poniżej.
-
-**🟦 DROGA B — przez Git (gdy wolisz komendy):** otwórz terminal w swoim folderze `macius` i wklej:
-```bash
-git init
-git remote add zrodlo https://github.com/DamianMalenta/kebabkiller.git
-git fetch zrodlo cursor/macius-infra-6fb4
-git checkout zrodlo/cursor/macius-infra-6fb4 -- macius
-git remote remove zrodlo
-```
-> To ściąga **tylko** folder `macius` z architekturą — bez bałaganu. Potem możesz podpiąć własne repo
-> „macius" na GitHubie (`git remote add origin <adres-twojego-repo>`), gdy zechcesz mieć je w chmurze.
-
-☐ **2.4** Sprawdź układ: w `macius/` masz teraz trzy foldery: `kebabkiller`, `gema0`, `macius`. ✅
-
-> Więcej o układzie i sprzątaniu: [`../docs/02_MAPA_WORKSPACE.md`](../docs/02_MAPA_WORKSPACE.md).
+> Więcej o układzie: [`../docs/02_MAPA_WORKSPACE.md`](../docs/02_MAPA_WORKSPACE.md).
 
 ---
 

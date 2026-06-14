@@ -24,7 +24,7 @@
 | W7 | Instaluje się w rdzeń jako moduł + tożsamość | Cienki moduł-adapter + manifest tożsamości + serwer MCP per host |
 
 > Pełne rozwinięcie marzenia, architektury (Rdzeń+Moduł+Tożsamość), kosztów i bezpieczeństwa:
-> lejek Symbiont — `../../projekt-symbiont/docs/` (jeśli obecny w workspace).
+> dołączony lejek wizji — [`../wizja-symbiont/`](../wizja-symbiont/).
 
 ## Rola gema0 w misji
 

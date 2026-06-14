@@ -7,10 +7,10 @@
 ## Układ docelowy (na laptopie)
 
 ```
-macius/                      ← repo git "macius"
+(repo macius)
+├── macius/                  ← PRACA: centrum dowodzenia (docs, audyty, decyzje, plan, kod, wizja-symbiont)
 ├── kebabkiller/             ← KOPIA: działający produkt + 1. host (edytuj swobodnie wg potrzeb)
-├── gema0/                   ← KOPIA: prototyp do audytu i kanibalizacji (przerabiaj/tnij do woli)
-└── macius/                  ← PRACA: centrum dowodzenia (docs, audyty, decyzje, plan, kod)
+└── gema0/                   ← KOPIA: prototyp do audytu i kanibalizacji (przerabiaj/tnij do woli)
 ```
 
 > **To wszystko są lokalne KOPIE z repo.** Można je dowolnie przerabiać, ciąć, usuwać, eksperymentować —
@@ -39,20 +39,15 @@ macius/                      ← repo git "macius"
 
 ---
 
-## Uwaga o „duplikacji" po pull
+## Czyste, dedykowane repo (bez duplikacji)
 
-Ta architektura jest publikowana na gałęzi pochodzącej z repo Kebabkiller, więc po `git pull` w korzeniu
-repo `macius` pojawią się również pliki Kebabkillera (`backend/`, `frontend/`, `docs/`, `projekt-symbiont/`).
+Macius żyje teraz w **osobnym, czystym repo `macius`**. Folder `macius/` (ta infrastruktura) ma w sobie
+wszystko, czego potrzeba — łącznie z **dołączoną wizją** w `macius/wizja-symbiont/`. Nie ma żadnych
+„doczepionych" plików obcego repo.
 
-**Jak to traktować:**
-- **Prawdziwe źródła** = foldery, które WRZUCASZ ręcznie: `kebabkiller/` i `gema0/`.
-- Pliki Kebabkillera w korzeniu repo macius → **ignoruj** (lub usuń, jeśli wolisz czysto). Nie są
-  potrzebne do pracy macius. `projekt-symbiont/` w korzeniu zostaw — to wygodne, pełne źródło wizji.
-- Cała NOWA praca i tak dzieje się **wyłącznie w `macius/`**.
-
-> Jeśli chcesz idealnie czysto: po pierwszym pull usuń z korzenia `backend/`, `frontend/`, `docs/`,
-> `README.md` Kebabkillera, zostawiając tylko `kebabkiller/`, `gema0/`, `macius/` (+ opcjonalnie
-> `projekt-symbiont/`). To kosmetyka — nie wpływa na pracę agenta.
+- `kebabkiller/` i `gema0/` to **kopie**, które wrzucasz obok `macius/`.
+- Cała nowa praca i decyzje toczą się **w `macius/`**.
+- Jak pobrać i opublikować do repo `macius`: [`../INSTRUKCJA/JAK_POBRAC_DO_REPO_MACIUS.md`](../INSTRUKCJA/JAK_POBRAC_DO_REPO_MACIUS.md).
 
 ---
 

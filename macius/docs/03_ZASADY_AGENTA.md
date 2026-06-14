@@ -38,7 +38,7 @@ Rozsądne dobre praktyki (nie zakazy):
 6. **Rollback** — każda zmiana = 1 odwracalny commit; deploy etapowy.
 7. **Audit log** — co agent zrobił.
 
-(Rozwinięte w lejku Symbiont: `../../projekt-symbiont/docs/05_BEZPIECZENSTWO.md`.)
+(Rozwinięte w dołączonej wizji: [`../wizja-symbiont/05_BEZPIECZENSTWO.md`](../wizja-symbiont/05_BEZPIECZENSTWO.md).)
 
 ## 5. Git
 

@@ -4,6 +4,23 @@
 
 ---
 
+## Sesja #2 — 2026-06-14 — czyste repo + samodzielność
+
+**Cel:** Przygotować macius pod **dedykowane, czyste repo** `DamianMalenta/macius` i uczynić go samodzielnym.
+
+**Zrobione:**
+- Zniesiona reguła „read-only" dla `gema0/`/`kebabkiller/` — to lokalne kopie, wolno je przerabiać (ADR-0002).
+- **Dołączona pełna wizja** jako `wizja-symbiont/` (kopia lejka Symbiont); odwołania `../../projekt-symbiont`
+  → `../wizja-symbiont` (ADR-0003). Workspace nie zależy już od obcego repo.
+- Nowy przewodnik `INSTRUKCJA/JAK_POBRAC_DO_REPO_MACIUS.md` (publikacja do czystego repo macius).
+- Uproszczone README + `02_MAPA_WORKSPACE` (układ czystego repo, bez „duplikacji po pull").
+- Uwaga: token agenta chmurowego jest przypięty do repo kebabkiller, więc push do repo `macius`
+  wykonuje właściciel wg instrukcji.
+
+**Następne:** właściciel publikuje do repo macius → Etap 0 (twardy audyt gema0).
+
+---
+
 ## Sesja #1 — 2026-06-14 — założenie workspace macius
 
 **Cel:** Stworzyć idealną infrastrukturę do pracy agentów AI nad celem (Symbiont) na bazie twardego

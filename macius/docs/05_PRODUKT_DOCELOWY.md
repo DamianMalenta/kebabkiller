@@ -13,7 +13,7 @@
 - jest dostępny **z każdego miejsca** (jeden Rdzeń, panel PWA, ta sama wersja),
 - kosztuje **~0 zł** (darmowe tiery LLM + lokalny fallback; audyt bez LLM).
 
-Architektura: **Rdzeń + Moduł + Tożsamość**. Pełny opis: `../../projekt-symbiont/docs/03_ARCHITEKTURA.md`.
+Architektura: **Rdzeń + Moduł + Tożsamość**. Pełny opis: [`../wizja-symbiont/03_ARCHITEKTURA.md`](../wizja-symbiont/03_ARCHITEKTURA.md).
 
 ## Gdzie wchodzi gema0
 

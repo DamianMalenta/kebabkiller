@@ -1,8 +1,7 @@
-# MACIUS — workspace dla agentów AI (nowe przejście do dokumentacji)
+# MACIUS — workspace dla agentów AI (główne przejście do dokumentacji)
 
-> **To jest nowy, główny punkt wejścia.** Stare przejścia (lejek Kebabkillera w `kebabkiller/docs/`,
-> lejek Symbionta w `projekt-symbiont/`) **nadal istnieją jako źródła**, ale **start agenta zaczyna się
-> TUTAJ** → [`docs/00_START_TUTAJ.md`](docs/00_START_TUTAJ.md).
+> **To jest główny punkt wejścia.** Start agenta zaczyna się TUTAJ → [`docs/00_START_TUTAJ.md`](docs/00_START_TUTAJ.md).
+> Pełna wizja produktu jest **dołączona** w [`wizja-symbiont/`](wizja-symbiont/) (samodzielna kopia).
 
 **Macius** to „centrum dowodzenia": idealna infrastruktura do pracy agentów AI nad **jednym celem** —
 zbudowaniem innowacyjnego oprogramowania na bazie **twardego audytu gema0** + **marzeń właściciela**
@@ -10,22 +9,21 @@ zbudowaniem innowacyjnego oprogramowania na bazie **twardego audytu gema0** + **
 
 ---
 
-## Układ lokalny (tak to wygląda na laptopie)
+## Układ w repo `macius` (na laptopie)
 
-Tworzysz nowy katalog (= repo `macius`), wrzucasz do niego dwa projekty-źródła i robisz `pull` tej
-architektury:
+To repo (`macius`) jest dedykowane i czyste. Wrzucasz do niego kopie dwóch projektów-źródeł obok
+folderu z tą infrastrukturą:
 
 ```
-macius/                      ← repo git "macius" (ten katalog)
-├── kebabkiller/             ← WRZUCASZ: aktualny kod repo Kebabkiller (źródło/wzór + 1. host)
-├── gema0/                   ← WRZUCASZ: aktualny kod prototypu gema0 (przedmiot twardego audytu)
-└── macius/                  ← PULL: ta infrastruktura (docs, zasady, audyt, szablony, prompty)
+(repo macius)
+├── macius/                  ← TA infrastruktura: docs, instrukcja, audyt, szablony, prompty, wizja-symbiont
+├── kebabkiller/             ← WRZUCASZ: kopia kodu Kebabkiller (źródło/wzór + 1. host)
+└── gema0/                   ← WRZUCASZ: kopia prototypu gema0 (materiał do audytu i kanibalizacji)
 ```
 
-> Uwaga: po `pull` tej gałęzi w korzeniu pojawią się też pliki repo Kebabkiller (`backend/`,
-> `frontend/`, `docs/`, `projekt-symbiont/`). To efekt uboczny pochodzenia gałęzi — **ignoruj je**
-> i traktuj `kebabkiller/` (Twój wrzucony folder) jako prawdziwe źródło. Cała NOWA praca dzieje się
-> w `macius/`. Szczegóły i porządkowanie: [`docs/02_MAPA_WORKSPACE.md`](docs/02_MAPA_WORKSPACE.md).
+> To są **lokalne kopie** — `kebabkiller/` i `gema0/` możesz dowolnie przerabiać; oryginały w ich
+> repo są bezpieczne. Cała nowa praca i decyzje toczą się w `macius/`.
+> Jak to pobrać/opublikować: [`INSTRUKCJA/JAK_POBRAC_DO_REPO_MACIUS.md`](INSTRUKCJA/JAK_POBRAC_DO_REPO_MACIUS.md).
 
 ---
 
@@ -45,7 +43,9 @@ częste problemy w folderze [`INSTRUKCJA/`](INSTRUKCJA/)).
 
 | Folder | Po co |
 |--------|-------|
+| `INSTRUKCJA/` | Prosta instrukcja dla właściciela (krok po kroku, ściąga, słowniczek, jak pobrać) |
 | `docs/` | Lejek dokumentacji macius (misja, mapa, zasady, audyt, produkt, roadmapa) |
+| `wizja-symbiont/` | Dołączona, pełna wizja produktu (architektura, koszty, bezpieczeństwo, instalacja) |
 | `templates/` | Szablony: audyt, ADR, propozycja architektury, zadanie |
 | `prompts/` | Gotowe prompty do nowych okien (onboarding, audyt gema0, fuzja) |
 | `decyzje/` | ADR — zapisy decyzji architektonicznych |

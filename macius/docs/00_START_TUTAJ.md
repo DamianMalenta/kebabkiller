@@ -38,9 +38,9 @@ bezpieczny na produkcji, dostępny z każdego miejsca, ~0 zł).
 | Decyzje architektoniczne (ADR) | [`../decyzje/`](../decyzje/) |
 | Historia sesji | [DZIENNIK_SESJI.md](DZIENNIK_SESJI.md) |
 
-### Źródła głębsze (poza macius, jeśli obecne w repo)
-- Pełna wizja Symbionta: `../../projekt-symbiont/docs/00_START_TUTAJ.md`
-- Wewnętrzny lejek Kebabkillera: `../../kebabkiller/docs/00_START_TUTAJ.md` (lub `../../docs/` w korzeniu)
+### Źródła głębsze
+- **Pełna wizja Symbionta (dołączona):** [`../wizja-symbiont/00_START_TUTAJ.md`](../wizja-symbiont/00_START_TUTAJ.md)
+- Kod-kopia produktu (gdy wrzucisz): `../../kebabkiller/` oraz `../../gema0/`
 
 ---
 
