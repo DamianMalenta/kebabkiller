@@ -7,24 +7,44 @@ export const WAN_FRAME_MAX = 241;
 const DEFAULT_WAN_LENGTH = 33; // ~1.4 s @ 24 fps — stabilny smoke test na RunComfy
 const DEFAULT_WAN_DENOISE = 1;
 
-/** Production profiles for I2V clip rendering (F0). */
+/**
+ * Production profiles for I2V clip rendering (F0).
+ *
+ * Faza C — rozbicie zlepku I2V_PRODUCTION na NIEZALEŻNE osie:
+ *   - camera     → ruch kamery (static / tracking)
+ *   - background → życie tła (alive / frozen), NIEZALEŻNE od kamery
+ *   - beats      → liczba beatów (single / multi)
+ *
+ * Kluczowa zmiana: statyczna kamera NIE zamraża tła. `camera.static === true`
+ * dotyczy tylko kadru/optyki; tło żyje promptem (`background.motion: 'alive'`),
+ * geometria trzymana strukturą. `anchorPrompt` = uziemienie POSTACI (nie tła).
+ */
 export const I2V_PROFILES = {
   SMOKE: {
     id: 'SMOKE',
-    staticCamera: false,
-    singleBeat: false,
+    camera: { motion: 'tracking', static: false },
+    background: { motion: 'alive' },
+    beats: { single: false },
     denoise: 1,
     steps: 20,
     defaultLength: DEFAULT_WAN_LENGTH,
+    anchorPrompt: null,
+    // Legacy (przejściowe, Krok 1→2) — mirror osi dla konsumentów czytających profil wprost.
+    staticCamera: false,
+    singleBeat: false,
   },
   I2V_PRODUCTION: {
     id: 'I2V_PRODUCTION',
-    staticCamera: true,
-    singleBeat: true,
+    camera: { motion: 'static', static: true },
+    background: { motion: 'alive' }, // tło żyje mimo statycznej kamery (koniec zlepku)
+    beats: { single: true },
     denoise: 0.85,
     steps: 20,
     defaultLength: 97, // ~4 s @ 24 fps
     anchorPrompt: 'Feet firmly on ground surface, subject grounded on floor, no levitation, no floating.',
+    // Legacy (przejściowe, Krok 1→2) — mirror osi dla konsumentów czytających profil wprost.
+    staticCamera: true,
+    singleBeat: true,
   },
 };
 
@@ -124,9 +144,14 @@ export function resolveWanRenderParams(options = {}) {
     length,
     steps: profile.steps,
     denoise,
-    staticCamera: profile.staticCamera,
-    singleBeat: profile.singleBeat,
+    // Osie niezależne (kanoniczne źródło prawdy — Faza C)
+    camera: { ...profile.camera },
+    background: { ...profile.background },
+    beats: { ...profile.beats },
     anchorPrompt: profile.anchorPrompt || null,
+    // Legacy (przejściowe) — wyprowadzone z osi; konsumenci migrują w Kroku 2, potem usunąć.
+    staticCamera: profile.camera.static,
+    singleBeat: profile.beats.single,
   };
 }
 
