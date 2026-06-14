@@ -60,6 +60,7 @@ flowchart LR
 - **Scenarzysta** — fabula w granicach [docs/CAPABILITIES.md](CAPABILITIES.md); jedna implementacja, wolana z Director's Desk. Wynik: sceny/logline/braki. Nie dotyka GPU.
 - **Reżyser produkcji** — deterministyczny: jeden builder promptu z `@ID`, staly seed, ta sama logika w podglądzie i produkcji. Zero LLM w torze renderu.
 - **AI-Inżynier Studia** — osobny modul `/api/system-agent/*`, osobny prompt. Petla: zglaszasz problem -> diagnoza read-only -> propozycja diff -> wspolna zgoda -> checkpoint git -> apply + testy (auto-rollback gdy czerwone) -> reczne [Cofnij] + Dziennik Napraw. Poreze bezpieczenstwa: to **NIE drugi Rezyser** — edycje fabuly/scen odsyla do Scenarzysty; dostep tylko za **tokenem wlasciciela** (LAN/tunnel); zapis tylko do whitelisty plikow (**nigdy** `.env`, sekrety ani zlote pliki: `director.js`, `mockEngine.js`, `runComfyEngine.js`).
+  - **Uwaga (anti-konflikt):** ten zakaz dotyczy **wylacznie autonomicznego AI-Inzyniera** (Faza E). Praca fazowa pod kontrola wlasciciela (Fazy B/C/D) **moze** edytowac `runComfyEngine.js` (seed, node IP-Adapter, last-frame) — pod review + zielonymi testami. „Zlote pliki" = nie kasowac / nie przepisywac hurtem, a nie „zamrozone na zawsze".
 - **Rdzeń (kod, nie AI):** `PlanValidator`, `@ID` compiler, Strażnik Kosztów, staly seed, Domino, `buildProjectBrain` (istnieje), transakcyjny czat z undo (istnieje: `is_committed`/`undo_of_id`).
 
 ## C. Decyzje zamkniete
@@ -92,3 +93,28 @@ flowchart LR
 ## G. Uwaga dla nowej sesji (anti-pokrecenie)
 
 Dokumentacja w `docs/` ma **wiele sprzecznych wersji** — NIE traktuj calego `docs/` jako zrodla prawdy. Zrodlo prawdy = **TEN dokument + realny kod**. Odrzucone kierunki: Programista/`07_DEV_AGENT_PLAN.md`, Cursor Cloud Agents API jako tor naprawy, PR #9 (Groq /dev) jako drugi Rezyser, Cursor w iframe, gema-0 merge.
+
+## H. Protokół kontynuacji (anti-konflikt)
+
+Fazy B→C→D dzielą te same pliki na torze renderu, więc nie są niezależne. Żeby nie powstały rozbieżności:
+
+**Mapa nakładania plików (strefy zapalne):**
+
+| Plik | B | C | D | F |
+|---|---|---|---|---|
+| `backend/src/video/runComfyEngine.js` | seed | node IP-Adapter | last-frame | — |
+| `backend/src/video/productionQueue.js` | styl, preview=prod | — | resume + Domino | — |
+| `backend/src/ai/directorDesk/workflowBuilder.js` | @ID compiler | osie I2V | — | — |
+| `backend/src/video/wanConfig.js` / `i2vProduction.js` | — | rozbicie profilu | — | engine_profile |
+| `backend/src/db/episodeModels.js` | kolumny `ref_id`/`kind` | — | — | — |
+
+`runComfyEngine.js` to główny punkt zapalny B/C/D.
+
+**Zasady (obowiązkowe):**
+
+1. **Ściśle sekwencyjnie B → C → D.** Nigdy dwie z tych faz równolegle (wspólny `runComfyEngine.js` / `productionQueue.js`). E = osobny moduł, można niezależnie. F na końcu.
+2. **Jedno okno / jedna gałąź na fazę.** Start fazy = `git pull`; koniec = merge do `main` **przed** następną fazą. Zero dwóch agentów równolegle na render-path.
+3. **Kontrakty zamrożone:** schemat `PlanValidator` (A) i schemat `@ID` (B) to umowy. Zmiana kontraktu = kontrakt **+ wszyscy konsumenci w jednym commicie**, nigdy po cichu.
+4. **`docs/11` to umowa, nie notatnik:** każda faza w **tym samym commicie** odhacza status i dopisuje realne zmiany projektowe. Kod rozjechany z `docs/11` → najpierw poprawiamy `docs/11`.
+5. **Test determinizmu z B = strażnik B/C/D:** „2× ten sam plan = ten sam payload" musi zostać zielony po C i D.
+6. **Commit per krok** — drobne, odwracalne.
