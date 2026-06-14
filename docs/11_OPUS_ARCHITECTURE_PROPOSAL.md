@@ -71,6 +71,7 @@ flowchart LR
 - Klatka Zero (scena 1) = osobny tani etap. **Pierwsza klatka to problem OBRAZU, nie wideo** — iterujesz tanio na statycznym obrazie, zanim ruszy drogie GPU. Cztery zrodla: (1) skladanie `@char + @loc` (domyslne, 0 zl), (2) upload gotowej klatki, (3) generowanie 1 obrazu AI, (4) klatka z biblioteki / poprzedniego odcinka. Domino z pickerem dla scen 2+.
 - Koszty ku zeru: mock/obraz najpierw, GPU po akceptacji. **LLM local-first** — router intencji i rozmowa na lokalnym modelu (Ollama/llama.cpp), chmura tylko jako fallback / heavy "rozpisz pomysl".
 - gema-0: poza architektura (zero zaleznosci).
+- **Czysta karta — brak migracji danych historycznych.** Stare projekty nie sa potrzebne. Baza SQLite (`backend/data/studio.db`) moze byc w kazdej chwili skasowana i odtworzona przez seed (`init.js`). Migracje schematu (np. kolumny `ref_id`/`kind` w Fazie B) **nie musza robic backfillu** — zakladaja czysty stan.
 
 ## D. Fazy (z kryterium "done")
 
