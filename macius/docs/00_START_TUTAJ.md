@@ -18,6 +18,9 @@ bezpieczny na produkcji, dostępny z każdego miejsca, ~0 zł).
 
 **Nie czytaj** reszty, dopóki zadanie tego nie wymaga.
 
+> 👤 **Jesteś właścicielem, nie agentem?** Idź do prostej instrukcji krok po kroku:
+> [`../INSTRUKCJA/00_INSTRUKCJA_GLOWNA.md`](../INSTRUKCJA/00_INSTRUKCJA_GLOWNA.md).
+
 ---
 
 ## Mapa dokumentacji

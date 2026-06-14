@@ -29,7 +29,13 @@ macius/                      ← repo git "macius" (ten katalog)
 
 ---
 
-## Start (czytaj w tej kolejności)
+## 👉 Dla właściciela (start tutaj, prosto)
+
+Jeśli nie chcesz wchodzić w szczegóły techniczne — przeczytaj **prostą instrukcję krok po kroku**:
+**[`INSTRUKCJA/00_INSTRUKCJA_GLOWNA.md`](INSTRUKCJA/00_INSTRUKCJA_GLOWNA.md)** (+ ściąga, słowniczek,
+częste problemy w folderze [`INSTRUKCJA/`](INSTRUKCJA/)).
+
+## Start dla agenta (czytaj w tej kolejności)
 
 1. [`docs/00_START_TUTAJ.md`](docs/00_START_TUTAJ.md) — mapa i zasady
 2. [`docs/01_MISJA.md`](docs/01_MISJA.md) — cel i marzenie

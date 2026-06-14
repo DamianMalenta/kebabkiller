@@ -10,6 +10,7 @@ Misja: `01_MISJA.md`. Mapa: `02_MAPA_WORKSPACE.md`. Audyt: `04_AUDYT_GEMA0.md`. 
 
 ## TL;DR — stan teraz
 - ✅ Workspace macius utworzony: docs (00–06), AGENTS.md, README, szablony, prompty, decyzje (ADR-0001), audyty/.
+- ✅ **Prosta instrukcja dla właściciela**: `INSTRUKCJA/` (główna + ściąga + słowniczek + częste problemy).
 - ✅ Zasady 3 światów (kebabkiller/gema0/macius), anty-halucynacja, bezpieczeństwo, git — spisane.
 - ⏳ `gema0/` do wrzucenia lokalnie przez właściciela (źródło twardego audytu).
 - ❌ Audyt gema0 — jeszcze nieodpalony (Etap 0). To pierwszy ruch.
