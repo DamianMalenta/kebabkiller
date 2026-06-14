@@ -74,6 +74,7 @@ flowchart LR
 - **Czysta karta — brak migracji danych historycznych.** Stare projekty nie sa potrzebne. Baza SQLite (`backend/data/studio.db`) moze byc w kazdej chwili skasowana i odtworzona przez seed (`init.js`). Migracje schematu (np. kolumna `ref_id` w Fazie B) **nie musza robic backfillu** — zakladaja czysty stan.
 - **ZASADA NADRZEDNA: „Zastepuj, nie sklejaj".** Stary kod byl pokrecony i niespojny. Gdy legacy jest niespojny — buduj JEDNA czysta implementacje i **usun stara**; **nie** zostawiaj zlych rozwiazan jako fallback, nie godz kilku zlych pomyslow w hybryde („potwora"). Granica: trzymaj sie zakresu biezacej fazy (nie rozlewaj sie na kolejne).
 - **Kontrakt @ID (zamkniety):** w `assets` dodajemy **tylko** kolumne `ref_id` (stabilny, **niemutowalny** slug, np. `char_kebabkiller`, bez `@`). Namespace (`char/loc/prop/detail`) **wyprowadzamy z istniejacego `type`** — NIE dodajemy redundantnej kolumny `kind`. `@` dokleja kompilator promptu przy budowie. Zmiana nazwy wyswietlanej NIE zmienia `ref_id`.
+- **Pozycja/skala Klatki Zero = KASKADA (zamkniete):** rozwiazywanie `override sceny -> domyslna na assecie (@char) -> fallback (obecny hardcoded)`. NIE scena-only (retrofit w Fazie F) ani asset-only (zabija rezyserie ujec). To **ten sam wzorzec kaskady co `engine_profile` w Fazie F** — wybor teraz = zero przerobek pozniej. W Fazie C robimy tylko model danych + resolwer dla composite (NIE cala kaskade UI Fazy F).
 
 ## D. Fazy (z kryterium "done")
 
