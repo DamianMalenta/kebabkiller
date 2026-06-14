@@ -1,6 +1,15 @@
 import { resolveWanRenderParams } from '../video/wanConfig.js';
 
-/** Apply I2V_PRODUCTION constraints to a director plan (static camera, 1 beat, anchor). */
+const LIVING_BACKGROUND_PROMPT =
+  'Living background: ambient motion such as drifting smoke, flickering fire and glowing neon, while architecture and geometry stay stable.';
+
+/**
+ * Apply I2V profile constraints to a director plan — na NIEZALEŻNYCH osiach (Faza C):
+ *   camera.static  → kadr statyczny (NIE zamraża tła)
+ *   background     → żywe tło dokładane do promptu, niezależnie od kamery
+ *   beats.single   → jeden beat
+ *   anchorPrompt   → uziemienie POSTACI
+ */
 export function applyI2vProductionProfile(directorPlan, options = {}) {
   const params = resolveWanRenderParams({
     i2vProfile: options.i2vProfile || options.i2v_profile || directorPlan.i2v_profile || 'I2V_PRODUCTION',
@@ -10,7 +19,7 @@ export function applyI2vProductionProfile(directorPlan, options = {}) {
 
   const plan = { ...directorPlan, i2v_profile: params.profile };
 
-  if (params.staticCamera) {
+  if (params.camera.static) {
     plan.cinematography = {
       ...(plan.cinematography || {}),
       camera_shot: plan.cinematography?.camera_shot || 'medium shot',
@@ -19,11 +28,16 @@ export function applyI2vProductionProfile(directorPlan, options = {}) {
     };
   }
 
-  if (params.singleBeat && plan.storyboard?.length > 1) {
+  if (params.beats.single && plan.storyboard?.length > 1) {
     plan.storyboard = [plan.storyboard[0]];
   }
-  if (params.singleBeat && plan._motion_beats?.length > 1) {
+  if (params.beats.single && plan._motion_beats?.length > 1) {
     plan._motion_beats = [plan._motion_beats[0]];
+  }
+
+  // Żywe tło — niezależne od kamery (statyczna kamera ≠ zamrożone tło).
+  if (params.background.motion !== 'frozen' && !plan.positive_prompt?.includes(LIVING_BACKGROUND_PROMPT)) {
+    plan.positive_prompt = [plan.positive_prompt, LIVING_BACKGROUND_PROMPT].filter(Boolean).join(' ');
   }
 
   if (params.anchorPrompt) {

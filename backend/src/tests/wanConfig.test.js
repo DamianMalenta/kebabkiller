@@ -43,7 +43,7 @@ describe('wanConfig', () => {
     expect(params.profile).toBe('I2V_PRODUCTION');
     expect(params.denoise).toBe(I2V_PROFILES.I2V_PRODUCTION.denoise);
     expect(params.length).toBe(120);
-    expect(params.staticCamera).toBe(true);
+    expect(params.camera.static).toBe(true);
   });
 
   test('osie I2V są niezależne: statyczna kamera NIE zamraża tła (koniec zlepku)', () => {

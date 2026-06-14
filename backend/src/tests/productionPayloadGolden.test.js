@@ -96,13 +96,16 @@ describe('golden payload — determinizm Fazy B', () => {
     expect(new Set(seedsA).size).toBe(seedsA.length); // różny per scena
   });
 
-  test('payload niesie styl serialu + anchor (preview = prod)', () => {
+  test('payload niesie styl serialu + żywe tło + anchor (preview = prod)', () => {
     const plan = buildAcceptedPlan();
     const [first] = buildPlanPayload(plan, PROJECT);
     const positive = first.workflow_api_json['55'].inputs.text;
 
     expect(positive).toContain('neon noir');
     expect(positive).toContain('[Tryb Akcji]');
+    // Faza C: żywe tło dopisane do promptu (oś TŁO), niezależnie od statycznej kamery.
+    expect(positive).toContain('Living background');
+    // Anchor = uziemienie POSTACI (nie tła) — zostaje.
     expect(positive).toContain('Feet firmly on ground');
   });
 });

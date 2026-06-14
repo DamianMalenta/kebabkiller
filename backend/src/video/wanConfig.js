@@ -29,9 +29,6 @@ export const I2V_PROFILES = {
     steps: 20,
     defaultLength: DEFAULT_WAN_LENGTH,
     anchorPrompt: null,
-    // Legacy (przejściowe, Krok 1→2) — mirror osi dla konsumentów czytających profil wprost.
-    staticCamera: false,
-    singleBeat: false,
   },
   I2V_PRODUCTION: {
     id: 'I2V_PRODUCTION',
@@ -42,9 +39,6 @@ export const I2V_PROFILES = {
     steps: 20,
     defaultLength: 97, // ~4 s @ 24 fps
     anchorPrompt: 'Feet firmly on ground surface, subject grounded on floor, no levitation, no floating.',
-    // Legacy (przejściowe, Krok 1→2) — mirror osi dla konsumentów czytających profil wprost.
-    staticCamera: true,
-    singleBeat: true,
   },
 };
 
@@ -149,9 +143,6 @@ export function resolveWanRenderParams(options = {}) {
     background: { ...profile.background },
     beats: { ...profile.beats },
     anchorPrompt: profile.anchorPrompt || null,
-    // Legacy (przejściowe) — wyprowadzone z osi; konsumenci migrują w Kroku 2, potem usunąć.
-    staticCamera: profile.camera.static,
-    singleBeat: profile.beats.single,
   };
 }
 

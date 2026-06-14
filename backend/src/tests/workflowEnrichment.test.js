@@ -22,7 +22,10 @@ describe('enrichDirectorForRender (jedna wspólna funkcja: preview = prod)', () 
     expect(enrichedDirector.positive_prompt).toContain('base prompt');
     expect(enrichedDirector.positive_prompt).toContain('neon noir');
     expect(enrichedDirector.positive_prompt).toContain('[Tryb Akcji]');
-    // anchor I2V_PRODUCTION (static) dopisany na końcu
+    // żywe tło (oś TŁO) — dopisane mimo statycznej kamery
+    expect(enrichedDirector.positive_prompt).toContain('Living background');
+    expect(enrichedDirector.background_motion).toBe('alive');
+    // anchor I2V_PRODUCTION (static) = uziemienie POSTACI, dopisany na końcu
     expect(enrichedDirector.positive_prompt).toContain('Feet firmly on ground');
     expect(enrichedDirector.i2v_profile).toBe('I2V_PRODUCTION');
     expect(enrichedDirector.continuity_mode).toBe('composite');
@@ -48,7 +51,7 @@ describe('enrichDirectorForRender (jedna wspólna funkcja: preview = prod)', () 
     expect(payload.continuity_mode).toBe('composite');
   });
 
-  test('bez style_tags positive_prompt zostaje nietknięty (poza anchorem static)', () => {
+  test('SMOKE: bez style_tags i bez anchora (kamera nie-static) prompt niesie tylko żywe tło', () => {
     const { enrichedDirector } = enrichDirectorForRender({
       directorJson: { positive_prompt: 'czysty prompt' },
       userPrompt: 'czysty prompt',
@@ -56,7 +59,21 @@ describe('enrichDirectorForRender (jedna wspólna funkcja: preview = prod)', () 
       scene: { duration_sec: 4, sort_order: 0, ai_overrides: {} },
       generatorTags: [],
     });
-    // SMOKE nie jest static i nie ma anchora → prompt bez zmian
-    expect(enrichedDirector.positive_prompt).toBe('czysty prompt');
+    // SMOKE: brak style_tags, kamera nie-static → brak anchora; tło żyje (oś TŁO niezależna).
+    expect(enrichedDirector.positive_prompt).toContain('czysty prompt');
+    expect(enrichedDirector.positive_prompt).toContain('Living background');
+    expect(enrichedDirector.positive_prompt).not.toContain('Feet firmly on ground');
+  });
+
+  test('override background_motion=frozen wyłącza żywe tło (oś TŁO sterowalna)', () => {
+    const { enrichedDirector } = enrichDirectorForRender({
+      directorJson: { positive_prompt: 'czysty prompt' },
+      userPrompt: 'czysty prompt',
+      project: { canon: { default_i2v_profile: 'I2V_PRODUCTION' } },
+      scene: { duration_sec: 4, sort_order: 0, ai_overrides: { background_motion: 'frozen' } },
+      generatorTags: [],
+    });
+    expect(enrichedDirector.background_motion).toBe('frozen');
+    expect(enrichedDirector.positive_prompt).not.toContain('Living background');
   });
 });
