@@ -1,15 +1,26 @@
 # 03. Stan Projektu, Problemy i Zadania
 
-**Zaktualizowano:** 2026-06-13 (sesja #16)  
-**Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.  
-**Wizja docelowa:** [05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md) · [CAPABILITIES.md](CAPABILITIES.md)
+**Zaktualizowano:** 2026-06-14 (sesja #18)  
+**Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.
+
+---
+
+## ⚠️ ŹRÓDŁO PRAWDY
+
+Architektura i kierunek: **[11_OPUS_ARCHITECTURE_PROPOSAL.md](11_OPUS_ARCHITECTURE_PROPOSAL.md) + realny kod.**
+Reszta `docs/` (w tym sekcje niżej w tym pliku, `05_EPISODE_PIPELINE`, `07_DEV_AGENT_PLAN`) ma **sprzeczne/legacy** wersje — traktuj jako historię, nie jako rozkaz.
+
+- **Aktywny UI = Director's Desk** (`/desk`). Stary flow **EpisodePlan = legacy**.
+- **Odrzucone:** Programista `/dev` (F4 / `07_DEV_AGENT_PLAN`), Cursor Cloud Agents jako tor naprawy, merge `gema-0`.
 
 ---
 
 ## OBECNY STATUS (jedno zdanie)
 
-**Kod:** Plan odcinka F1–F2 w UI (desktop + mobile) + RunComfy zablokowany przez ciężki deployment GPU.  
-**Wizja:** Plan odcinka → akceptacja → Reżyser produkcji → paczka montażowa — **flow zaimplementowany**, czeka test produkcyjny.
+**Kod:** FAZA A wdrożona (PlanValidator + frozen plan, jeden kanał zapisu scen, sprzątnięty wizard/frontend, legacy POST odcinka = 410). Render GPU nadal zablokowany ciężkim deploymentem RunComfy.  
+**Następne:** FAZA B — deterministyczny Reżyser (`@ID` compiler, stały seed, podgląd == produkcja). Szczegóły w `11_OPUS_ARCHITECTURE_PROPOSAL.md`.
+
+> Sekcje poniżej są **archiwalne** (sesje #12–#16) — zostawione dla kontekstu historycznego.
 
 ---
 

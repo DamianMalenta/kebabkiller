@@ -1,7 +1,7 @@
 # HANDOFF AKTUALNY — stan na teraz
 
-**Ostatnia aktualizacja:** 2026-06-14 (sesja #17)  
-**Sesja:** audyt kodu + ostateczna architektura (3 AI + deterministyczny rdzeń)
+**Ostatnia aktualizacja:** 2026-06-14 (sesja #18)  
+**Sesja:** wdrożenie FAZY A (keystone) — pure-code, zero GPU/LLM, odwracalne
 
 ---
 
@@ -20,13 +20,16 @@ Nie dotykać `gema-0`.
 
 ---
 
-## TL;DR — realny stan kodu (zweryfikowany audytem)
+## TL;DR — realny stan kodu (po Fazie A)
 
 - **Aktywny UI:** Director's Desk (`/desk` → `/api/director-desk/*`) + Katalog + Projekty. ✅
-- **Stary flow EpisodePlan:** USUNIĘTY z UI; w repo zostały **osierocone** komponenty (`JobStatus.jsx`, `MobileSceneEditor.jsx`, cały `api.episodePlans`) — do sprzątnięcia. ⚠️
-- **Render/produkcja:** działa przez `/episode-plans/:id/produce`, ale ma błędy logiczne (niżej). ⚠️
+- **Stary flow EpisodePlan:** legacy. Osierocone komponenty (`JobStatus.jsx`, `MobileSceneEditor.jsx`, `api.episodePlans`, `api.projects.createEpisode`) **usunięte** (Faza A, krok 5). ✅
+- **Jeden kanał zapisu scen:** REST / Director's Desk / Scenarzysta zbiegają się do jednego writera w `episodeModels` (guard + walidacja). ✅
+- **PlanValidator + frozen plan:** plan poza limitami silnika odrzucony przez kod; zaakceptowany plan jest zamrożony (`assertPlanEditable`). ✅
+- **Legacy `POST /projects/:id/episodes`:** wycofany (410 → kreator Desk); tabela `episodes` i `GET/PUT/DELETE /episodes/:id` nietknięte. ✅
+- **Render/produkcja:** działa przez `/episode-plans/:id/produce`, ale ma błędy logiczne renderu (Domino/determinizm/styl) — **Faza B+**. ⚠️
 - **RunComfy GPU:** deployment za ciężki — bloker żywego WEBM. ❌
-- **AI-Inżynier Studia:** nie istnieje w kodzie. ❌
+- **AI-Inżynier Studia:** nie istnieje w kodzie (Faza E). ❌
 
 ---
 
@@ -55,15 +58,21 @@ Nie dotykać `gema-0`.
 
 ---
 
-## Co zrobić jako pierwsze — FAZA A (keystone)
+## FAZA A (keystone) — ZROBIONE ✅
 
-Pure-code, zero GPU, odwracalne:
-1. **Jeden planista** — scalić logikę (usunąć duplikację screenwriter vs agentTools vs REST).
-2. **Twardy PlanValidator (kod)** jako granica Scenarzysta→Reżyser + frozen plan.
-3. **Sprzątnięcie martwego frontendu** (osierocone komponenty starego flow).
-4. **Naprawa docs** — HANDOFF + `03_AGENT_STATE_AND_TASKS.md` startują z prawdy.
+Pure-code, zero GPU/LLM, odwracalne (commit per krok):
+1. ✅ **PlanValidator + frozen plan** — `assertPlanEditable` + `FROZEN_PLAN_STATUSES` w `episodeModels`; nowy `backend/src/ai/planValidator.js`.
+2. ✅ **Jeden kanał zapisu scen** — screenwriter / agentTools / REST przez wspólny writer; test `sceneWriteChannel`.
+3. ✅ **Martwe stany wizarda** — usunięte `setSceneAnchors`/`reorderScenes`; `canAdvance(ASSETS)` wymaga przypisanych assetów.
+4. ✅ **Legacy POST odcinka** — `POST /projects/:id/episodes` → 410.
+5. ✅ **Martwy frontend** — usunięte `JobStatus`, `MobileSceneEditor`, `api.episodePlans`, `api.projects.createEpisode`.
+6. ✅ **Docs** — ten plik + `03_AGENT_STATE_AND_TASKS.md` startują z prawdy.
 
-**Done:** plan poza limitami silnika odrzucony przez kod; jeden kanał zapisu scen; testy zielone.
+**Done:** plan poza limitami odrzucony przez kod; jeden kanał zapisu scen; docs zgodne z kodem; `npm test --prefix backend` = 92 pass; `vite build` OK.
+
+## Następny krok — FAZA B (deterministyczny Reżyser)
+
+`@ID` compiler (`ref_id`/`kind` w assetach), jeden builder promptu, stały seed, produkcja używa tej samej logiki co podgląd, wstrzyknięcie `style_tags`/anchor. **Done:** 2× ten sam plan = ten sam payload. Szczegóły: `docs/11_OPUS_ARCHITECTURE_PROPOSAL.md` (sekcja D).
 
 ---
 
@@ -86,9 +95,11 @@ Wdrażamy plan: docs/11_OPUS_ARCHITECTURE_PROPOSAL.md
 
 Tryb PLAN — zero edycji kodu, dopóki nie napiszę "OK, rób".
 Źródło prawdy = docs/11_OPUS_ARCHITECTURE_PROPOSAL.md + realny kod. IGNORUJ sprzeczne docs.
-Najpierw przeczytaj plan + kod: screenwriter.js, directorDesk/agentTools.js,
-wizardStateMachine.js, episodeModels.js, api/routes.js, DirectorsDesk.jsx.
-Pracujemy TYLKO nad FAZĄ A. Pokaż krótki plan Fazy A (pliki, kolejność, testy).
+FAZA A jest ZROBIONA (PlanValidator+frozen plan, jeden kanał zapisu scen,
+sprzątnięty wizard/frontend, legacy POST=410). Teraz FAZA B (deterministyczny Reżyser).
+Najpierw przeczytaj plan + kod: productionDirector.js, i2vProduction.js,
+productionQueue.js, runComfyEngine.js (read-only), wanConfig.js, episodeModels.js.
+Pokaż krótki plan Fazy B (pliki, kolejność, testy).
 Nie dotykaj: director.js, mockEngine.js, runComfyEngine.js, gema-0, .env.
 Przed i po zmianach: npm test --prefix backend.
 ```
