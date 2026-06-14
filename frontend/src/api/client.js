@@ -61,6 +61,18 @@ export const api = {
     delete: (id) => request(`/assets/${id}`, { method: 'DELETE' }),
     addImage: (id, formData) => request(`/assets/${id}/images`, { method: 'POST', body: formData }),
     deleteImage: (imageId) => request(`/asset-images/${imageId}`, { method: 'DELETE' }),
+    setCompositeDefault: (id, composite) =>
+      request(`/assets/${id}/composite-default`, { method: 'PUT', body: JSON.stringify({ composite }) }),
+  },
+
+  // Faza C — Klatka Zero (kolaż @char na @loc): podgląd 0 zł + zapis kaskady.
+  composite: {
+    preview: (body) => request('/composite/preview', { method: 'POST', body: JSON.stringify(body) }),
+    setSceneOverride: (planId, sceneId, composite) =>
+      request(`/episode-plans/${planId}/scenes/${sceneId}/composite`, {
+        method: 'PUT',
+        body: JSON.stringify({ composite }),
+      }),
   },
 
   directorDesk: {
