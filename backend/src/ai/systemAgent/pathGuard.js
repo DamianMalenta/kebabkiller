@@ -79,6 +79,26 @@ export function classifyWritePath(repoRoot, target) {
   return { allowed: true, reason: 'OK', category: 'allowed' };
 }
 
+/**
+ * Klasyfikuje ścieżkę pod kątem ODCZYTU (diagnoza read-only).
+ * Czytać wolno szerzej niż pisać (np. złote pliki, by je zrozumieć),
+ * ale NIGDY sekretów/.env ani spoza repo/gema-0.
+ */
+export function classifyReadPath(repoRoot, target) {
+  const rel = toRepoRelative(repoRoot, target);
+
+  if (rel.startsWith('../') || rel === '' || path.isAbsolute(rel)) {
+    return { allowed: false, reason: 'Ścieżka poza repozytorium.', category: 'outside_repo' };
+  }
+  if (SECRET_PATTERNS.some((re) => re.test(rel))) {
+    return { allowed: false, reason: 'Sekrety/.env są zabronione (także do odczytu).', category: 'secret' };
+  }
+  if (HARD_DENY_ROOTS.some((root) => rel === root.replace(/\/$/, '') || rel.startsWith(root))) {
+    return { allowed: false, reason: `Katalog poza zasięgiem (${rel.split('/')[0]}).`, category: 'hard_deny' };
+  }
+  return { allowed: true, reason: 'OK', category: 'allowed' };
+}
+
 /** Bramka dla listy plików — zwraca pierwszą blokadę albo { allowed:true }. */
 export function assertWritePaths(repoRoot, targets) {
   for (const target of targets) {

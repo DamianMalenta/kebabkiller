@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getSystemAgentConfig, OWNER_TOKEN_HEADER } from './config.js';
 import { GOLDEN_FILES, WRITE_ALLOW_ROOTS, classifyWritePath } from './pathGuard.js';
+import { createRepairEngine } from './engine.js';
 
 /**
  * Router AI-Inżyniera — osobny moduł /api/system-agent/*.
@@ -46,6 +47,37 @@ export function createSystemAgentRouter() {
     if (!target) return res.status(400).json({ error: 'Brak pola "path".' });
     const { repoRoot } = getSystemAgentConfig();
     res.json(classifyWritePath(repoRoot, target));
+  });
+
+  // Diagnoza READ-ONLY — czyta wskazane pliki, nic nie zapisuje.
+  router.post('/diagnose', (req, res) => {
+    const { repoRoot } = getSystemAgentConfig();
+    const engine = createRepairEngine({ repoRoot });
+    try {
+      res.json(engine.diagnose({
+        problem: req.body?.problem,
+        files: Array.isArray(req.body?.files) ? req.body.files : [],
+      }));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Propozycja naprawy — waliduje poręcze, zapisuje wpis 'proposed' (bez zapisu na dysk).
+  router.post('/propose', (req, res) => {
+    const { repoRoot } = getSystemAgentConfig();
+    const engine = createRepairEngine({ repoRoot });
+    try {
+      const repair = engine.proposeRepair({
+        title: req.body?.title,
+        problem: req.body?.problem,
+        diagnosis: req.body?.diagnosis,
+        changes: Array.isArray(req.body?.changes) ? req.body.changes : [],
+      });
+      res.status(201).json(repair);
+    } catch (err) {
+      res.status(400).json({ error: err.message, guard: err.guard || null });
+    }
   });
 
   return router;

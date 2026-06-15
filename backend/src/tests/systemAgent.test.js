@@ -1,10 +1,22 @@
-import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
+import { describe, test, expect, beforeAll, afterAll, afterEach } from '@jest/globals';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createTestDatabase, destroyTestDatabase } from './helpers/testDatabase.js';
 import { classifyWritePath, assertWritePaths, GOLDEN_FILES } from '../ai/systemAgent/pathGuard.js';
 import { getSystemAgentConfig } from '../ai/systemAgent/config.js';
 import { createRepair, getRepair, listRepairs, updateRepair } from '../ai/systemAgent/repairJournal.js';
+import { createRepairEngine } from '../ai/systemAgent/engine.js';
 
 const REPO = '/repo';
+
+function makeRepo() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kk-sysagent-repo-'));
+  fs.mkdirSync(path.join(root, 'backend/src/video'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'backend/src/video/wanConfig.js'), 'export const A = 1;\nexport const B = 2;\n');
+  fs.writeFileSync(path.join(root, 'backend/.env'), 'SECRET=xxx\n');
+  return root;
+}
 
 describe('systemAgent pathGuard', () => {
   test('allows whitelisted backend/frontend src', () => {
@@ -98,5 +110,64 @@ describe('systemAgent repair journal', () => {
 
     const all = listRepairs();
     expect(all.some((r) => r.id === repair.id)).toBe(true);
+  });
+});
+
+describe('systemAgent engine: diagnose (read-only)', () => {
+  let repoRoot;
+  beforeAll(() => { repoRoot = makeRepo(); });
+  afterAll(() => { fs.rmSync(repoRoot, { recursive: true, force: true }); });
+
+  test('reads whitelisted file, never writes', () => {
+    const engine = createRepairEngine({ repoRoot });
+    const result = engine.diagnose({ problem: 'check', files: ['backend/src/video/wanConfig.js'] });
+    expect(result.readOnly).toBe(true);
+    expect(result.files[0].exists).toBe(true);
+    expect(result.files[0].excerpt).toContain('export const A');
+    // diagnose nie tworzy commitów ani nie zmienia plików
+    expect(fs.readFileSync(path.join(repoRoot, 'backend/src/video/wanConfig.js'), 'utf8')).toContain('export const A = 1;');
+  });
+
+  test('blocks reading .env (secret)', () => {
+    const engine = createRepairEngine({ repoRoot });
+    const result = engine.diagnose({ problem: 'leak', files: ['backend/.env'] });
+    expect(result.files).toHaveLength(0);
+    expect(result.blocked[0].path).toBe('backend/.env');
+  });
+});
+
+describe('systemAgent engine: proposeRepair', () => {
+  let repoRoot;
+  let testDir;
+  beforeAll(() => {
+    repoRoot = makeRepo();
+    testDir = createTestDatabase().dir;
+  });
+  afterAll(() => {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    destroyTestDatabase(testDir);
+  });
+
+  test('captures before/diff and stores proposed entry without touching disk', () => {
+    const engine = createRepairEngine({ repoRoot });
+    const repair = engine.proposeRepair({
+      title: 'Bump B',
+      problem: 'B should be 3',
+      changes: [{ path: 'backend/src/video/wanConfig.js', after: 'export const A = 1;\nexport const B = 3;\n' }],
+    });
+    expect(repair.status).toBe('proposed');
+    expect(repair.files[0].before).toContain('export const B = 2;');
+    expect(repair.files[0].after).toContain('export const B = 3;');
+    expect(repair.diff_text).toContain('+ export const B = 3;');
+    // dysk nietknięty (apply jest osobnym krokiem)
+    expect(fs.readFileSync(path.join(repoRoot, 'backend/src/video/wanConfig.js'), 'utf8')).toContain('export const B = 2;');
+  });
+
+  test('guard blocks golden file proposal', () => {
+    const engine = createRepairEngine({ repoRoot });
+    expect(() => engine.proposeRepair({
+      title: 'hack',
+      changes: [{ path: 'backend/src/video/runComfyEngine.js', after: 'x' }],
+    })).toThrow(/Poręcz/);
   });
 });
