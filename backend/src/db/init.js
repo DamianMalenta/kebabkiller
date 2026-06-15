@@ -176,6 +176,23 @@ export function initDatabase(dbPath) {
       FOREIGN KEY (thread_id) REFERENCES director_side_threads(id) ON DELETE CASCADE
     )`,
     'CREATE INDEX IF NOT EXISTS idx_director_side_messages_thread ON director_side_messages(thread_id)',
+    // Faza E (AI-Inżynier): Dziennik Napraw. BEZ backfillu (czysta karta).
+    `CREATE TABLE IF NOT EXISTS system_agent_repairs (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL DEFAULT '',
+      problem TEXT NOT NULL DEFAULT '',
+      diagnosis TEXT,
+      status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','applied','rolled_back','reverted','rejected','failed')),
+      files_json TEXT NOT NULL DEFAULT '[]',
+      diff_text TEXT,
+      base_sha TEXT,
+      apply_commit_sha TEXT,
+      test_summary TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_system_agent_repairs_status ON system_agent_repairs(status)',
   ];
 
   for (const sql of migrations) {

@@ -84,6 +84,7 @@ import {
 import { buildProjectBrain, setAssetImageMetadata } from '../db/directorDeskModels.js';
 import { buildDeterministicAssetMetadata } from '../ai/directorDesk/assetMetadata.js';
 import { buildStartFrameAsset, resolveCompositeConfig } from '../video/compositeStartFrame.js';
+import { createSystemAgentRouter } from '../ai/systemAgent/router.js';
 
 function primaryImagePath(asset) {
   if (!asset?.images?.length) return null;
@@ -113,6 +114,9 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     },
   });
   const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+
+  // AI-Inżynier (Faza E) — osobny moduł, własna bramka tokenem.
+  router.use('/system-agent', createSystemAgentRouter());
 
   router.get('/health', (_req, res) => {
     res.json({
