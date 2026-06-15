@@ -4,6 +4,31 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ---
 
+## Sesja #20 — 2026-06-15
+
+**Zakres:** FAZA C — część bez GPU (Klatka Zero + rozbicie I2V_PRODUCTION + żywe tło). Commit per krok, golden strażnik zielony.
+
+### Zrobiono
+- **Krok 1** — `wanConfig.js`: rozbicie `I2V_PROFILES` na niezależne osie `camera`/`background`/`beats` (+ test osi).
+- **Krok 2** — `workflowBuilder.js` + `i2vProduction.js`: żywe tło (`LIVING_BACKGROUND_PROMPT`) odpięte od kamery, usunięcie legacy `staticCamera/singleBeat`; anchor „feet on ground" = uziemienie POSTACI zostaje.
+- **Krok 3** — Klatka Zero/kaskada `scene ?? asset ?? hardcoded`: `assets.composite_default_json` (model+resolwer), sterowalna pozycja/skala w `compositeStartFrame.js`, endpoint `POST /composite/preview` (0 zł).
+- **Krok 4** — frontend `KlatkaZeroPanel.jsx` (suwaki + live preview), klient API, montaż w Katalogu.
+- **Krok 5** — `docs/11`: podsekcja „zrobione (bez GPU) / odłożone (GPU)".
+- Testy: 110 → **115 pass**; `vite build` OK. `runComfyEngine.js` NIETKNIĘTY.
+
+### Naprawiono
+- Zlepek I2V: statyczna kamera **już nie zamraża tła** (osobna oś `background.motion`).
+
+### Ustalenia
+- Pozycja/skala Klatki Zero = **kaskada** (scena → asset → fallback); zapisane w `docs/11` sekcja C.
+- Golden `productionPayloadGolden`: świadoma aktualizacja (node 55 niesie „Living background") — determinizm bez zmian.
+- **Bloker GPU otwarty:** proteza (AMPERE_24→48) udowodniła pipeline B+C e2e, ale docelowo potrzebny **nowy lekki ComfyUI-Minimal** (panel, nie API). Faza C-GPU niezakończona.
+
+### Werdykt
+Część bez GPU Fazy C gotowa, na origin/main. Następny krok właściciela: zbudować lekki deployment w panelu RunComfy; potem TOR KOD (IP-Adapter + wpięcie composite/osi) lub Faza E.
+
+---
+
 ## Sesja #16 — 2026-06-13
 
 **Zakres:** Vite tunnel fix, plan Programista (Cursor Cloud Agents) v2, weryfikacja vs MCP.
