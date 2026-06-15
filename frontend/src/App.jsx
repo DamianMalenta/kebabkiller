@@ -5,6 +5,7 @@ import Settings from './pages/Settings.jsx';
 import Catalog from './pages/Catalog.jsx';
 import Projects from './pages/Projects.jsx';
 import DirectorsDesk from './pages/DirectorsDesk.jsx';
+import SystemAgent from './pages/SystemAgent.jsx';
 import { MobileQuickNav } from './components/MobileNightWelcome.jsx';
 
 const navClass = ({ isActive }) =>
@@ -43,6 +44,7 @@ export default function App() {
             <NavLink to="/projects" className={navClass}>Seriale</NavLink>
             <NavLink to="/desk" className={navClass}>Reżyseria</NavLink>
             <NavLink to="/settings" className={navClass}>Baza Wiedzy</NavLink>
+            <NavLink to="/system-agent" className={navClass}>AI-Inżynier</NavLink>
           </div>
         </div>
       </nav>
@@ -55,6 +57,7 @@ export default function App() {
           <Route path="/desk/:projectId" element={<DirectorsDesk />} />
           <Route path="/desk" element={<DirectorsDeskRedirect />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/system-agent" element={<SystemAgent />} />
         </Routes>
       </main>
 

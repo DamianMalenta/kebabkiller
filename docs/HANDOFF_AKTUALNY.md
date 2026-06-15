@@ -1,7 +1,7 @@
 # HANDOFF AKTUALNY — stan na teraz
 
-**Ostatnia aktualizacja:** 2026-06-15 (sesja #20)
-**Sesja:** wdrożenie FAZY C — część bez GPU (Klatka Zero + osie I2V + żywe tło). Część GPU odłożona.
+**Ostatnia aktualizacja:** 2026-06-15 (sesja #21)
+**Sesja:** wdrożenie FAZY E — AI-Inżynier MVP (osobny moduł, bez GPU). Część C-GPU nadal odłożona.
 
 ---
 
@@ -26,13 +26,14 @@ Nie dotykać `gema-0`.
 - **Faza B** ✅ (deterministyczny Reżyser: `@ID`/`ref_id`, jeden builder, stały seed, podgląd==produkcja, golden test).
 - **Faza C — część BEZ GPU** ✅ (sesja #20): osie I2V (kamera/tło/beats), żywe tło odpięte od kamery, Klatka Zero z kaskadą composite + podgląd kolażu 0 zł + panel UI.
 - **Faza C — część GPU** ❌ ODŁOŻONA: node IP-Adapter, wpięcie composite/osi do realnego workflow, realny render klipu, AI-gen klatki. Bloker = **brak lekkiego deploymentu ComfyUI-Minimal** (stary jest za ciężki; proteza AMPERE_48 udowodniła pipeline, ale to nie docelowe).
-- **Testy:** `npm test --prefix backend` = **115 pass**; `vite build` OK.
+- **Faza E** ✅ (sesja #21): AI-Inżynier MVP — osobny moduł `backend/src/ai/systemAgent/` + `/api/system-agent/*` (bramka tokenem `SYSTEM_AGENT_TOKEN`), pętla diagnoza read-only → propose → apply (checkpoint git + bramka testów + auto-rollback) → [Cofnij] + Dziennik Napraw, panel UI „AI-Inżynier". Render-path NIETKNIĘTY.
+- **Testy:** `npm test --prefix backend` = **133 pass**; `vite build` OK.
 
 ---
 
 ## CO DZIAŁA / CO NIE
 
-**Działa:** cały tor bez GPU. Podgląd kolażu Klatki Zero (`POST /composite/preview`, 0 zł) + panel w Katalogu (suwaki pozycja/skala/źródło, live preview). Pipeline B+C potwierdzony e2e na GPU (na protezie AMPERE_48).
+**Działa:** cały tor bez GPU. Podgląd kolażu Klatki Zero (`POST /composite/preview`, 0 zł) + panel w Katalogu (suwaki pozycja/skala/źródło, live preview). Pipeline B+C potwierdzony e2e na GPU (na protezie AMPERE_48). AI-Inżynier (Faza E) — pętla naprawcza z cofaniem; **wymaga ustawienia `SYSTEM_AGENT_TOKEN` w `backend/.env`** (bez tokena moduł jest wyłączony — bezpieczne domyślne; token wpisz też w panelu „AI-Inżynier").
 **Nie działa / brak:** docelowy lekki deployment RunComfy (ComfyUI-Minimal). Serwerowy graf ma bug KSampler (Studio ratuje się lokalnym `wan_workflow_api.json`).
 
 ---

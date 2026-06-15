@@ -28,9 +28,48 @@ export function styleBibleToEditText(project) {
   }
 }
 
+const OWNER_TOKEN_KEY = 'kk_owner_token';
+
+export function getOwnerToken() {
+  try {
+    return localStorage.getItem(OWNER_TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setOwnerToken(token) {
+  try {
+    if (token) localStorage.setItem(OWNER_TOKEN_KEY, token);
+    else localStorage.removeItem(OWNER_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function ownerAuth() {
+  return { 'x-owner-token': getOwnerToken() };
+}
+
 export const api = {
   health: () => request('/health'),
   knowledge: () => request('/knowledge'),
+
+  // Faza E — AI-Inżynier (osobny moduł, bramka tokenem właściciela).
+  systemAgent: {
+    health: () => request('/system-agent/health'),
+    status: () => request('/system-agent/status', { headers: ownerAuth() }),
+    listRepairs: () => request('/system-agent/repairs', { headers: ownerAuth() }),
+    getRepair: (id) => request(`/system-agent/repairs/${id}`, { headers: ownerAuth() }),
+    diagnose: (body) =>
+      request('/system-agent/diagnose', { method: 'POST', headers: ownerAuth(), body: JSON.stringify(body) }),
+    propose: (body) =>
+      request('/system-agent/propose', { method: 'POST', headers: ownerAuth(), body: JSON.stringify(body) }),
+    apply: (id) =>
+      request(`/system-agent/repairs/${id}/apply`, { method: 'POST', headers: ownerAuth() }),
+    undo: (id) =>
+      request(`/system-agent/repairs/${id}/undo`, { method: 'POST', headers: ownerAuth() }),
+  },
 
   characters: {
     list: () => request('/characters'),

@@ -241,4 +241,24 @@ describe('systemAgent engine: applyRepair (test gate + rollback)', () => {
     engine.applyRepair(repair.id);
     expect(() => engine.applyRepair(repair.id)).toThrow(/proposed/);
   });
+
+  test('undo after applied restores before + status reverted', () => {
+    const engine = createRepairEngine({
+      repoRoot,
+      git: fakeGit(),
+      runTests: () => ({ ok: true, summary: 'ok' }),
+    });
+    const repair = engine.proposeRepair({
+      title: 'Bump then undo',
+      changes: [{ path: target, after: 'export const A = 1;\nexport const B = 7;\n' }],
+    });
+    engine.applyRepair(repair.id);
+    expect(fs.readFileSync(path.join(repoRoot, target), 'utf8')).toContain('export const B = 7;');
+
+    const reverted = engine.undoRepair(repair.id);
+    expect(reverted.status).toBe('reverted');
+    expect(fs.readFileSync(path.join(repoRoot, target), 'utf8')).toContain('export const B = 2;');
+    // nie można cofnąć drugi raz
+    expect(() => engine.undoRepair(repair.id)).toThrow(/applied/);
+  });
 });

@@ -189,5 +189,26 @@ export function createRepairEngine({ repoRoot, fs = nodeFs, git, runTests } = {}
     }
   }
 
-  return { diagnose, proposeRepair, applyRepair, restoreFiles, repoRoot };
+  /** Ręczny [Cofnij]: przywraca pliki do stanu 'before' i commituje rewert. */
+  function undoRepair(id) {
+    const repair = getRepair(id);
+    if (!repair) throw new Error(`Naprawa ${id} nie istnieje.`);
+    if (repair.status !== 'applied') {
+      throw new Error(`Cofnąć można tylko naprawę 'applied' (jest '${repair.status}').`);
+    }
+
+    restoreFiles(repair.files);
+
+    const paths = repair.files.map((f) => f.path);
+    let revertSha = null;
+    try {
+      revertSha = gitOps.commitPaths(paths, `system-agent: revert ${repair.title}`);
+    } catch (err) {
+      console.warn('[systemAgent] commit rewertu nieudany:', err.message);
+    }
+
+    return updateRepair(id, { status: 'reverted', apply_commit_sha: revertSha || repair.apply_commit_sha });
+  }
+
+  return { diagnose, proposeRepair, applyRepair, undoRepair, restoreFiles, repoRoot };
 }

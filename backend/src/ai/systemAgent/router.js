@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getSystemAgentConfig, OWNER_TOKEN_HEADER } from './config.js';
 import { GOLDEN_FILES, WRITE_ALLOW_ROOTS, classifyWritePath } from './pathGuard.js';
 import { createRepairEngine } from './engine.js';
+import { listRepairs, getRepair } from './repairJournal.js';
 
 /**
  * Router AI-Inżyniera — osobny moduł /api/system-agent/*.
@@ -89,6 +90,28 @@ export function createSystemAgentRouter() {
       res.json(result);
     } catch (err) {
       res.status(400).json({ error: err.message, guard: err.guard || null });
+    }
+  });
+
+  // Dziennik Napraw — lista i szczegóły.
+  router.get('/repairs', (_req, res) => {
+    res.json(listRepairs());
+  });
+
+  router.get('/repairs/:id', (req, res) => {
+    const repair = getRepair(req.params.id);
+    if (!repair) return res.status(404).json({ error: 'Naprawa nie istnieje.' });
+    res.json(repair);
+  });
+
+  // Ręczny [Cofnij] — przywrócenie plików sprzed naprawy + commit rewertu.
+  router.post('/repairs/:id/undo', (req, res) => {
+    const { repoRoot } = getSystemAgentConfig();
+    const engine = createRepairEngine({ repoRoot });
+    try {
+      res.json(engine.undoRepair(req.params.id));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
     }
   });
 
