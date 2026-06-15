@@ -6,17 +6,39 @@ import {
   toRepoRelative,
 } from './pathGuard.js';
 import { buildChangeSetDiff } from './diffUtil.js';
-import { createRepair } from './repairJournal.js';
+import { createRepair, getRepair, updateRepair } from './repairJournal.js';
+import { createGitOps } from './gitOps.js';
+import { runBackendTests } from './testRunner.js';
 
 /**
  * Silnik pętli naprawczej AI-Inżyniera. Rdzeń jest deterministyczny i iniektowalny
  * (fs/git/runTests) — warstwa LLM (proponowanie diffu) jest opcjonalna i wpinana z zewnątrz.
  */
-export function createRepairEngine({ repoRoot, fs = nodeFs } = {}) {
+export function createRepairEngine({ repoRoot, fs = nodeFs, git, runTests } = {}) {
   if (!repoRoot) throw new Error('createRepairEngine: brak repoRoot.');
+  const gitOps = git || createGitOps(repoRoot);
+  const testGate = runTests || (() => runBackendTests(repoRoot));
 
   function absOf(rel) {
     return path.resolve(repoRoot, rel);
+  }
+
+  function writeFileEnsured(rel, content) {
+    const abs = absOf(rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content, 'utf8');
+  }
+
+  /** Przywraca pliki do stanu `before` (lub kasuje nowo utworzone). */
+  function restoreFiles(files) {
+    for (const f of files) {
+      const abs = absOf(f.path);
+      if (f.before === null || f.before === undefined) {
+        if (fs.existsSync(abs)) fs.rmSync(abs);
+      } else {
+        writeFileEnsured(f.path, f.before);
+      }
+    }
   }
 
   function readFileSafe(rel) {
@@ -91,5 +113,81 @@ export function createRepairEngine({ repoRoot, fs = nodeFs } = {}) {
     });
   }
 
-  return { diagnose, proposeRepair, repoRoot };
+  /**
+   * Zastosowanie naprawy: checkpoint git → zapis → bramka testów.
+   * Zielono → commit + status 'applied'. Czerwono → auto-rollback + status 'rolled_back'.
+   */
+  function applyRepair(id) {
+    const repair = getRepair(id);
+    if (!repair) throw new Error(`Naprawa ${id} nie istnieje.`);
+    if (repair.status !== 'proposed') {
+      throw new Error(`Naprawa ${id} ma status '${repair.status}' — apply wymaga 'proposed'.`);
+    }
+
+    const paths = repair.files.map((f) => f.path);
+    const guard = assertWritePaths(repoRoot, paths);
+    if (!guard.allowed) {
+      updateRepair(id, { status: 'rejected', error: `${guard.path}: ${guard.reason}` });
+      const err = new Error(`Poręcz zablokowała apply: ${guard.path} — ${guard.reason}`);
+      err.guard = guard;
+      throw err;
+    }
+
+    // Checkpoint: drzewo robocze dla tych plików musi być czyste (nie nadpisujemy ręcznych zmian).
+    if (!gitOps.isClean(paths)) {
+      updateRepair(id, { status: 'failed', error: 'Niezacommitowane zmiany w plikach docelowych.' });
+      throw new Error('Apply przerwane: pliki docelowe mają niezacommitowane zmiany. Zacommituj/wycofaj je najpierw.');
+    }
+    const baseSha = safeHead();
+
+    for (const f of repair.files) writeFileEnsured(f.path, f.after);
+
+    let gate;
+    try {
+      gate = testGate();
+    } catch (err) {
+      restoreFiles(repair.files);
+      updateRepair(id, { status: 'rolled_back', base_sha: baseSha, error: `Bramka testów rzuciła: ${err.message}` });
+      throw err;
+    }
+
+    if (!gate.ok) {
+      restoreFiles(repair.files);
+      const updated = updateRepair(id, {
+        status: 'rolled_back',
+        base_sha: baseSha,
+        test_summary: gate.summary || 'failed',
+        error: 'Testy czerwone — auto-rollback.',
+      });
+      return { ...updated, applied: false, gate };
+    }
+
+    let applyCommitSha = null;
+    try {
+      applyCommitSha = gitOps.commitPaths(paths, `system-agent: ${repair.title}`);
+    } catch (err) {
+      // Commit się nie udał, ale testy zielone — zostaw pliki, oznacz applied bez sha.
+      applyCommitSha = null;
+      console.warn('[systemAgent] commit checkpoint nieudany:', err.message);
+    }
+
+    const updated = updateRepair(id, {
+      status: 'applied',
+      base_sha: baseSha,
+      apply_commit_sha: applyCommitSha,
+      test_summary: gate.summary || 'passed',
+      error: null,
+    });
+    return { ...updated, applied: true, gate };
+  }
+
+  function safeHead() {
+    try {
+      return gitOps.getHeadSha();
+    } catch {
+      return null;
+    }
+  }
+
+  return { diagnose, proposeRepair, applyRepair, restoreFiles, repoRoot };
 }

@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll, afterAll, afterEach } from '@jest/globals';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -169,5 +169,76 @@ describe('systemAgent engine: proposeRepair', () => {
       title: 'hack',
       changes: [{ path: 'backend/src/video/runComfyEngine.js', after: 'x' }],
     })).toThrow(/Poręcz/);
+  });
+});
+
+describe('systemAgent engine: applyRepair (test gate + rollback)', () => {
+  let repoRoot;
+  let testDir;
+  const target = 'backend/src/video/wanConfig.js';
+
+  function fakeGit() {
+    return {
+      getHeadSha: () => 'base-sha',
+      isClean: () => true,
+      commitPaths: () => 'apply-sha',
+      restorePaths: () => {},
+    };
+  }
+
+  beforeAll(() => { testDir = createTestDatabase().dir; });
+  afterAll(() => { destroyTestDatabase(testDir); });
+  beforeEach(() => { repoRoot = makeRepo(); });
+  afterEach(() => { fs.rmSync(repoRoot, { recursive: true, force: true }); });
+
+  test('green tests → writes file + commits + status applied', () => {
+    const engine = createRepairEngine({
+      repoRoot,
+      git: fakeGit(),
+      runTests: () => ({ ok: true, summary: '130 passed' }),
+    });
+    const repair = engine.proposeRepair({
+      title: 'Bump B to 3',
+      changes: [{ path: target, after: 'export const A = 1;\nexport const B = 3;\n' }],
+    });
+    const result = engine.applyRepair(repair.id);
+
+    expect(result.applied).toBe(true);
+    expect(result.status).toBe('applied');
+    expect(result.apply_commit_sha).toBe('apply-sha');
+    expect(fs.readFileSync(path.join(repoRoot, target), 'utf8')).toContain('export const B = 3;');
+  });
+
+  test('red tests → auto-rollback to before + status rolled_back', () => {
+    const engine = createRepairEngine({
+      repoRoot,
+      git: fakeGit(),
+      runTests: () => ({ ok: false, summary: '1 failed, 129 passed' }),
+    });
+    const repair = engine.proposeRepair({
+      title: 'Break B',
+      changes: [{ path: target, after: 'export const A = 1;\nexport const B = BROKEN;\n' }],
+    });
+    const result = engine.applyRepair(repair.id);
+
+    expect(result.applied).toBe(false);
+    expect(result.status).toBe('rolled_back');
+    // plik wrócił do stanu sprzed apply (auto-rollback)
+    expect(fs.readFileSync(path.join(repoRoot, target), 'utf8')).toContain('export const B = 2;');
+    expect(fs.readFileSync(path.join(repoRoot, target), 'utf8')).not.toContain('BROKEN');
+  });
+
+  test('apply twice is rejected (status no longer proposed)', () => {
+    const engine = createRepairEngine({
+      repoRoot,
+      git: fakeGit(),
+      runTests: () => ({ ok: true, summary: 'ok' }),
+    });
+    const repair = engine.proposeRepair({
+      title: 'Once',
+      changes: [{ path: target, after: 'export const A = 1;\nexport const B = 9;\n' }],
+    });
+    engine.applyRepair(repair.id);
+    expect(() => engine.applyRepair(repair.id)).toThrow(/proposed/);
   });
 });

@@ -80,5 +80,17 @@ export function createSystemAgentRouter() {
     }
   });
 
+  // Zastosowanie naprawy — checkpoint → zapis → bramka testów → (commit | auto-rollback).
+  router.post('/repairs/:id/apply', (req, res) => {
+    const { repoRoot } = getSystemAgentConfig();
+    const engine = createRepairEngine({ repoRoot });
+    try {
+      const result = engine.applyRepair(req.params.id);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message, guard: err.guard || null });
+    }
+  });
+
   return router;
 }
