@@ -10,8 +10,11 @@ afterEach(() => {
   }
 });
 
-test('defaults to 4000 when env unset', () => {
-  assert.equal(readBackendPort(), DEFAULT_BACKEND_PORT);
+test('reads PORT from backend/.env when process env unset', () => {
+  const port = readBackendPort();
+  assert.ok(Number.isFinite(port) && port > 0 && port < 65536);
+  // W tym repo backend/.env ustawia PORT (obecnie 4002); bez pliku byłoby DEFAULT_BACKEND_PORT.
+  assert.equal(port, 4002);
 });
 
 test('BACKEND_PORT overrides default', () => {
