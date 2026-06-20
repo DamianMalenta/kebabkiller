@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initDatabase } from './db/init.js';
@@ -40,6 +42,22 @@ if (recovery.interrupted || recovery.requeued) {
 }
 
 const app = express();
+
+// Security headers
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
+// Rate limiting — 200 requests per minute per IP
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+app.use('/api', limiter);
+
 app.use(cors({
   origin: [
     `http://localhost:${FRONTEND_PORT}`,
@@ -55,6 +73,17 @@ app.use('/api', createApiRouter({
   uploadsDir: UPLOADS_DIR,
   outputDir: OUTPUT_DIR,
 }));
+
+// Global error handler — prevent leaking internal details to clients
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  // Multer file-filter errors
+  if (err.message && err.message.includes('is not allowed')) {
+    return res.status(415).json({ error: err.message });
+  }
+  console.error('[Kebabkiller Studio] Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 app.listen(PORT, () => {
   console.log(`[Kebabkiller Studio] Backend running on http://localhost:${PORT}`);
