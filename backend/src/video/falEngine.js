@@ -292,10 +292,15 @@ export function createFalEngine(outputDir, config = {}) {
         uploadsDir,
         width: 480,
         height: 832,
+        startFrameOverride: directorJson?.start_frame_path,
       });
 
       if (!startFrame) {
         throw new Error('[fal.ai] Brak klatki startowej — sprawdź character_ref i background_ref w planie sceny.');
+      }
+
+      if (startFrame.source === 'continuation') {
+        console.log('[fal.ai] Klatka startowa: kadr kontynuacji z poprzedniej sceny.');
       }
 
       console.log(`[fal.ai] StartFrame source: ${startFrame.source}`);

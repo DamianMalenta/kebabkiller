@@ -472,6 +472,7 @@ export function createRunComfyEngine(outputDir, config) {
           uploadsDir,
           width: WAN_QUALITY.width,
           height: WAN_QUALITY.height,
+          startFrameOverride: directorJson?.start_frame_path,
         });
         const processedAssets = { startFrame };
 

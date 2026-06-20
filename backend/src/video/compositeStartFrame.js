@@ -77,7 +77,24 @@ export async function buildStartFrameAsset({
   width = 480,
   height = 832,
   composite,
+  startFrameOverride,
 }) {
+  // Silnik ciągłości (Filar 3): jeśli scena ma wskazany kadr kontynuacji (klatka z
+  // poprzedniego klipu), startujemy z niego — pomijając kompozyt postać+tło.
+  if (startFrameOverride) {
+    const overridePath = resolveUploadPath(startFrameOverride, uploadsDir);
+    const overrideBuffer = await loadImageBuffer(overridePath)
+      || (fs.existsSync(startFrameOverride) ? fs.readFileSync(startFrameOverride) : null);
+    if (overrideBuffer) {
+      const frame = await sharp(overrideBuffer)
+        .resize(width, height, { fit: 'cover', position: 'centre' })
+        .jpeg({ quality: 92 })
+        .toBuffer();
+      return { type: 'base64', data: toDataUri(frame), source: 'continuation' };
+    }
+    console.warn(`[StartFrame] Kadr kontynuacji niedostępny (${startFrameOverride}) — wracam do kompozytu.`);
+  }
+
   const cfg = resolveCompositeConfig(composite, null);
   const charPath = resolveUploadPath(characterRef, uploadsDir);
   const bgPath = resolveUploadPath(backgroundRef, uploadsDir);

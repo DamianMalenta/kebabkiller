@@ -114,6 +114,22 @@ export const api = {
       }),
   },
 
+  episodePlans: {
+    get: (id) => request(`/episode-plans/${id}`),
+    production: (id) => request(`/episode-plans/${id}/production`),
+  },
+
+  // Filar 3 — silnik ciągłości: kadr z poprzedniej sceny na start następnej.
+  continuity: {
+    frames: (planId, sceneId) =>
+      request(`/episode-plans/${planId}/scenes/${sceneId}/continuation-frames`),
+    setStartFrame: (planId, sceneId, framePath) =>
+      request(`/episode-plans/${planId}/scenes/${sceneId}/start-frame`, {
+        method: 'PUT',
+        body: JSON.stringify({ frame_path: framePath }),
+      }),
+  },
+
   directorDesk: {
     getState: (projectId, episodePlanId) => {
       const q = episodePlanId ? `?episode_plan_id=${encodeURIComponent(episodePlanId)}` : '';

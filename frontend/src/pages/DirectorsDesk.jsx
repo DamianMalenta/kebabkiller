@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import SeriesBrainSidebar from '../components/directorDesk/SeriesBrainSidebar.jsx';
 import ChatCenter from '../components/directorDesk/ChatCenter.jsx';
+import ContinuityPicker from '../components/ContinuityPicker.jsx';
 
 const SUGGESTIONS_BY_STEP = {
   series_start: ['Kebabkiller Poczatki, klimat realistyczny z humorem', 'Zmień nazwę serialu na: '],
@@ -145,6 +146,12 @@ export default function DirectorsDesk() {
           />
         </div>
       </div>
+
+      {episodePlanId && (
+        <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+          <ContinuityPicker planId={episodePlanId} />
+        </div>
+      )}
     </div>
   );
 }
