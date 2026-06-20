@@ -183,6 +183,7 @@ export async function compactSeriesMemory({
     { name: 'openai', call: () => callOpenAiCompaction(userMessage) },
   ];
 
+  const errors = [];
   for (const provider of providers) {
     try {
       const raw = await provider.call();
@@ -194,6 +195,7 @@ export async function compactSeriesMemory({
       }
     } catch (err) {
       console.warn(`[MemoryCompaction] ${provider.name} failed:`, err.message);
+      errors.push({ provider: provider.name, error: err.message });
     }
   }
 
@@ -203,5 +205,9 @@ export async function compactSeriesMemory({
     newRenderSummary,
     sceneContext,
   );
-  return { memory, source: 'rule_based' };
+  return {
+    memory,
+    source: 'rule_based',
+    ...(errors.length > 0 ? { llm_errors: errors } : {}),
+  };
 }

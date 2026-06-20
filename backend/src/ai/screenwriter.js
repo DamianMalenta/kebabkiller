@@ -191,9 +191,11 @@ export async function assistEpisodePlan(episodePlanId, userMessage, { apply = fa
 
   let proposal;
   let source = 'groq';
+  let llmError = null;
   try {
     proposal = await callGroq(prompt);
   } catch (err) {
+    llmError = err.message;
     console.warn('[Screenwriter] Groq failed:', err.message);
     proposal = null;
   }
@@ -221,5 +223,6 @@ export async function assistEpisodePlan(episodePlanId, userMessage, { apply = fa
     applied: apply,
     plan: updatedPlan,
     source: proposal._source,
+    ...(llmError ? { llm_error: llmError } : {}),
   };
 }

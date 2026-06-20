@@ -120,6 +120,7 @@ export async function routeIntent(message, context = {}) {
     }
   } catch (err) {
     console.warn('[IntentRouter] LLM failed:', err.message);
+    return { intent: heuristic, confidence: 0.5, source: 'heuristic', llm_error: err.message };
   }
 
   return { intent: heuristic, confidence: 0.5, source: 'heuristic' };

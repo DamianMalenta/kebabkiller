@@ -312,6 +312,7 @@ export function createRunComfyEngine(outputDir, config) {
       }
     } catch (err) {
       if (err.message?.startsWith('RunComfy render failed')) throw err;
+      console.warn(`[RunComfyEngine] Failed to parse result response: ${err.message}`);
     }
 
     return null;
