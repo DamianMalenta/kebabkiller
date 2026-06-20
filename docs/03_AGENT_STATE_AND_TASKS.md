@@ -1,15 +1,27 @@
 # 03. Stan Projektu, Problemy i Zadania
 
-**Zaktualizowano:** 2026-06-11 (sesja #14)  
-**Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.  
-**Wizja docelowa:** [05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md) · [CAPABILITIES.md](CAPABILITIES.md)
+**Zaktualizowano:** 2026-06-15 (sesja #20)  
+**Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.
+
+---
+
+## ⚠️ ŹRÓDŁO PRAWDY
+
+Architektura i kierunek: **[11_OPUS_ARCHITECTURE_PROPOSAL.md](11_OPUS_ARCHITECTURE_PROPOSAL.md) + realny kod.**
+Reszta `docs/` (w tym sekcje niżej w tym pliku, `05_EPISODE_PIPELINE`, `07_DEV_AGENT_PLAN`) ma **sprzeczne/legacy** wersje — traktuj jako historię, nie jako rozkaz.
+
+- **Aktywny UI = Director's Desk** (`/desk`). Stary flow **EpisodePlan = legacy**.
+- **Odrzucone:** Programista `/dev` (F4 / `07_DEV_AGENT_PLAN`), Cursor Cloud Agents jako tor naprawy, merge `gema-0`.
 
 ---
 
 ## OBECNY STATUS (jedno zdanie)
 
-**Kod:** Plan odcinka F1–F2 w UI (desktop + mobile) + RunComfy zablokowany przez ciężki deployment GPU.  
-**Wizja:** Plan odcinka → akceptacja → Reżyser produkcji → paczka montażowa — **flow zaimplementowany**, czeka test produkcyjny.
+**Kod:** FAZY A + B + C(część bez GPU) wdrożone. Faza C: osie I2V (kamera/tło/beats), żywe tło odpięte od kamery, Klatka Zero z kaskadą composite + podgląd kolażu 0 zł + panel UI. Testy 115 pass.  
+**Bloker:** część C-GPU (IP-Adapter, realny klip, AI-gen klatki) odłożona — brak **lekkiego deploymentu ComfyUI-Minimal** (panel RunComfy, nie API).  
+**Następne:** zbudować lekki deployment (`docs/RUNCOMFY_DEPLOYMENT.md`), potem TOR KOD C-GPU lub Faza E. Szczegóły w `11_OPUS_ARCHITECTURE_PROPOSAL.md`.
+
+> Sekcje poniżej są **archiwalne** (sesje #12–#16) — zostawione dla kontekstu historycznego.
 
 ---
 
@@ -33,13 +45,15 @@
 ## JAK URUCHOMIĆ
 
 ```bash
-cd kebabkiller_studio
+cd kebabkiller_studio2/kebabkiller
 npm run dev
+npm run status:dev
 ```
 
-- Frontend: http://localhost:5173  
-- Backend: `PORT` z `backend/.env` (domyślnie **4000**; Vite proxy czyta ten sam plik)  
-- Health: `http://localhost:{PORT}/api/health`  
+- Frontend: http://localhost:5174  
+- Backend: http://localhost:4005 (`PORT` + `FRONTEND_PORT` w `backend/.env`)  
+- Health: http://localhost:4005/api/health  
+- Macius/Symbiont (osobno): :8787 / :4001 / :5173  
 
 ```bash
 npm test --prefix backend
@@ -56,7 +70,7 @@ npm test --prefix backend
 
 1. **GPU freeze / stale po WAN21** — deployment `b36cb944…` za ciężki (~30+ custom nodes). Fix: ComfyUI-Minimal / nowy deployment.
 2. **Brak powtarzalnego WEBM** — jeden sukces, potem timeout 10 min przy `WAN_LENGTH=81` (naprawione na 33).
-3. **Vite LAN** — ✅ `host: true` w `frontend/vite.config.js` (telefon: IP:5173, ten sam Wi‑Fi).
+3. **Vite LAN** — ✅ `host: true` w `frontend/vite.config.js` (telefon: IP:**5174**, ten sam Wi‑Fi).
 
 ## ROZWIĄZANE (sesja #14)
 
@@ -122,6 +136,12 @@ npm test --prefix backend
 - [x] Plan `zaakceptowany` → kolejka renderu scen (`productionQueue.js`)
 - [x] Jeden profil wizualny na odcinek (`productionDirector.js`)
 - [x] `E01_manifest.json` + nazewnictwo klipów (`output/export/E01/`)
+
+### F4 — Programista w panelu (Cursor Cloud Agents)
+- [x] Plan wdrożenia v2 — `docs/07_DEV_AGENT_PLAN.md` (weryfikacja API + MCP)
+- [ ] Backend proxy `/api/dev-agent/*` + SQLite wątki
+- [ ] Frontend `/dev` (chat + SSE + PR link)
+- [ ] Faza 2b: Kebabkiller MCP (agent → dane Studia)
 
 ### Backlog (po F2)
 - [ ] **Doprecyzowanie Scenarzysty** — lepsze prompty, pętla doprecyzowania z twórcą, walidacja multi-beat w opisach scen

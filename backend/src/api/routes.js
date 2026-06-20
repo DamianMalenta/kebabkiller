@@ -30,7 +30,6 @@ import {
   deleteProject,
   listEpisodes,
   getEpisode,
-  createEpisode,
   updateEpisode,
   deleteEpisode,
   getSeriesContextForLlm,
@@ -38,9 +37,6 @@ import {
   isCanonAcceptanceComplete,
 } from '../db/models.js';
 import {
-  expandScenePrompt,
-  previewDirectorPlan,
-  suggestEpisodePrompts,
   getLlmProviderStatus,
 } from '../ai/director.js';
 import { processCanonAcceptance } from '../ai/canonPipeline.js';
@@ -53,6 +49,8 @@ import {
   deleteAsset,
   addAssetImage,
   deleteAssetImage,
+  setAssetCompositeDefault,
+  setSceneCompositeOverride,
   listEpisodePlans,
   getEpisodePlan,
   createEpisodePlan,
@@ -66,7 +64,9 @@ import {
   deletePlanDeliverable,
   validateEpisodePlan,
   acceptEpisodePlan,
+  FROZEN_PLAN_STATUSES,
 } from '../db/episodeModels.js';
+import { hydrateRow } from '../utils/json.js';
 import {
   getLatestProductionRun,
   listProductionRuns,
@@ -84,13 +84,20 @@ import { buildProjectBrain, setAssetImageMetadata } from '../db/directorDeskMode
 import { buildDeterministicAssetMetadata } from '../ai/directorDesk/assetMetadata.js';
 import { handleDevMessage, getDevAgentState } from '../ai/devAgent.js';
 import { clearDevHistory } from '../db/devAgentModels.js';
+import { buildStartFrameAsset, resolveCompositeConfig } from '../video/compositeStartFrame.js';
+import { createSystemAgentRouter } from '../ai/systemAgent/router.js';
+
+function primaryImagePath(asset) {
+  if (!asset?.images?.length) return null;
+  const primary = asset.images.find((i) => i.is_primary) || asset.images[0];
+  return primary?.path || null;
+}
 
 function formatJobResponse(job) {
+  const hydrated = hydrateRow(job);
   return {
-    ...job,
-    is_canon: Boolean(job.is_canon),
+    ...hydrated,
     canon_complete: isCanonAcceptanceComplete(job.id),
-    canon_acceptance_in_progress: Boolean(job.canon_acceptance_in_progress),
     director_json: job.director_json ? JSON.parse(job.director_json) : null,
   };
 }
@@ -107,6 +114,9 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     },
   });
   const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+
+  // AI-Inżynier (Faza E) — osobny moduł, własna bramka tokenem.
+  router.use('/system-agent', createSystemAgentRouter());
 
   router.get('/health', (_req, res) => {
     res.json({
@@ -224,6 +234,9 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
 
   router.post('/rules', (req, res) => {
     try {
+      if (req.body.priority !== undefined && typeof req.body.priority !== 'number') {
+        return res.status(400).json({ error: 'Priority musi być liczbą.' });
+      }
       const item = createRule(req.body);
       res.status(201).json(item);
     } catch (err) {
@@ -260,6 +273,9 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     try {
       if (!req.body.name?.trim()) {
         return res.status(400).json({ error: 'Nazwa projektu jest wymagana.' });
+      }
+      if (req.body.description !== undefined && typeof req.body.description !== 'string') {
+        return res.status(400).json({ error: 'Description musi być tekstem.' });
       }
       const item = createProject({
         name: req.body.name,
@@ -314,25 +330,14 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     res.json(listEpisodePlans(req.params.projectId));
   });
 
-  router.post('/projects/:projectId/episodes', (req, res) => {
-    try {
-      const project = getProject(req.params.projectId);
-      if (!project) return res.status(404).json({ error: 'Project not found' });
-      if (!req.body.title?.trim()) {
-        return res.status(400).json({ error: 'Tytuł odcinka jest wymagany.' });
-      }
-      const item = createEpisode({
-        projectId: req.params.projectId,
-        episodeNumber: req.body.episode_number,
-        title: req.body.title,
-        synopsisPl: req.body.synopsis_pl,
-        directorNotes: req.body.director_notes,
-        status: req.body.status,
-      });
-      res.status(201).json(item);
-    } catch (err) {
-      res.status(400).json({ error: err.message });
-    }
+  // Legacy: tworzenie odcinka starym flow (tabela `episodes`) jest wycofane.
+  // Odcinki powstają wyłącznie przez kreator w Director's Desk (episode_plans).
+  // GET tego path nadal zwraca listę episode_plans (poniżej / wyżej).
+  router.post('/projects/:projectId/episodes', (_req, res) => {
+    res.status(410).json({
+      error: 'Endpoint wycofany. Użyj kreatora odcinka w Director\'s Desk (/desk).',
+      use_instead: 'director-desk',
+    });
   });
 
   router.get('/episodes/:id', (req, res) => {
@@ -452,6 +457,63 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     res.status(204).end();
   });
 
+  // Faza C — Klatka Zero: domyślny composite (pozycja+skala @char) per asset.
+  router.put('/assets/:id/composite-default', (req, res) => {
+    const existing = getAsset(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Asset not found' });
+    const updated = setAssetCompositeDefault(req.params.id, req.body.composite ?? null);
+    res.json(updated);
+  });
+
+  // Faza C — Klatka Zero: override composite na poziomie sceny (najwyższy priorytet kaskady).
+  router.put('/episode-plans/:planId/scenes/:sceneId/composite', (req, res) => {
+    const scene = setSceneCompositeOverride(req.params.sceneId, req.body.composite ?? null);
+    if (!scene) return res.status(404).json({ error: 'Scene not found' });
+    res.json(scene);
+  });
+
+  /**
+   * Faza C — PODGLĄD KOLAŻU Klatki Zero (0 zł, ZERO GPU).
+   * Składa @char (wycinek) na @loc (tło) z kaskadą composite: scena → asset → fallback.
+   * Źródła: compose (domyślne) / upload gotowej klatki / klatka z biblioteki.
+   * Źródło "generowanie AI" = GPU → ODŁOŻONE (poza zakresem).
+   */
+  router.post('/composite/preview', async (req, res) => {
+    try {
+      const body = req.body || {};
+      const characterAsset = body.characterAssetId ? getAsset(body.characterAssetId) : null;
+      const locationAsset = body.locationAssetId ? getAsset(body.locationAssetId) : null;
+
+      const characterRef = body.characterRef || primaryImagePath(characterAsset);
+      const backgroundRef = body.backgroundRef || primaryImagePath(locationAsset);
+
+      // Kaskada: override sceny → domyślna assetu (@char) → fallback (hardcoded w resolverze).
+      const composite = resolveCompositeConfig(body.sceneComposite, characterAsset?.composite_default);
+
+      const startFrame = await buildStartFrameAsset({
+        characterRef,
+        backgroundRef,
+        uploadsDir,
+        composite,
+      });
+
+      if (!startFrame) {
+        return res.status(422).json({ error: 'Brak obrazów postaci i tła do złożenia kolażu.' });
+      }
+
+      res.json({
+        data: startFrame.data,
+        source: startFrame.source,
+        composite,
+        width: 480,
+        height: 832,
+        cost: 0,
+      });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   // F1: Episode plans
   router.get('/episode-plans', (_req, res) => {
     res.json(listEpisodePlans());
@@ -465,6 +527,15 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
 
   router.post('/episode-plans', (req, res) => {
     try {
+      if (!req.body.code?.trim()) {
+        return res.status(400).json({ error: 'Code odcinka jest wymagany.' });
+      }
+      if (typeof req.body.code !== 'string') {
+        return res.status(400).json({ error: 'Code musi być tekstem.' });
+      }
+      if (req.body.target_duration_sec !== undefined && typeof req.body.target_duration_sec !== 'number') {
+        return res.status(400).json({ error: 'target_duration_sec musi być liczbą.' });
+      }
       const plan = createEpisodePlan({
         code: req.body.code,
         title: req.body.title,
@@ -482,6 +553,22 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   router.put('/episode-plans/:id', (req, res) => {
     const existing = getEpisodePlan(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Episode plan not found' });
+    
+    // Walidacja code jeśli jest podany
+    if (req.body.code !== undefined) {
+      if (typeof req.body.code !== 'string') {
+        return res.status(400).json({ error: 'Code musi być tekstem.' });
+      }
+      if (!req.body.code?.trim()) {
+        return res.status(400).json({ error: 'Code odcinka jest wymagany.' });
+      }
+    }
+    
+    // Walidacja target_duration_sec jeśli jest podany
+    if (req.body.target_duration_sec !== undefined && typeof req.body.target_duration_sec !== 'number') {
+      return res.status(400).json({ error: 'target_duration_sec musi być liczbą.' });
+    }
+    
     const plan = updateEpisodePlan(req.params.id, {
       code: req.body.code,
       title: req.body.title,
@@ -603,7 +690,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     try {
       const plan = getEpisodePlan(req.params.id);
       if (!plan) return res.status(404).json({ error: 'Episode plan not found' });
-      if (!['zaakceptowany', 'gotowy', 'w_produkcji'].includes(plan.status)) {
+      if (!FROZEN_PLAN_STATUSES.has(plan.status)) {
         return res.status(400).json({ error: 'Plan musi być zaakceptowany przed produkcją.' });
       }
       enqueueEpisodeProduction(plan.id, videoEngine, outputDir);
@@ -647,49 +734,9 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     }
   });
 
-  // AI Director
-  router.post('/director/preview', async (req, res) => {
-    try {
-      const {
-        prompt,
-        character_id,
-        background_id,
-        project_id,
-        episode_id,
-        i2v_profile,
-        duration_sec,
-      } = req.body;
-      if (!prompt?.trim()) {
-        return res.status(400).json({ error: 'prompt is required' });
-      }
-      const plan = await previewDirectorPlan(prompt, {
-        characterId: character_id,
-        backgroundId: background_id,
-        projectId: project_id,
-        episodeId: episode_id,
-        i2vProfile: i2v_profile,
-        durationSec: duration_sec,
-      });
-      res.json(plan);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  router.post('/director/suggest', async (req, res) => {
-    try {
-      const { project_id, episode_id, brief_pl, count } = req.body;
-      const result = await suggestEpisodePrompts({
-        projectId: project_id,
-        episodeId: episode_id,
-        briefPl: brief_pl,
-        count,
-      });
-      res.json(result);
-    } catch (err) {
-      res.status(400).json({ error: err.message });
-    }
-  });
+  // AI Director (legacy - endpointy wycofane, użyj Director's Desk /director-desk/*)
+  // POST /director/preview - WYCOFANY: użyj Director's Desk
+  // POST /director/suggest - WYCOFANY: użyj Director's Desk
 
   // Video jobs
   router.get('/jobs', (_req, res) => {
@@ -761,13 +808,10 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
 
       let plan = director_plan;
       if (!plan && !skip_preview) {
-        plan = await expandScenePrompt(prompt, {
-          characterId: character_id,
-          backgroundId: background_id,
-          projectId: project_id,
-          episodeId: episode_id,
-          i2vProfile: req.body.i2v_profile,
-          durationSec: req.body.duration_sec,
+        // Legacy: expandScenePrompt wycofane - użyj Director's Desk
+        return res.status(410).json({
+          error: 'Auto-preview wycofany. Użyj Director\'s Desk (/director-desk/*) aby wygenerować director plan.',
+          use_instead: 'director-desk',
         });
       }
 

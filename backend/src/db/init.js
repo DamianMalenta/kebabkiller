@@ -133,6 +133,11 @@ export function initDatabase(dbPath) {
     'ALTER TABLE plan_scenes ADD COLUMN ai_overrides_json TEXT',
     'ALTER TABLE plan_scenes ADD COLUMN storyboard_mock_json TEXT',
     'ALTER TABLE asset_images ADD COLUMN ai_metadata_json TEXT',
+    // Faza B (@ID compiler): stabilny, niemutowalny ref_id assetu. BEZ backfillu (czysta karta).
+    'ALTER TABLE assets ADD COLUMN ref_id TEXT',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_ref_id ON assets(ref_id)',
+    // Faza C (Klatka Zero): domyślny composite (pozycja+skala @char) per asset. Nullable, BEZ backfillu.
+    'ALTER TABLE assets ADD COLUMN composite_default_json TEXT',
     `CREATE TABLE IF NOT EXISTS director_chat_messages (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
@@ -179,6 +184,23 @@ export function initDatabase(dbPath) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     'CREATE INDEX IF NOT EXISTS idx_dev_agent_messages_created ON dev_agent_messages(created_at)',
+    // Faza E (AI-Inżynier): Dziennik Napraw. BEZ backfillu (czysta karta).
+    `CREATE TABLE IF NOT EXISTS system_agent_repairs (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL DEFAULT '',
+      problem TEXT NOT NULL DEFAULT '',
+      diagnosis TEXT,
+      status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','applied','rolled_back','reverted','rejected','failed')),
+      files_json TEXT NOT NULL DEFAULT '[]',
+      diff_text TEXT,
+      base_sha TEXT,
+      apply_commit_sha TEXT,
+      test_summary TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_system_agent_repairs_status ON system_agent_repairs(status)',
   ];
 
   for (const sql of migrations) {

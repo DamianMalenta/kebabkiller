@@ -1,96 +1,90 @@
 # HANDOFF AKTUALNY — stan na teraz
 
-**Ostatnia aktualizacja:** 2026-06-14 (sesja #15)  
-**Sesja:** Programista (/dev) panel — AI developer agent
+**Ostatnia aktualizacja:** 2026-06-15 (sesja #21)
+**Sesja:** wdrożenie FAZY E — AI-Inżynier MVP (osobny moduł, bez GPU). Część C-GPU nadal odłożona.
+
+---
+
+## ŹRÓDŁO PRAWDY (czytaj to, nie sprzeczne docs)
+
+**Plan architektury:** `docs/11_OPUS_ARCHITECTURE_PROPOSAL.md` (śledzony w repo).
+Dokumentacja w `docs/` ma **wiele sprzecznych wersji** — NIE traktuj jej jako prawdy. Prawda = **`docs/11` + realny kod**.
 
 ---
 
 ## ZŁOTA ZASADA (Nie zmieniać)
 
-Nie usuwać `director.js`, `mockEngine.js`, `runComfyEngine.js`.  
-`wan_workflow_api.json` = lokalny szablon; Studio wysyła pełny `workflow_api_json`.  
-Deployment RunComfy = środowisko GPU; panel overrides ≠ payload ze Studia.
+Nie usuwać/przepisywać hurtem: `director.js`, `mockEngine.js`, `runComfyEngine.js`.
+`wan_workflow_api.json` = lokalny szablon; Studio wysyła pełny `workflow_api_json`.
+Nie dotykać `gema-0`.
 
 ---
 
-## TL;DR
+## TL;DR — stan kodu
 
-- **Plan odcinka (F1):** UI z krokami 0–6, Scenarzysta, auto-zapis scen, walidacja, akceptacja → produkcja. ✅
-- **Mobile:** Vite `host:true`, LAN `http://192.168.8.44:5173`, karty scen, sticky „Akceptuj”, dolny pasek nav, panel dzień/noc. ✅
-- **Backend:** `wanConfig` (WAN_LENGTH dla I2V), recovery partial/failed → retry; testy **77/77**. ✅
-- **Dev serwery:** backend **4000**, frontend **5173** — health OK. ✅
-- **Programista (/dev):** panel AI developer agent — system info + Groq chat + fallback deterministyczny. ✅
-- **RunComfy:** deployment `b36cb944…` ciężki (ComfyUI-Manager) — bloker żywego WEBM. ❌
-- **Backlog:** F3 recenzja; Scenarzysta + `series_memory`; picker `asset_image_id`.
-
----
-
-## Co zrobić jako pierwsze
-
-1. **Programista (/dev):** http://localhost:5173/dev — sprawdź system, joby, plany. Gdy GROQ_API_KEY ustawiony — działa AI chat. Bez klucza — fallback deterministyczny.
-2. **Test z telefonu (Wi‑Fi):** http://192.168.8.44:5173 → Katalog → Nowy odcinek → kroki 1–6 → Akceptuj → obserwuj Produkcję.
-3. Jeśli render **failed** — logi backendu + RunComfy; ewentualnie nowy deployment Minimal (patrz `docs/RUNCOMFY_DEPLOYMENT.md`).
-4. Po udanym teście 2 klipów — rozważyć F3 lub podpięcie Scenarzysty do pamięci serialu.
+- **Faza A** ✅ (PlanValidator + frozen plan, jeden kanał zapisu scen, sprzątnięty wizard/frontend, legacy POST=410).
+- **Faza B** ✅ (deterministyczny Reżyser: `@ID`/`ref_id`, jeden builder, stały seed, podgląd==produkcja, golden test).
+- **Faza C — część BEZ GPU** ✅ (sesja #20): osie I2V (kamera/tło/beats), żywe tło odpięte od kamery, Klatka Zero z kaskadą composite + podgląd kolażu 0 zł + panel UI.
+- **Faza C — część GPU** ❌ ODŁOŻONA: node IP-Adapter, wpięcie composite/osi do realnego workflow, realny render klipu, AI-gen klatki. Bloker = **brak lekkiego deploymentu ComfyUI-Minimal** (stary jest za ciężki; proteza AMPERE_48 udowodniła pipeline, ale to nie docelowe).
+- **Faza E** ✅ (sesja #21): AI-Inżynier MVP — osobny moduł `backend/src/ai/systemAgent/` + `/api/system-agent/*` (bramka tokenem `SYSTEM_AGENT_TOKEN`), pętla diagnoza read-only → propose → apply (checkpoint git + bramka testów + auto-rollback) → [Cofnij] + Dziennik Napraw, panel UI „AI-Inżynier". Render-path NIETKNIĘTY.
+- **Testy:** `npm test --prefix backend` = **133 pass**; `vite build` OK.
 
 ---
 
-## Stan techniczny
+## CO DZIAŁA / CO NIE
 
-| Element | Status |
-|---------|--------|
-| Plan odcinka + instrukcje UI (desktop + mobile) | ✅ |
-| Mobile: karty scen, sticky accept, step jump, bottom nav | ✅ |
-| Vite LAN (`host: true` w `vite.config.js`) | ✅ |
-| `canAccept` tylko właściwe statusy | ✅ |
-| Auto-zapis scen (select + blur) | ✅ |
-| `wanConfig` + `.env` spójne (WAN_LENGTH=73, I2V_PRODUCTION) | ✅ |
-| Backend testy | ✅ 77/77 |
-| Programista (/dev) panel + API + DB | ✅ |
-| RunComfy stabilny | ❌ |
-| Scenarzysta + series_memory | ❌ backlog |
-| F3 recenzja klipów | ❌ |
+**Działa:** cały tor bez GPU. Podgląd kolażu Klatki Zero (`POST /composite/preview`, 0 zł) + panel w Katalogu (suwaki pozycja/skala/źródło, live preview). Pipeline B+C potwierdzony e2e na GPU (na protezie AMPERE_48). AI-Inżynier (Faza E) — pętla naprawcza z cofaniem; **wymaga ustawienia `SYSTEM_AGENT_TOKEN` w `backend/.env`** (bez tokena moduł jest wyłączony — bezpieczne domyślne; token wpisz też w panelu „AI-Inżynier").
+**Nie działa / brak:** docelowy lekki deployment RunComfy (ComfyUI-Minimal). Serwerowy graf ma bug KSampler (Studio ratuje się lokalnym `wan_workflow_api.json`).
 
 ---
 
-## `.env` — ważne klucze
+## ZRÓB TO JAKO PIERWSZE
 
-```env
-VIDEO_ENGINE=runcomfy
-RUNCOMFY_ENDPOINT=https://api.runcomfy.net/prod/v2/deployments/b36cb944-1eed-4cea-8e63-ef99667db566/inference
-PORT=4001
-WAN_LENGTH=73
-I2V_PROFILE=I2V_PRODUCTION
-GROQ_API_KEY=...
+**Zbuduj nowy lekki deployment `ComfyUI-Minimal` w panelu ComfyUI Cloud** wg `docs/RUNCOMFY_DEPLOYMENT.md` (tylko wymagane node'y + 3 modele, BEZ ComfyUI-Manager), wklej Inference URL do `RUNCOMFY_ENDPOINT` w `backend/.env`. **Tego nie da się zrobić przez API/MCP — to operacja w panelu.**
+Dopiero po tym ma sens TOR KOD Fazy C-GPU (IP-Adapter + wpięcie composite/osi do `runComfyEngine.js`/`wan_workflow_api.json` — pod review + zielonymi testami; sekcja H/63 na to pozwala).
+
+---
+
+## JAK URUCHOMIĆ
+
+```bash
+cd kebabkiller_studio2/kebabkiller
+npm run dev
+npm test --prefix backend
+npm run status:dev
 ```
 
-Telefon: ten sam Wi‑Fi co PC; **nie** otwieraj backendu :4001 bezpośrednio — API idzie przez Vite proxy.
+- Frontend: http://localhost:5174 · Backend: http://localhost:4005 (`PORT` + `FRONTEND_PORT` w `backend/.env`). Macius: :5173/:4001 — nie koliduje.
 
 ---
 
 ## Prompt do nowego czatu
 
 ```text
-Kebabkiller Studio — sesja #14: mobile UX + plan odcinka gotowy do testu z telefonu.
-
-Przeczytaj HANDOFF_AKTUALNY.md i 05_EPISODE_PIPELINE.md.
-Priorytet: wynik testu 2 klipów z telefonu (LAN 192.168.8.44:5173); jeśli produkcja failed — RunComfy deployment.
+Kontynuuj Kebabkiller Studio. Źródło prawdy = docs/11_OPUS_ARCHITECTURE_PROPOSAL.md + realny kod.
+Tryb PLAN — zero edycji kodu, dopóki nie napiszę "OK, rób".
+Stan: Fazy A, B oraz Faza C (część BEZ GPU) ZROBIONE (sesja #20). Część C-GPU odłożona
+do czasu zbudowania lekkiego deploymentu ComfyUI-Minimal (panel RunComfy, nie kod).
+Najpierw przeczytaj docs/11 (sekcje D, F, H) + docs/RUNCOMFY_DEPLOYMENT.md.
+Powiedz, czy zaczynamy: (a) TOR KOD Fazy C-GPU (IP-Adapter + wpięcie composite/osi,
+rusza runComfyEngine.js), czy (b) Faza E (AI-Inżynier, osobny moduł, bez GPU).
+Nie dotykaj: gema-0, .env. Commit per krok, npm test --prefix backend przed i po.
 ```
 
 **Koniec sesji:** `HANDOFF`
 
 ---
 
-## Pliki kluczowe
+## Pliki kluczowe (zmienione w sesji #20)
 
 ```text
-frontend/src/pages/EpisodePlan.jsx
-frontend/src/components/MobileNightWelcome.jsx
-frontend/src/components/MobileSceneEditor.jsx
-frontend/src/components/MobileStepNav.jsx
-frontend/src/components/StepGuide.jsx
-frontend/vite.config.js
-backend/src/video/wanConfig.js
-backend/src/video/productionQueue.js
-backend/src/db/episodeModels.js
-backend/scripts/audit-runcomfy.sh
+docs/11_OPUS_ARCHITECTURE_PROPOSAL.md          ← źródło prawdy
+docs/RUNCOMFY_DEPLOYMENT.md                    ← jak zbudować lekki deployment
+backend/src/video/wanConfig.js                 ← osie I2V (kamera/tło/beats)
+backend/src/ai/directorDesk/workflowBuilder.js ← żywe tło + osie
+backend/src/ai/i2vProduction.js                ← migracja na osie
+backend/src/video/compositeStartFrame.js       ← kaskada composite + pozycja/skala
+backend/src/db/episodeModels.js + schema.sql + init.js ← assets.composite_default_json
+backend/src/api/routes.js                      ← POST /composite/preview + zapis kaskady
+frontend/src/components/KlatkaZeroPanel.jsx     ← panel Klatki Zero
 ```

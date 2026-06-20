@@ -7,20 +7,34 @@ export const WAN_FRAME_MAX = 241;
 const DEFAULT_WAN_LENGTH = 33; // ~1.4 s @ 24 fps — stabilny smoke test na RunComfy
 const DEFAULT_WAN_DENOISE = 1;
 
-/** Production profiles for I2V clip rendering (F0). */
+/**
+ * Production profiles for I2V clip rendering (F0).
+ *
+ * Faza C — rozbicie zlepku I2V_PRODUCTION na NIEZALEŻNE osie:
+ *   - camera     → ruch kamery (static / tracking)
+ *   - background → życie tła (alive / frozen), NIEZALEŻNE od kamery
+ *   - beats      → liczba beatów (single / multi)
+ *
+ * Kluczowa zmiana: statyczna kamera NIE zamraża tła. `camera.static === true`
+ * dotyczy tylko kadru/optyki; tło żyje promptem (`background.motion: 'alive'`),
+ * geometria trzymana strukturą. `anchorPrompt` = uziemienie POSTACI (nie tła).
+ */
 export const I2V_PROFILES = {
   SMOKE: {
     id: 'SMOKE',
-    staticCamera: false,
-    singleBeat: false,
+    camera: { motion: 'tracking', static: false },
+    background: { motion: 'alive' },
+    beats: { single: false },
     denoise: 1,
     steps: 20,
     defaultLength: DEFAULT_WAN_LENGTH,
+    anchorPrompt: null,
   },
   I2V_PRODUCTION: {
     id: 'I2V_PRODUCTION',
-    staticCamera: true,
-    singleBeat: true,
+    camera: { motion: 'static', static: true },
+    background: { motion: 'alive' }, // tło żyje mimo statycznej kamery (koniec zlepku)
+    beats: { single: true },
     denoise: 0.85,
     steps: 20,
     defaultLength: 97, // ~4 s @ 24 fps
@@ -65,6 +79,23 @@ function clampFrames(frames) {
   return Math.min(WAN_FRAME_MAX, Math.max(WAN_FRAME_MIN, Math.round(frames)));
 }
 
+const SEED_MODULO = 1_000_000_000_000n; // utrzymuje seed w zakresie ~1e12 (jak wczesniej)
+
+/**
+ * Deterministyczny seed z klucza (FNV-1a 64-bit). Ten sam klucz → ten sam seed.
+ * Faza B: render tor liczy seed z `planId:sceneId` — kazda scena ma wlasny powtarzalny
+ * seed. Zastepuje Math.random() (zero losowosci w torze renderu).
+ */
+export function deterministicSeed(key) {
+  const str = String(key ?? '');
+  let hash = 0xcbf29ce484222325n; // FNV offset basis (64-bit)
+  for (let i = 0; i < str.length; i += 1) {
+    hash ^= BigInt(str.charCodeAt(i));
+    hash = (hash * 0x100000001b3n) & 0xffffffffffffffffn; // FNV prime, 64-bit wrap
+  }
+  return Number(hash % SEED_MODULO);
+}
+
 /** Map scene duration (seconds) to Wan frame count @ 24 fps. */
 export function secondsToFrames(seconds, fps = WAN_FPS) {
   if (!Number.isFinite(seconds) || seconds <= 0) {
@@ -107,8 +138,10 @@ export function resolveWanRenderParams(options = {}) {
     length,
     steps: profile.steps,
     denoise,
-    staticCamera: profile.staticCamera,
-    singleBeat: profile.singleBeat,
+    // Osie niezależne (kanoniczne źródło prawdy — Faza C)
+    camera: { ...profile.camera },
+    background: { ...profile.background },
+    beats: { ...profile.beats },
     anchorPrompt: profile.anchorPrompt || null,
   };
 }

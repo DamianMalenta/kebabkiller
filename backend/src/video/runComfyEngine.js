@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureOutputDir, resolveOutputPath } from './paths.js';
 import { buildStartFrameAsset } from './compositeStartFrame.js';
-import { resolveWanRenderParams, WAN_QUALITY } from './wanConfig.js';
+import { resolveWanRenderParams, WAN_QUALITY, deterministicSeed } from './wanConfig.js';
 
 export { WAN_QUALITY, resolveWanRenderParams, secondsToFrames, I2V_PROFILES } from './wanConfig.js';
 
@@ -181,7 +181,11 @@ export function buildRunComfyWorkflow(jobId, userPrompt, directorJson, processed
 
   const positivePrompt = directorJson?.positive_prompt || userPrompt;
   const negativePrompt = directorJson?.negative_prompt || 'blurry, worst quality, text, watermark';
-  const seed = Math.floor(Math.random() * 1_000_000_000_000);
+  // Determinizm: seed z planu (directorJson.seed = hash(planId:sceneId)). Brak planu
+  // (np. legacy /render) → seed wyprowadzony z promptu, nadal deterministyczny (zero Math.random).
+  const seed = Number.isInteger(directorJson?.seed)
+    ? directorJson.seed
+    : deterministicSeed(`${positivePrompt}|${negativePrompt}`);
 
   workflow['55'].inputs = cloneInputs('55', workflow);
   workflow['55'].inputs.text = positivePrompt;

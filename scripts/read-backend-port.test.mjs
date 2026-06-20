@@ -1,8 +1,10 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readBackendPort, DEFAULT_BACKEND_PORT } from './read-backend-port.mjs';
+import { readFrontendPort } from './read-frontend-port.mjs';
+import { STUDIO2_DEV } from './dev-ports.mjs';
 
-const ENV_KEYS = ['BACKEND_PORT', 'PORT'];
+const ENV_KEYS = ['BACKEND_PORT', 'PORT', 'FRONTEND_PORT', 'VITE_PORT'];
 
 afterEach(() => {
   for (const key of ENV_KEYS) {
@@ -10,8 +12,15 @@ afterEach(() => {
   }
 });
 
-test('defaults to 4000 when env unset', () => {
-  assert.equal(readBackendPort(), DEFAULT_BACKEND_PORT);
+test('reads PORT from backend/.env when process env unset', () => {
+  const port = readBackendPort();
+  assert.ok(Number.isFinite(port) && port > 0 && port < 65536);
+  assert.equal(port, STUDIO2_DEV.backend);
+});
+
+test('reads FRONTEND_PORT from backend/.env when process env unset', () => {
+  const port = readFrontendPort();
+  assert.equal(port, STUDIO2_DEV.frontend);
 });
 
 test('BACKEND_PORT overrides default', () => {

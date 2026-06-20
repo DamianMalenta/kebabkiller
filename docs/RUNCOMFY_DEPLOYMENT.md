@@ -2,6 +2,17 @@
 
 **Cel:** uniknąć freeze GPU po `Model WAN21 prepared…` i uzyskać stabilny output WEBM (node 52).
 
+## STAN 2026-06-15 (sesja #20) — diagnoza + PROTEZA (nie docelowe rozwiązanie)
+
+> **WAŻNE:** poniższe to stopgap niezgodny z planem („nowy deployment, nie reużywaj starego z Managerem"). Docelowo Faza C-GPU = **nowy lekki deployment ComfyUI-Minimal** (sekcja niżej). Bloker „lekki deployment" NADAL otwarty.
+
+Audyt deploymentu `KebabKiller-WAN-Minimal` (`7a8411f1-aad2-4fbb-8c07-6c1d0e724ad7`) wykazał:
+- **Przyczyna freeze (potwierdzona):** hardware `AMPERE_24` (24 GB) — za mało na Wan 14B. Stopgap: podbito na `AMPERE_48` przez MCP (NIE cofnięte). To „ulepszanie starego ciężkiego", a nie budowa nowego — sprzeczne z planem.
+- **Walidacja pipeline (na protezie):** request `98fbbc41-...` `succeeded` — node 52 → `ComfyUI_00001_.webm` (~6 min 48 s). Render e2e przez backend Studia też OK (`output/export/SMOKE_.../*.webm`). Dowodzi, że łańcuch B+C jest poprawny — ale na ciężkim środowisku.
+- **Graf na serwerze ma bug:** deployowany `workflow_api_json` ma poprzestawiane wejścia `KSampler` node 56 → request na nim `failed`. Studio renderuje lokalnym (poprawnym) `wan_workflow_api.json`, więc realna ścieżka działa.
+- **Środowisko ciężkie:** `object_info` = 2436 typów węzłów + ComfyUI-Manager → cold start ~5-7 min. To powód, dla którego docelowo budujemy ComfyUI-Minimal.
+- **API ≠ panel:** budowy nowego środowiska (wybór ComfyUI-Minimal, instalacja nodów, modele, Cloud Save) NIE da się zrobić przez REST/MCP — to operacja w panelu ComfyUI Cloud. MCP/REST obsługuje tylko cykl życia deploymentu (z gotowego `workflow_id`) + inferencję.
+
 ## Problem (stan 2026-06)
 
 Ciężki deployment z ~30+ custom nodes + ComfyUI Manager powoduje zawieszenie po załadowaniu Wan 2.1. Pipeline kodu w Studio jest gotowy; bloker to środowisko GPU.

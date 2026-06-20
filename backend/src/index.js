@@ -12,11 +12,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
 const PORT = Number(process.env.PORT) || 4000;
+const FRONTEND_PORT = Number(process.env.FRONTEND_PORT) || 5174;
 const DATABASE_PATH = path.resolve(ROOT, process.env.DATABASE_PATH || './data/studio.db');
 const UPLOADS_DIR = path.resolve(ROOT, process.env.UPLOADS_DIR || './uploads');
 const OUTPUT_DIR = path.resolve(ROOT, process.env.OUTPUT_DIR || './output');
 
-initDatabase(DATABASE_PATH);
+try {
+  initDatabase(DATABASE_PATH);
+} catch (err) {
+  console.error('[Kebabkiller Studio] Failed to initialize database:', err.message);
+  process.exit(1);
+}
 
 const videoEngine = createVideoEngine({
   VIDEO_ENGINE: process.env.VIDEO_ENGINE,
@@ -34,7 +40,12 @@ if (recovery.interrupted || recovery.requeued) {
 }
 
 const app = express();
-app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }));
+app.use(cors({
+  origin: [
+    `http://localhost:${FRONTEND_PORT}`,
+    `http://127.0.0.1:${FRONTEND_PORT}`,
+  ],
+}));
 app.use(express.json({ limit: '2mb' }));
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/output', express.static(OUTPUT_DIR));

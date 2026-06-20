@@ -15,6 +15,7 @@ import {
   releaseCanonAcceptanceLock,
   commitCanonSeriesMemory,
 } from '../db/models.js';
+import { hydrateRow } from '../utils/json.js';
 
 function resolveStyleBible(project) {
   if (!project) return '';
@@ -80,13 +81,13 @@ function loadOrBuildRenderSummary(job, directorJson, resolvedProjectId) {
  * Marks a completed job as canon, stores render_summary, compacts series_memory.
  */
 export async function processCanonAcceptance(jobId, { projectId } = {}) {
-  let job = getVideoJob(jobId);
+  let job = hydrateRow(getVideoJob(jobId));
   if (!job) throw new Error('Job not found');
   if (job.status !== 'completed') {
     throw new Error('Tylko ukończone zlecenia mogą być oznaczone jako kanon');
   }
 
-  if (Boolean(job.is_canon) && isCanonAcceptanceComplete(jobId)) {
+  if (job.is_canon && isCanonAcceptanceComplete(jobId)) {
     return buildSkippedResult(job, projectId);
   }
 
@@ -114,7 +115,7 @@ export async function processCanonAcceptance(jobId, { projectId } = {}) {
   let summaryPersisted = Boolean(getRenderSummaryByJobId(jobId));
 
   try {
-    if (!Boolean(job.is_canon)) {
+    if (!job.is_canon) {
       const claimed = tryClaimJobCanon(jobId);
       if (!claimed) {
         const refreshed = getVideoJob(jobId);

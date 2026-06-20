@@ -91,8 +91,8 @@ export function getAllowedToolNames(mode, step) {
 
   const episodeTools = {
     [EPISODE_STEPS.START]: [...base, 'createEpisodePlan', 'advanceWizard'],
-    [EPISODE_STEPS.LOGLINE]: [...base, 'updateEpisodeLogline', 'setSceneAnchors', 'advanceWizard'],
-    [EPISODE_STEPS.STORYBOARD]: [...base, 'upsertScene', 'removeScene', 'reorderScenes', 'buildStoryboardMock', 'advanceWizard'],
+    [EPISODE_STEPS.LOGLINE]: [...base, 'updateEpisodeLogline', 'advanceWizard'],
+    [EPISODE_STEPS.STORYBOARD]: [...base, 'upsertScene', 'removeScene', 'buildStoryboardMock', 'advanceWizard'],
     [EPISODE_STEPS.ASSETS]: [...base, 'requestAssetUpload', 'attachSceneAsset', 'buildStoryboardMock', 'advanceWizard'],
     [EPISODE_STEPS.REVIEW]: [...base, 'buildStoryboardMock', 'previewWorkflow', 'acceptEpisodePlan', 'advanceWizard'],
     [EPISODE_STEPS.COMPLETE]: [...base, 'updateSceneOverrides', 'previewWorkflow', 'produceEpisode'],

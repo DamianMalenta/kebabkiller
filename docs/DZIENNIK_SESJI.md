@@ -4,26 +4,49 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ---
 
-## Sesja #15 — 2026-06-14
+## Sesja #20 — 2026-06-15
 
-**Zakres:** Wdrożenie Programisty (/dev) — panel AI developer agent wg `docs/07_DEV_AGENT_PLAN.md` v2.
+**Zakres:** FAZA C — część bez GPU (Klatka Zero + rozbicie I2V_PRODUCTION + żywe tło). Commit per krok, golden strażnik zielony.
 
 ### Zrobiono
-- Stworzono `docs/07_DEV_AGENT_PLAN.md` — plan faz 0→5 Programisty.
-- **Faza 1:** migracja DB — tabela `dev_agent_messages` (id, role, content, tool_calls_json, created_at).
-- **Faza 2:** `backend/src/ai/devAgent.js` — agent Groq z narzędziami systemowymi:
-  - Narzędzia: `getSystemHealth`, `listJobs`, `getJobDetails`, `listEpisodePlans`, `getProductionStatus`, `getBackendConfig`
-  - Agentic loop (max 3 rundy tool calls), fallback deterministyczny bez klucza API.
-- **Faza 3:** API routes — `GET /dev-agent/state`, `POST /dev-agent/chat`, `DELETE /dev-agent/history`.
-- **Faza 4:** `backend/src/db/devAgentModels.js` + rozszerzenie `api.devAgent.*` w kliencie frontendu.
-- **Faza 5:** `frontend/src/pages/DevPanel.jsx` — 2-kolumnowy layout (systeminfo + czat), `devAgent.js`.
-  - Nawigacja: link "Programista" w pasku górnym (desktop) i dolnym (mobile).
-  - CSS `.dev-grid` responsywny (breakpoint 900px).
-- **Fix:** `backend/package.json` — usunięto `--use-system-ca` (Node v22.14.0 nie obsługuje).
-- Testy: 77/77 ✅.
+- **Krok 1** — `wanConfig.js`: rozbicie `I2V_PROFILES` na niezależne osie `camera`/`background`/`beats` (+ test osi).
+- **Krok 2** — `workflowBuilder.js` + `i2vProduction.js`: żywe tło (`LIVING_BACKGROUND_PROMPT`) odpięte od kamery, usunięcie legacy `staticCamera/singleBeat`; anchor „feet on ground" = uziemienie POSTACI zostaje.
+- **Krok 3** — Klatka Zero/kaskada `scene ?? asset ?? hardcoded`: `assets.composite_default_json` (model+resolwer), sterowalna pozycja/skala w `compositeStartFrame.js`, endpoint `POST /composite/preview` (0 zł).
+- **Krok 4** — frontend `KlatkaZeroPanel.jsx` (suwaki + live preview), klient API, montaż w Katalogu.
+- **Krok 5** — `docs/11`: podsekcja „zrobione (bez GPU) / odłożone (GPU)".
+- Testy: 110 → **115 pass**; `vite build` OK. `runComfyEngine.js` NIETKNIĘTY.
+
+### Naprawiono
+- Zlepek I2V: statyczna kamera **już nie zamraża tła** (osobna oś `background.motion`).
+
+### Ustalenia
+- Pozycja/skala Klatki Zero = **kaskada** (scena → asset → fallback); zapisane w `docs/11` sekcja C.
+- Golden `productionPayloadGolden`: świadoma aktualizacja (node 55 niesie „Living background") — determinizm bez zmian.
+- **Bloker GPU otwarty:** proteza (AMPERE_24→48) udowodniła pipeline B+C e2e, ale docelowo potrzebny **nowy lekki ComfyUI-Minimal** (panel, nie API). Faza C-GPU niezakończona.
 
 ### Werdykt
-Panel Programisty (/dev) wdrożony i przetestowany. UI renderuje systeminfo + czat. Bez GROQ_API_KEY: fallback deterministyczny z pełną informacją o stanie systemu.
+Część bez GPU Fazy C gotowa, na origin/main. Następny krok właściciela: zbudować lekki deployment w panelu RunComfy; potem TOR KOD (IP-Adapter + wpięcie composite/osi) lub Faza E.
+
+---
+
+## Sesja #16 — 2026-06-13
+
+**Zakres:** Vite tunnel fix, plan Programista (Cursor Cloud Agents) v2, weryfikacja vs MCP.
+
+### Zrobiono
+- Fix `allowedHosts: true` (PR #7 zmergowany) — Cloudflare tunnel działa.
+- Audyt Cloud Agents API v1 vs plan wdrożenia; porównanie z MCP (community, Kebabkiller MCP, iframe).
+- Korekty planu: brak gwarancji draft PR, auth token bez polegania na IP, faza 0 `GET /v1/repositories`.
+- Dokument **`docs/07_DEV_AGENT_PLAN.md`** (v2) — pełny plan faz 0–5 + 2b MCP.
+- Aktualizacja `HANDOFF_AKTUALNY.md`, `03_AGENT_STATE_AND_TASKS.md`, `00_START_TUTAJ.md`.
+
+### Ustalenia
+- Wariant A: własny chat `/dev` + backend proxy → `api.cursor.com/v1` (nie iframe, nie community MCP w panelu).
+- Faza 2b: opcjonalny Kebabkiller MCP — agent czyta SQLite Studia podczas kodowania.
+- Implementacja kodu — następna sesja, branch `cursor/dev-agent-panel-9e33`.
+
+### Werdykt
+Plan gotowy do wklejenia w nowy czat. Kod Programisty — backlog.
 
 ---
 

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from './init.js';
 import { secondsToFrames, WAN_FRAME_MIN, WAN_FRAME_MAX } from '../video/wanConfig.js';
+import { parseJsonField, hydrateRow } from '../utils/json.js';
 
 const PLAN_STATUSES = new Set([
   'szkic',
@@ -11,19 +12,79 @@ const PLAN_STATUSES = new Set([
   'gotowy',
 ]);
 
-function parseJsonField(value, fallback = null) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
+/**
+ * Statusy, w których plan jest "zamrożony" — granica Scenarzysta→Reżyser.
+ * Wartości pochodzą z istniejącej logiki: refreshEpisodePlanStatus pomija te
+ * statusy, /produce dopuszcza je do renderu, a acceptEpisodePlan ustawia
+ * 'zaakceptowany'. Po zamrożeniu fabuła/sceny nie mogą się już zmienić.
+ */
+export const FROZEN_PLAN_STATUSES = new Set([
+  'zaakceptowany',
+  'w_produkcji',
+  'gotowy',
+]);
+
+export function isPlanFrozen(status) {
+  return FROZEN_PLAN_STATUSES.has(status);
+}
+
+/** Rzuca błędem, gdy plan jest zamrożony (zaakceptowany / w produkcji / gotowy). */
+export function assertPlanEditable(episodePlanId) {
+  const row = getDb()
+    .prepare('SELECT status FROM episode_plans WHERE id = ?')
+    .get(episodePlanId);
+  if (!row) {
+    throw new Error('Plan odcinka nie istnieje.');
   }
+  if (isPlanFrozen(row.status)) {
+    throw new Error(
+      `Plan jest zamrożony (status: ${row.status}) — edycja scen niedozwolona. Cofnij akceptację, aby zmieniać fabułę.`,
+    );
+  }
+  return row.status;
+}
+
+/**
+ * Namespace @ID wyprowadzany z istniejącego `type` (NIE z osobnej kolumny `kind`).
+ * Jedno źródło prawdy typu assetu.
+ */
+const ASSET_NAMESPACE = {
+  character: 'char',
+  location: 'loc',
+  prop: 'prop',
+  detail: 'detail',
+};
+
+export function assetNamespace(type) {
+  return ASSET_NAMESPACE[type] || 'asset';
+}
+
+function slugifyAssetName(value) {
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+}
+
+/**
+ * Stabilny, niemutowalny slug @ID przechowywany BEZ `@` (np. `char_kebabkiller`).
+ * `@` dokleja kompilator promptu (Faza B, krok 2). Zmiana nazwy ≠ zmiana ref_id.
+ */
+export function buildAssetRefId(type, name) {
+  return `${assetNamespace(type)}_${slugifyAssetName(name)}`;
 }
 
 function hydrateAsset(row) {
   if (!row) return null;
   const images = listAssetImages(row.id);
-  return { ...row, images };
+  return {
+    ...row,
+    composite_default: parseJsonField(row.composite_default_json, null),
+    images,
+  };
 }
 
 function hydrateEpisodePlan(row) {
@@ -55,14 +116,16 @@ export function getAsset(id) {
 
 export function createAsset({ type, name, descriptionPl, canonEn, legacyCharacterId, legacyBackgroundId }) {
   const id = uuidv4();
+  const refId = buildAssetRefId(type, name);
   try {
     getDb().prepare(`
-      INSERT INTO assets (id, type, name, description_pl, canon_en, legacy_character_id, legacy_background_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO assets (id, type, name, ref_id, description_pl, canon_en, legacy_character_id, legacy_background_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       type,
       name,
+      refId,
       descriptionPl ?? '',
       canonEn ?? null,
       legacyCharacterId ?? null,
@@ -84,6 +147,7 @@ export function updateAsset(id, fields) {
         name = COALESCE(?, name),
         description_pl = COALESCE(?, description_pl),
         canon_en = COALESCE(?, canon_en),
+        composite_default_json = COALESCE(?, composite_default_json),
         updated_at = datetime('now')
     WHERE id = ?
   `).run(
@@ -91,8 +155,18 @@ export function updateAsset(id, fields) {
     fields.name ?? null,
     fields.descriptionPl ?? null,
     fields.canonEn !== undefined ? fields.canonEn : null,
+    // null = pole bez zmian (COALESCE). Jawny null kasujący wymaga osobnego setera (clearAssetCompositeDefault).
+    fields.compositeDefault !== undefined ? JSON.stringify(fields.compositeDefault) : null,
     id,
   );
+  return getAsset(id);
+}
+
+/** Domyślny composite (pozycja+skala @char) per asset — kaskada Klatki Zero. null kasuje. */
+export function setAssetCompositeDefault(id, composite) {
+  getDb().prepare(`
+    UPDATE assets SET composite_default_json = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(composite == null ? null : JSON.stringify(composite), id);
   return getAsset(id);
 }
 
@@ -103,7 +177,7 @@ export function deleteAsset(id) {
 export function listAssetImages(assetId) {
   return getDb().prepare(`
     SELECT * FROM asset_images WHERE asset_id = ? ORDER BY is_primary DESC, sort_order, created_at
-  `).all(assetId);
+  `).all(assetId).map(hydrateRow);
 }
 
 export function addAssetImage(assetId, { path, label, sortOrder, isPrimary }) {
@@ -217,7 +291,8 @@ export function normalizePlanSceneInput(scene) {
   };
 }
 
-export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true } = {}) {
+export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true, enforceEditable = true } = {}) {
+  if (enforceEditable) assertPlanEditable(episodePlanId);
   const normalized = normalizePlanSceneInput(scene);
   const id = normalized.id || uuidv4();
   const existing = getDb().prepare('SELECT id FROM plan_scenes WHERE id = ?').get(id);
@@ -261,8 +336,29 @@ export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true } =
   return row;
 }
 
+/**
+ * Override composite Klatki Zero na poziomie SCENY (najwyższy priorytet kaskady).
+ * Render-tuning wizualny (nie fabuła) — zapis do ai_overrides_json bez blokady zamrożenia.
+ * null kasuje override sceny (cofnięcie do domyślnej assetu / fallbacku).
+ */
+export function setSceneCompositeOverride(sceneId, composite) {
+  const row = getDb().prepare('SELECT ai_overrides_json FROM plan_scenes WHERE id = ?').get(sceneId);
+  if (!row) return null;
+  const overrides = parseJsonField(row.ai_overrides_json, {}) || {};
+  if (composite == null) {
+    delete overrides.composite;
+  } else {
+    overrides.composite = composite;
+  }
+  getDb().prepare(`
+    UPDATE plan_scenes SET ai_overrides_json = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(JSON.stringify(overrides), sceneId);
+  return getDb().prepare('SELECT * FROM plan_scenes WHERE id = ?').get(sceneId);
+}
+
 export function deletePlanScene(sceneId) {
   const row = getDb().prepare('SELECT episode_plan_id FROM plan_scenes WHERE id = ?').get(sceneId);
+  if (row?.episode_plan_id) assertPlanEditable(row.episode_plan_id);
   const changed = getDb().prepare('DELETE FROM plan_scenes WHERE id = ?').run(sceneId).changes > 0;
   if (changed && row?.episode_plan_id) {
     refreshEpisodePlanStatus(row.episode_plan_id);
@@ -271,12 +367,13 @@ export function deletePlanScene(sceneId) {
 }
 
 export function replacePlanScenes(episodePlanId, scenes) {
+  assertPlanEditable(episodePlanId);
   const db = getDb();
   db.prepare('DELETE FROM plan_scenes WHERE episode_plan_id = ?').run(episodePlanId);
   const saved = scenes.map((scene, index) => upsertPlanScene(
     episodePlanId,
     { ...scene, sortOrder: index },
-    { refreshStatus: false },
+    { refreshStatus: false, enforceEditable: false },
   ));
   refreshEpisodePlanStatus(episodePlanId);
   return saved;
@@ -412,10 +509,6 @@ export function acceptEpisodePlan(episodePlanId) {
   if (!validation.ok) {
     throw new Error(validation.errors.join(' '));
   }
-  const plan = getEpisodePlan(episodePlanId);
-  if (!PLAN_STATUSES.has('zaakceptowany')) {
-    throw new Error('Nieprawidłowy status docelowy.');
-  }
   return updateEpisodePlan(episodePlanId, { status: 'zaakceptowany' });
 }
 
@@ -460,6 +553,7 @@ export function getCatalogForScreenwriter() {
   return listAssets().map((a) => ({
     id: a.id,
     type: a.type,
+    ref_id: a.ref_id,
     name: a.name,
     description_pl: a.description_pl,
     canon_en: a.canon_en,
@@ -467,7 +561,7 @@ export function getCatalogForScreenwriter() {
       id: img.id,
       path: img.path,
       label: img.label,
-      is_primary: Boolean(img.is_primary),
+      is_primary: img.is_primary,
     })),
   }));
 }

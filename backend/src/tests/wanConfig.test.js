@@ -43,7 +43,22 @@ describe('wanConfig', () => {
     expect(params.profile).toBe('I2V_PRODUCTION');
     expect(params.denoise).toBe(I2V_PROFILES.I2V_PRODUCTION.denoise);
     expect(params.length).toBe(120);
-    expect(params.staticCamera).toBe(true);
+    expect(params.camera.static).toBe(true);
+  });
+
+  test('osie I2V są niezależne: statyczna kamera NIE zamraża tła (koniec zlepku)', () => {
+    const prod = resolveWanRenderParams({ i2vProfile: 'I2V_PRODUCTION', durationSec: 4 });
+    // kamera statyczna…
+    expect(prod.camera.static).toBe(true);
+    expect(prod.camera.motion).toBe('static');
+    // …ale tło żyje niezależnie od kamery
+    expect(prod.background.motion).toBe('alive');
+    expect(prod.beats.single).toBe(true);
+
+    const smoke = resolveWanRenderParams({ i2vProfile: 'SMOKE', durationSec: 4 });
+    expect(smoke.camera.static).toBe(false);
+    expect(smoke.background.motion).toBe('alive'); // tło żyje też w SMOKE
+    expect(smoke.beats.single).toBe(false);
   });
 
   test('buildRunComfyWorkflow respects wan_denoise from director json', () => {

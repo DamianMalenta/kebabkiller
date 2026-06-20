@@ -145,7 +145,7 @@ function buildMockResponse(plan, userMessage) {
   };
 }
 
-function applyScreenwriterProposal(episodePlanId, proposal) {
+export function applyScreenwriterProposal(episodePlanId, proposal) {
   const updates = {};
   if (proposal.logline) updates.logline = proposal.logline;
   if (proposal.preferences) updates.preferences = proposal.preferences;

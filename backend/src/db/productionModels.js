@@ -1,14 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from './init.js';
-
-function parseJsonField(value, fallback = null) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
+import { parseJsonField, hydrateRow } from '../utils/json.js';
 
 function hydrateProductionRun(row) {
   if (!row) return null;
@@ -88,7 +80,7 @@ export function updateProductionRun(id, fields) {
 export function listProductionClips(productionRunId) {
   return getDb().prepare(`
     SELECT * FROM production_clips WHERE production_run_id = ? ORDER BY sort_order, created_at
-  `).all(productionRunId).map((clip) => ({
+  `).all(productionRunId).map(hydrateRow).map((clip) => ({
     ...clip,
     director_json: parseJsonField(clip.director_json),
   }));

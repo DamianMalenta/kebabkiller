@@ -8,18 +8,11 @@ import {
   replacePlanScenes,
   acceptEpisodePlan,
   listAssets,
+  FROZEN_PLAN_STATUSES,
 } from './episodeModels.js';
 import { buildEpisodeStoryboardMock } from '../ai/directorDesk/storyboardMock.js';
 import { SERIES_STEPS, EPISODE_STEPS } from '../ai/directorDesk/wizardStateMachine.js';
-
-function parseJson(value, fallback = null) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
+import { parseJsonField as parseJson, hydrateRow } from '../utils/json.js';
 
 function hydrateProject(row) {
   if (!row) return null;
@@ -32,11 +25,11 @@ function hydrateProject(row) {
 
 function hydrateChatMessage(row) {
   if (!row) return null;
+  const hydrated = hydrateRow(row);
   return {
-    ...row,
+    ...hydrated,
     widgets: parseJson(row.widgets_json, []),
     pending_action: parseJson(row.pending_action_json, null),
-    is_committed: Boolean(row.is_committed),
   };
 }
 
@@ -282,10 +275,10 @@ export function getWizardContext(projectId, episodePlanId) {
     episodePlanId: episode?.id,
     logline: episode?.logline,
     sceneCount: episode?.scenes?.length ?? 0,
-    assetsReady: episode
-      ? episode.scenes.every((s) => s.description_pl?.trim())
+    assetsReady: episode && episode.scenes.length > 0
+      ? episode.scenes.every((s) => s.description_pl?.trim() && (s.asset_id || s.asset_image_id))
       : false,
-    storyboardApproved: episode?.status === 'gotowy_do_akceptacji' || episode?.status === 'zaakceptowany',
+    storyboardApproved: episode?.status && FROZEN_PLAN_STATUSES.has(episode.status),
   };
 }
 

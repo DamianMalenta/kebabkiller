@@ -7,6 +7,14 @@ function mergeTags(tags = []) {
   return Array.from(new Set(tags.map((t) => String(t).trim()).filter(Boolean)));
 }
 
+/**
+ * Żywe tło (Faza C, oś TŁO) — odpięte od ruchu kamery. Tło żyje (dym/ogień/neony),
+ * geometria/architektura stała. Dokładane do promptu gdy `background.motion === 'alive'`,
+ * NIEZALEŻNIE od `static_camera` (koniec zlepku: statyczna kamera ≠ zamrożone tło).
+ */
+export const LIVING_BACKGROUND_PROMPT =
+  'Living background: ambient motion such as drifting smoke, flickering fire and glowing neon, while architecture and geometry stay stable.';
+
 export function buildDynamicRenderRules({
   project,
   scene,
@@ -18,8 +26,16 @@ export function buildDynamicRenderRules({
   const profileId = overrides.i2v_profile || canon.default_i2v_profile || 'I2V_PRODUCTION';
   const profile = I2V_PROFILES[profileId] || I2V_PROFILES.I2V_PRODUCTION;
 
+  // Oś KAMERA — niezależna (ruch kadru/optyki)
   const cameraMotion = overrides.camera_motion || directorPlan?.cinematography?.camera_motion;
-  const staticCamera = overrides.static_camera ?? (cameraMotion === 'static' || profile.staticCamera);
+  const staticCamera = overrides.static_camera ?? (cameraMotion === 'static' || profile.camera.static);
+
+  // Oś TŁO — niezależna od kamery: statyczna kamera nie zamraża tła
+  const backgroundMotion = overrides.background_motion || profile.background.motion;
+  const backgroundAlive = backgroundMotion !== 'frozen';
+
+  // Oś BEATY
+  const singleBeat = overrides.single_beat ?? profile.beats.single;
 
   return {
     i2v_profile: profileId,
@@ -28,6 +44,9 @@ export function buildDynamicRenderRules({
     steps: overrides.steps ?? profile.steps,
     static_camera: staticCamera,
     camera_motion: cameraMotion || (staticCamera ? 'static' : 'tracking'),
+    background_motion: backgroundMotion,
+    background_alive: backgroundAlive,
+    single_beat: singleBeat,
     fps: overrides.fps ?? 24,
     style_tags: mergeTags([
       ...(canon.style_tags || []),
@@ -39,14 +58,17 @@ export function buildDynamicRenderRules({
   };
 }
 
-export function buildDynamicWorkflowPayload({
-  jobId,
-  userPrompt,
+/**
+ * JEDNA wspólna funkcja enrichment dla podglądu I produkcji (Faza B, krok 4).
+ * Wstrzykuje styl projektu (style_tags) + anchor do positive_prompt i dokleja
+ * parametry I2V/continuity z reguł. Koniec „preview != prod" — oba tory wołają to samo.
+ */
+export function enrichDirectorForRender({
   directorJson,
-  processedAssets,
+  userPrompt,
   project,
   scene,
-  generatorTags,
+  generatorTags = [],
 }) {
   const rules = buildDynamicRenderRules({
     project,
@@ -61,7 +83,9 @@ export function buildDynamicWorkflowPayload({
     duration_sec: rules.duration_sec,
     wan_denoise: rules.denoise,
     static_camera: rules.static_camera,
+    background_motion: rules.background_motion,
     dynamic_rules: rules,
+    continuity_mode: rules.continuity_mode,
   };
 
   if (rules.style_tags.length) {
@@ -71,12 +95,41 @@ export function buildDynamicWorkflowPayload({
     ].filter(Boolean).join(', ');
   }
 
+  // Żywe tło — niezależne od kamery (oś TŁO). Dokładane gdy tło żyje, NAWET przy static_camera.
+  if (rules.background_alive) {
+    enrichedDirector.positive_prompt = [
+      enrichedDirector.positive_prompt || directorJson?.positive_prompt || userPrompt,
+      LIVING_BACKGROUND_PROMPT,
+    ].filter(Boolean).join(', ');
+  }
+
+  // Anchor = uziemienie POSTACI (nie tła) — tylko przy statycznej kamerze.
   if (rules.anchor_prompt && rules.static_camera) {
     enrichedDirector.positive_prompt = [
       enrichedDirector.positive_prompt,
       rules.anchor_prompt,
     ].filter(Boolean).join(', ');
   }
+
+  return { enrichedDirector, rules };
+}
+
+export function buildDynamicWorkflowPayload({
+  jobId,
+  userPrompt,
+  directorJson,
+  processedAssets,
+  project,
+  scene,
+  generatorTags,
+}) {
+  const { enrichedDirector, rules } = enrichDirectorForRender({
+    directorJson,
+    userPrompt,
+    project,
+    scene,
+    generatorTags,
+  });
 
   const { workflow_api_json } = buildRunComfyWorkflow(
     jobId,

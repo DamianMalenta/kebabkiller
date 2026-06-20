@@ -89,10 +89,11 @@ function executeDevTool(name, args) {
 
     case 'listJobs': {
       const limit = args.limit || 20;
-      let jobs = listVideoJobs().slice(0, limit);
+      let jobs = listVideoJobs();
       if (args.status) {
         jobs = jobs.filter((j) => j.status === args.status);
       }
+      jobs = jobs.slice(0, limit);
       return jobs.map((j) => ({
         id: j.id,
         status: j.status,
@@ -108,9 +109,13 @@ function executeDevTool(name, args) {
     case 'getJobDetails': {
       const job = getVideoJob(args.job_id);
       if (!job) return { error: `Job ${args.job_id} not found` };
+      let directorJson = null;
+      if (job.director_json) {
+        try { directorJson = JSON.parse(job.director_json); } catch { directorJson = null; }
+      }
       return {
         ...job,
-        director_json: job.director_json ? JSON.parse(job.director_json) : null,
+        director_json: directorJson,
         is_canon: Boolean(job.is_canon),
       };
     }
@@ -132,6 +137,10 @@ function executeDevTool(name, args) {
     case 'getProductionStatus': {
       const run = getLatestProductionRun(args.episode_plan_id);
       const plan = getEpisodePlan(args.episode_plan_id);
+      let sceneResults = null;
+      if (run?.scene_results) {
+        try { sceneResults = JSON.parse(run.scene_results); } catch { sceneResults = null; }
+      }
       return {
         plan_id: args.episode_plan_id,
         plan_status: plan?.status || 'not_found',
@@ -141,7 +150,7 @@ function executeDevTool(name, args) {
               status: run.status,
               started_at: run.started_at,
               completed_at: run.completed_at,
-              scene_results: run.scene_results ? JSON.parse(run.scene_results) : null,
+              scene_results: sceneResults,
             }
           : null,
       };
@@ -246,27 +255,22 @@ export async function handleDevMessage(userMessage) {
       let choice = data?.choices?.[0]?.message;
 
       // Agentic loop: handle tool calls (max 3 rounds)
+      const accumulatedMessages = [...groqMessages];
       for (let round = 0; round < 3 && choice?.tool_calls?.length; round++) {
-        const toolResults = [];
+        accumulatedMessages.push({ role: 'assistant', content: choice.content || '', tool_calls: choice.tool_calls });
+
         for (const call of choice.tool_calls) {
           const args = JSON.parse(call.function.arguments || '{}');
           const result = executeDevTool(call.function.name, args);
-          toolResults.push({ name: call.function.name, result });
           toolCallsLog.push({ tool: call.function.name, args, result });
+          accumulatedMessages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: JSON.stringify(result),
+          });
         }
 
-        // Follow-up with tool results
-        const followUpMessages = [
-          ...groqMessages,
-          { role: 'assistant', content: choice.content || '', tool_calls: choice.tool_calls },
-          ...toolResults.map((tr, i) => ({
-            role: 'tool',
-            tool_call_id: choice.tool_calls[i]?.id,
-            content: JSON.stringify(tr.result),
-          })),
-        ];
-
-        data = await callGroqDevAgent(followUpMessages, TOOL_DEFINITIONS);
+        data = await callGroqDevAgent(accumulatedMessages, TOOL_DEFINITIONS);
         choice = data?.choices?.[0]?.message;
       }
 

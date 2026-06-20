@@ -1,3 +1,20 @@
+/**
+ * @deprecated LEGACY AI Director
+ *
+ * Endpointy zostały wycofane (2026-06-20):
+ * - POST /director/preview → użyj Director's Desk (/director-desk/*)
+ * - POST /director/suggest → użyj Director's Desk
+ * - POST /jobs (auto-preview) → użyj Director's Desk
+ *
+ * Nowy system: Director's Desk (ai/directorDesk/)
+ * - agentServer.js - główny handler wiadomości
+ * - workflowBuilder.js - enrichment i payload
+ * - agentTools.js - narzędzia dla agenta
+ *
+ * Ten plik jest zachowany tylko dla getLlmProviderStatus.
+ * Funkcje expandScenePrompt, previewDirectorPlan, suggestEpisodePrompts są deprecated.
+ */
+
 import { getKnowledgeContext, getSeriesContextForLlm } from '../db/models.js';
 import { buildSeriesContextBlock } from './seriesContext.js';
 import {
@@ -6,7 +23,7 @@ import {
   reconcileKinematicsWithPrompt,
 } from './kinematicsFromPrompt.js';
 import { WAN_FORMAT_PROMPT, parseI2vProfileId } from '../video/wanConfig.js';
-import { applyI2vProductionProfile } from './i2vProduction.js';
+import { enrichDirectorForRender } from './directorDesk/workflowBuilder.js';
 
 const PIPELINE_CONFIG = {
   maxRetries: 3,
@@ -564,11 +581,21 @@ export async function expandScenePrompt(userPrompt, {
 }
 
 function maybeApplyProductionProfile(plan, { i2vProfile, durationSec }) {
-  const profile = (i2vProfile || parseI2vProfileId()).toUpperCase();
-  if (profile === 'I2V_PRODUCTION') {
-    return applyI2vProductionProfile(plan, { i2vProfile: profile, durationSec });
-  }
-  return plan;
+  // Legacy: używamy enrichDirectorForRender zamiast applyI2vProductionProfile
+  // TODO: pełna migracja do Director's Desk workflow
+  const { enrichedDirector } = enrichDirectorForRender({
+    directorJson: plan,
+    userPrompt: plan.visual_scene || '',
+    project: { 
+      canon: { 
+        default_i2v_profile: i2vProfile || parseI2vProfileId(),
+        style_tags: [], // Puste array dla kompatybilności z enrichDirectorForRender
+      } 
+    },
+    scene: { duration_sec: durationSec || plan.duration_sec, ai_overrides: {} },
+    generatorTags: [],
+  });
+  return enrichedDirector;
 }
 
 export async function previewDirectorPlan(userPrompt, options) {

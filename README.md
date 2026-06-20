@@ -19,13 +19,14 @@ npm run install:all
 cp backend/.env.example backend/.env
 # Uzupełnij klucze: GEMINI_API_KEY, RUNCOMFY_API_KEY, RUNCOMFY_ENDPOINT
 
-# 3. Uruchomienie (frontend :5173, backend PORT z backend/.env — domyślnie 4000)
+# 3. Uruchomienie (studio2: frontend :5174, backend :4005 — patrz backend/.env)
 npm run dev
+# lub: npm run restart:dev  |  npm run status:dev
 ```
 
-Otwórz **http://localhost:5173** — Panel Reżysera.
+Otwórz **http://localhost:5174** — Panel Reżysera.
 
-Vite proxy (`frontend/vite.config.js`) czyta port z `backend/.env` — nie trzeba ręcznie synchronizować z frontendem. Jeśli port 4000 jest zajęty, ustaw w `.env` np. `PORT=4001`.
+Porty czyta `backend/.env` (`PORT`, `FRONTEND_PORT`) przez `scripts/read-backend-port.mjs` + `read-frontend-port.mjs`. **Nie używaj :4001/:5173** — zarezerwowane dla macius/Symbiont (`scripts/dev-ports.mjs`).
 
 > Backend startuje z `node --use-system-ca` (wymagane dla połączenia z RunComfy na Windows).
 

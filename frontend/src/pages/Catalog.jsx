@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import AssetCard from '../components/AssetCard.jsx';
 import StepGuide from '../components/StepGuide.jsx';
+import KlatkaZeroPanel from '../components/KlatkaZeroPanel.jsx';
 
 const ASSET_TYPES = [
   { value: 'character', label: 'Postać' },
@@ -18,16 +19,24 @@ export default function Catalog() {
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [allAssets, setAllAssets] = useState([]);
   const formRef = useRef(null);
 
   async function load() {
-    const data = await api.assets.list(filter || undefined);
+    const [data, all] = await Promise.all([
+      api.assets.list(filter || undefined),
+      api.assets.list(),
+    ]);
     setAssets(data);
+    setAllAssets(all);
   }
 
   useEffect(() => {
     load().catch((err) => setError(err.message));
   }, [filter]);
+
+  const characterAssets = allAssets.filter((a) => a.type === 'character' && a.images?.length);
+  const locationAssets = allAssets.filter((a) => a.type === 'location' && a.images?.length);
 
   function resetForm() {
     formRef.current?.reset();
@@ -148,6 +157,10 @@ export default function Catalog() {
           )}
         </div>
       </form>
+
+      {characterAssets.length > 0 && locationAssets.length > 0 && (
+        <KlatkaZeroPanel characterAssets={characterAssets} locationAssets={locationAssets} />
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         {assets.map((asset) => {

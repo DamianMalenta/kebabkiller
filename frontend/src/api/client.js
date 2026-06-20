@@ -28,9 +28,48 @@ export function styleBibleToEditText(project) {
   }
 }
 
+const OWNER_TOKEN_KEY = 'kk_owner_token';
+
+export function getOwnerToken() {
+  try {
+    return localStorage.getItem(OWNER_TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setOwnerToken(token) {
+  try {
+    if (token) localStorage.setItem(OWNER_TOKEN_KEY, token);
+    else localStorage.removeItem(OWNER_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function ownerAuth() {
+  return { 'x-owner-token': getOwnerToken() };
+}
+
 export const api = {
   health: () => request('/health'),
   knowledge: () => request('/knowledge'),
+
+  // Faza E — AI-Inżynier (osobny moduł, bramka tokenem właściciela).
+  systemAgent: {
+    health: () => request('/system-agent/health'),
+    status: () => request('/system-agent/status', { headers: ownerAuth() }),
+    listRepairs: () => request('/system-agent/repairs', { headers: ownerAuth() }),
+    getRepair: (id) => request(`/system-agent/repairs/${id}`, { headers: ownerAuth() }),
+    diagnose: (body) =>
+      request('/system-agent/diagnose', { method: 'POST', headers: ownerAuth(), body: JSON.stringify(body) }),
+    propose: (body) =>
+      request('/system-agent/propose', { method: 'POST', headers: ownerAuth(), body: JSON.stringify(body) }),
+    apply: (id) =>
+      request(`/system-agent/repairs/${id}/apply`, { method: 'POST', headers: ownerAuth() }),
+    undo: (id) =>
+      request(`/system-agent/repairs/${id}/undo`, { method: 'POST', headers: ownerAuth() }),
+  },
 
   characters: {
     list: () => request('/characters'),
@@ -61,37 +100,18 @@ export const api = {
     delete: (id) => request(`/assets/${id}`, { method: 'DELETE' }),
     addImage: (id, formData) => request(`/assets/${id}/images`, { method: 'POST', body: formData }),
     deleteImage: (imageId) => request(`/asset-images/${imageId}`, { method: 'DELETE' }),
+    setCompositeDefault: (id, composite) =>
+      request(`/assets/${id}/composite-default`, { method: 'PUT', body: JSON.stringify({ composite }) }),
   },
 
-  episodePlans: {
-    list: () => request('/episode-plans'),
-    get: (id) => request(`/episode-plans/${id}`),
-    create: (body) => request('/episode-plans', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id, body) => request(`/episode-plans/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-    delete: (id) => request(`/episode-plans/${id}`, { method: 'DELETE' }),
-    replaceScenes: (id, scenes) => request(`/episode-plans/${id}/scenes`, {
-      method: 'PUT',
-      body: JSON.stringify({ scenes }),
-    }),
-    validate: (id) => request(`/episode-plans/${id}/validate`),
-    accept: (id, body = {}) => request(`/episode-plans/${id}/accept`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-    produce: (id) => request(`/episode-plans/${id}/produce`, { method: 'POST' }),
-    production: (id) => request(`/episode-plans/${id}/production`),
-    assist: (id, body) => request(`/episode-plans/${id}/assist`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-    resolveDeliverable: (deliverableId, formData) => request(`/deliverables/${deliverableId}/resolve`, {
-      method: 'POST',
-      body: formData,
-    }),
-    addDeliverable: (planId, body) => request(`/episode-plans/${planId}/deliverables`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
+  // Faza C — Klatka Zero (kolaż @char na @loc): podgląd 0 zł + zapis kaskady.
+  composite: {
+    preview: (body) => request('/composite/preview', { method: 'POST', body: JSON.stringify(body) }),
+    setSceneOverride: (planId, sceneId, composite) =>
+      request(`/episode-plans/${planId}/scenes/${sceneId}/composite`, {
+        method: 'PUT',
+        body: JSON.stringify({ composite }),
+      }),
   },
 
   directorDesk: {
@@ -137,8 +157,6 @@ export const api = {
     update: (id, body) => request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
     episodes: (projectId) => request(`/projects/${projectId}/episodes`),
-    createEpisode: (projectId, body) =>
-      request(`/projects/${projectId}/episodes`, { method: 'POST', body: JSON.stringify(body) }),
   },
 
   episodes: {
