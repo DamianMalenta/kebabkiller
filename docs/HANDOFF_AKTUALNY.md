@@ -48,12 +48,13 @@ Dopiero po tym ma sens TOR KOD Fazy C-GPU (IP-Adapter + wpięcie composite/osi d
 ## JAK URUCHOMIĆ
 
 ```bash
-cd kebabkiller
+cd kebabkiller_studio2/kebabkiller
 npm run dev
 npm test --prefix backend
+npm run status:dev
 ```
 
-- Frontend: http://localhost:5173 · Backend: `PORT` z `backend/.env` (Vite proxy czyta ten sam plik).
+- Frontend: http://localhost:5174 · Backend: http://localhost:4005 (`PORT` + `FRONTEND_PORT` w `backend/.env`). Macius: :5173/:4001 — nie koliduje.
 
 ---
 

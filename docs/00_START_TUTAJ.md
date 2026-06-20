@@ -57,12 +57,13 @@
 ## Uruchomienie (dev)
 
 ```bash
-cd kebabkiller_studio
+cd kebabkiller_studio2/kebabkiller
 npm run dev
+# status: npm run status:dev  |  restart: npm run restart:dev
 ```
 
-- UI: http://localhost:5173  
-- API: `http://localhost:{PORT}/api/health` — `PORT` z `backend/.env` (domyślnie **4000**). Vite proxy synchronizuje się automatycznie (`scripts/read-backend-port.mjs`).
+- UI: http://localhost:5174  
+- API: http://localhost:4005/api/health (`PORT` + `FRONTEND_PORT` w `backend/.env`; domyślnie **4005/5174**). Macius/Symbiont: **8787/4001/5173** — osobny stack.
 
 Klucze: `GROQ_API_KEY` (Reżyser), `RUNCOMFY_*` + `VIDEO_ENGINE=runcomfy` (generator).
 

@@ -86,12 +86,13 @@ function buildSceneUserPrompt(plan, scene) {
  * @ID: assety wiązane po stabilnym ref_id (kompilator dokleja `@`), bez „pierwszej postaci z bazy".
  */
 function compileScenePlan(userPrompt, scene, refs, visualProfile) {
-  const kinematics = inferKinematicsFromPolish(userPrompt);
-  const i2vProfile = visualProfile.i2v_profile || EPISODE_I2V_PROFILE;
-  const params = resolveWanRenderParams({ i2vProfile, durationSec: scene.duration_sec });
+  try {
+    const kinematics = inferKinematicsFromPolish(userPrompt);
+    const i2vProfile = visualProfile.i2v_profile || EPISODE_I2V_PROFILE;
+    const params = resolveWanRenderParams({ i2vProfile, durationSec: scene.duration_sec });
 
-  const cinemaBlock = 'Cinematography: medium shot, static, natural light.';
-  const kinematicBlock = `Action: The subject is ${kinematics.subject_state}. Motion: ${kinematics.primary_motion} at a ${kinematics.velocity} pace.`;
+    const cinemaBlock = 'Cinematography: medium shot, static, natural light.';
+    const kinematicBlock = `Action: The subject is ${kinematics.subject_state}. Motion: ${kinematics.primary_motion} at a ${kinematics.velocity} pace.`;
   const identityBlock = refs.characterAsset?.canon_en || refs.characterAsset?.description_pl || '';
   const environmentBlock = refs.locationAsset?.canon_en
     || (refs.locationAsset?.description_pl ? `Setting: ${refs.locationAsset.description_pl}.` : '');
@@ -140,14 +141,21 @@ function compileScenePlan(userPrompt, scene, refs, visualProfile) {
     episode_preferences: visualProfile.preferences,
     _source: 'deterministic',
   };
+  } catch (err) {
+    throw new Error(`Failed to compile scene plan: ${err.message}`);
+  }
 }
 
 /** Build GPU director plan for a single scene from accepted episode plan (deterministyczny, zero LLM). */
 export function buildSceneDirectorPlan(plan, scene, visualProfile) {
-  const refs = resolveSceneAssetRefs(scene);
-  const userPrompt = buildSceneUserPrompt(plan, scene);
-  const directorJson = compileScenePlan(userPrompt, scene, refs, visualProfile);
-  // Seed z PLANU: kazda scena ma wlasny powtarzalny seed (hash planId:sceneId).
-  directorJson.seed = deterministicSeed(`${plan.id}:${scene.id}`);
-  return directorJson;
+  try {
+    const refs = resolveSceneAssetRefs(scene);
+    const userPrompt = buildSceneUserPrompt(plan, scene);
+    const directorJson = compileScenePlan(userPrompt, scene, refs, visualProfile);
+    // Seed z PLANU: kazda scena ma wlasny powtarzalny seed (hash planId:sceneId).
+    directorJson.seed = deterministicSeed(`${plan.id}:${scene.id}`);
+    return directorJson;
+  } catch (err) {
+    throw new Error(`Failed to build director plan for scene ${scene.id}: ${err.message}`);
+  }
 }

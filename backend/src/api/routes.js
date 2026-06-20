@@ -37,9 +37,6 @@ import {
   isCanonAcceptanceComplete,
 } from '../db/models.js';
 import {
-  expandScenePrompt,
-  previewDirectorPlan,
-  suggestEpisodePrompts,
   getLlmProviderStatus,
 } from '../ai/director.js';
 import { processCanonAcceptance } from '../ai/canonPipeline.js';
@@ -67,7 +64,9 @@ import {
   deletePlanDeliverable,
   validateEpisodePlan,
   acceptEpisodePlan,
+  FROZEN_PLAN_STATUSES,
 } from '../db/episodeModels.js';
+import { hydrateRow } from '../utils/json.js';
 import {
   getLatestProductionRun,
   listProductionRuns,
@@ -93,11 +92,10 @@ function primaryImagePath(asset) {
 }
 
 function formatJobResponse(job) {
+  const hydrated = hydrateRow(job);
   return {
-    ...job,
-    is_canon: Boolean(job.is_canon),
+    ...hydrated,
     canon_complete: isCanonAcceptanceComplete(job.id),
-    canon_acceptance_in_progress: Boolean(job.canon_acceptance_in_progress),
     director_json: job.director_json ? JSON.parse(job.director_json) : null,
   };
 }
@@ -234,6 +232,9 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
 
   router.post('/rules', (req, res) => {
     try {
+      if (req.body.priority !== undefined && typeof req.body.priority !== 'number') {
+        return res.status(400).json({ error: 'Priority musi być liczbą.' });
+      }
       const item = createRule(req.body);
       res.status(201).json(item);
     } catch (err) {
@@ -270,6 +271,9 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     try {
       if (!req.body.name?.trim()) {
         return res.status(400).json({ error: 'Nazwa projektu jest wymagana.' });
+      }
+      if (req.body.description !== undefined && typeof req.body.description !== 'string') {
+        return res.status(400).json({ error: 'Description musi być tekstem.' });
       }
       const item = createProject({
         name: req.body.name,
@@ -521,6 +525,15 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
 
   router.post('/episode-plans', (req, res) => {
     try {
+      if (!req.body.code?.trim()) {
+        return res.status(400).json({ error: 'Code odcinka jest wymagany.' });
+      }
+      if (typeof req.body.code !== 'string') {
+        return res.status(400).json({ error: 'Code musi być tekstem.' });
+      }
+      if (req.body.target_duration_sec !== undefined && typeof req.body.target_duration_sec !== 'number') {
+        return res.status(400).json({ error: 'target_duration_sec musi być liczbą.' });
+      }
       const plan = createEpisodePlan({
         code: req.body.code,
         title: req.body.title,
@@ -538,6 +551,22 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   router.put('/episode-plans/:id', (req, res) => {
     const existing = getEpisodePlan(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Episode plan not found' });
+    
+    // Walidacja code jeśli jest podany
+    if (req.body.code !== undefined) {
+      if (typeof req.body.code !== 'string') {
+        return res.status(400).json({ error: 'Code musi być tekstem.' });
+      }
+      if (!req.body.code?.trim()) {
+        return res.status(400).json({ error: 'Code odcinka jest wymagany.' });
+      }
+    }
+    
+    // Walidacja target_duration_sec jeśli jest podany
+    if (req.body.target_duration_sec !== undefined && typeof req.body.target_duration_sec !== 'number') {
+      return res.status(400).json({ error: 'target_duration_sec musi być liczbą.' });
+    }
+    
     const plan = updateEpisodePlan(req.params.id, {
       code: req.body.code,
       title: req.body.title,
@@ -659,7 +688,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     try {
       const plan = getEpisodePlan(req.params.id);
       if (!plan) return res.status(404).json({ error: 'Episode plan not found' });
-      if (!['zaakceptowany', 'gotowy', 'w_produkcji'].includes(plan.status)) {
+      if (!FROZEN_PLAN_STATUSES.has(plan.status)) {
         return res.status(400).json({ error: 'Plan musi być zaakceptowany przed produkcją.' });
       }
       enqueueEpisodeProduction(plan.id, videoEngine, outputDir);
@@ -703,49 +732,9 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     }
   });
 
-  // AI Director
-  router.post('/director/preview', async (req, res) => {
-    try {
-      const {
-        prompt,
-        character_id,
-        background_id,
-        project_id,
-        episode_id,
-        i2v_profile,
-        duration_sec,
-      } = req.body;
-      if (!prompt?.trim()) {
-        return res.status(400).json({ error: 'prompt is required' });
-      }
-      const plan = await previewDirectorPlan(prompt, {
-        characterId: character_id,
-        backgroundId: background_id,
-        projectId: project_id,
-        episodeId: episode_id,
-        i2vProfile: i2v_profile,
-        durationSec: duration_sec,
-      });
-      res.json(plan);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  router.post('/director/suggest', async (req, res) => {
-    try {
-      const { project_id, episode_id, brief_pl, count } = req.body;
-      const result = await suggestEpisodePrompts({
-        projectId: project_id,
-        episodeId: episode_id,
-        briefPl: brief_pl,
-        count,
-      });
-      res.json(result);
-    } catch (err) {
-      res.status(400).json({ error: err.message });
-    }
-  });
+  // AI Director (legacy - endpointy wycofane, użyj Director's Desk /director-desk/*)
+  // POST /director/preview - WYCOFANY: użyj Director's Desk
+  // POST /director/suggest - WYCOFANY: użyj Director's Desk
 
   // Video jobs
   router.get('/jobs', (_req, res) => {
@@ -817,13 +806,10 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
 
       let plan = director_plan;
       if (!plan && !skip_preview) {
-        plan = await expandScenePrompt(prompt, {
-          characterId: character_id,
-          backgroundId: background_id,
-          projectId: project_id,
-          episodeId: episode_id,
-          i2vProfile: req.body.i2v_profile,
-          durationSec: req.body.duration_sec,
+        // Legacy: expandScenePrompt wycofane - użyj Director's Desk
+        return res.status(410).json({
+          error: 'Auto-preview wycofany. Użyj Director\'s Desk (/director-desk/*) aby wygenerować director plan.',
+          use_instead: 'director-desk',
         });
       }
 

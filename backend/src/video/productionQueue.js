@@ -11,6 +11,7 @@ import {
   updateProductionClip,
   formatClipCode,
   getLatestProductionRun,
+  getProductionRun,
   listProductionClips,
 } from '../db/productionModels.js';
 import { buildEpisodeVisualProfile, buildSceneDirectorPlan } from '../ai/productionDirector.js';
@@ -19,6 +20,7 @@ import { getDirectorProject } from '../db/directorDeskModels.js';
 import { getAsset } from '../db/episodeModels.js';
 
 const activeProductions = new Map();
+const MAX_CLIP_RETRIES = 3;
 
 export function getActiveProductionCount() {
   return activeProductions.size;
@@ -182,21 +184,29 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir)
       });
       clips.push(clip);
 
-      try {
-        await renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, (c, p) => {
-          const runProgress = Math.round(((completed + p / 100) / plan.scenes.length) * 100);
-          updateProductionRun(run.id, { progress: runProgress });
-        });
-        completed += 1;
-        updateProductionRun(run.id, { clipsCompleted: completed });
-      } catch (err) {
-        console.error(`[ProductionQueue] Clip ${clipCode} failed:`, err.message);
-        updateProductionClip(clip.id, {
-          status: 'failed',
-          errorMessage: err.message,
-          progress: 0,
-        });
-        throw err;
+      let retryCount = 0;
+      while (retryCount < MAX_CLIP_RETRIES) {
+        try {
+          await renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, (c, p) => {
+            const runProgress = Math.round(((completed + p / 100) / plan.scenes.length) * 100);
+            updateProductionRun(run.id, { progress: runProgress });
+          });
+          completed += 1;
+          updateProductionRun(run.id, { clipsCompleted: completed });
+          break; // Success, exit retry loop
+        } catch (err) {
+          retryCount++;
+          if (retryCount >= MAX_CLIP_RETRIES) {
+            console.error(`[ProductionQueue] Clip ${clipCode} failed after ${MAX_CLIP_RETRIES} retries:`, err.message);
+            updateProductionClip(clip.id, {
+              status: 'failed',
+              errorMessage: err.message,
+              progress: 0,
+            });
+            throw err;
+          }
+          console.warn(`[ProductionQueue] Retrying clip ${clipCode} (${retryCount}/${MAX_CLIP_RETRIES})`);
+        }
       }
     }
 
@@ -237,4 +247,116 @@ export function enqueueEpisodeProduction(episodePlanId, engine, outputDir) {
       console.error(`[ProductionQueue] Episode ${episodePlanId} production failed:`, err.message);
     });
   });
+}
+
+/**
+ * Resume production from a partial run - continues from first failed clip
+ */
+export async function resumeProductionFromPartial(productionRunId, engine, outputDir) {
+  const existingRun = getProductionRun(productionRunId);
+  if (!existingRun) throw new Error('Production run not found');
+  if (existingRun.status !== 'partial') throw new Error('Only partial runs can be resumed');
+  
+  const plan = getEpisodePlan(existingRun.episode_plan_id);
+  if (!plan) throw new Error('Plan odcinka nie istnieje.');
+  
+  // Atomic check-and-set: use set() return value to verify we were the first
+  const wasAlreadyActive = activeProductions.has(plan.id);
+  if (wasAlreadyActive) {
+    return existingRun;
+  }
+  activeProductions.set(plan.id, true);
+  
+  const visualProfile = existingRun.visual_profile;
+  const exportDir = existingRun.export_dir;
+  
+  updateProductionRun(productionRunId, { status: 'running' });
+  updateEpisodePlan(plan.id, { status: 'w_produkcji' });
+  
+  const clips = listProductionClips(productionRunId);
+  const failedClipIndex = clips.findIndex(c => c.status === 'failed');
+  
+  if (failedClipIndex === -1) {
+    // No failed clips found, mark as completed
+    updateProductionRun(productionRunId, { status: 'completed', progress: 100 });
+    updateEpisodePlan(plan.id, { status: 'gotowy' });
+    activeProductions.delete(plan.id);
+    return getProductionRun(productionRunId);
+  }
+  
+  let completed = clips.filter(c => c.status === 'completed').length;
+  
+  try {
+    // Continue from first failed clip
+    for (let i = failedClipIndex; i < plan.scenes.length; i++) {
+      const scene = plan.scenes[i];
+      const clipCode = formatClipCode(plan.code, scene.sort_order);
+      const userPrompt = scene.description_pl;
+      
+      // Check if clip already exists
+      let clip = clips.find(c => c.clip_code === clipCode);
+      if (!clip) {
+        clip = createProductionClip({
+          productionRunId,
+          planSceneId: scene.id,
+          sortOrder: scene.sort_order,
+          clipCode,
+          userPrompt,
+        });
+      }
+      
+      let retryCount = 0;
+      while (retryCount < MAX_CLIP_RETRIES) {
+        try {
+          await renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, (c, p) => {
+            const runProgress = Math.round(((completed + p / 100) / plan.scenes.length) * 100);
+            updateProductionRun(productionRunId, { progress: runProgress });
+          });
+          completed += 1;
+          updateProductionRun(productionRunId, { clipsCompleted: completed });
+          break;
+        } catch (err) {
+          retryCount++;
+          if (retryCount >= MAX_CLIP_RETRIES) {
+            console.error(`[ProductionQueue] Clip ${clipCode} failed after ${MAX_CLIP_RETRIES} retries:`, err.message);
+            updateProductionClip(clip.id, {
+              status: 'failed',
+              errorMessage: err.message,
+              progress: 0,
+            });
+            throw err;
+          }
+          console.warn(`[ProductionQueue] Retrying clip ${clipCode} (${retryCount}/${MAX_CLIP_RETRIES})`);
+        }
+      }
+    }
+    
+    const hydratedClips = listProductionClips(productionRunId);
+    const manifest = buildManifest(plan, visualProfile, hydratedClips);
+    const manifestAbs = path.join(exportDir, `${plan.code}_manifest.json`);
+    const readmePath = path.join(exportDir, `${plan.code}_README.txt`);
+    fs.writeFileSync(manifestAbs, JSON.stringify(manifest, null, 2));
+    fs.writeFileSync(readmePath, buildReadme(plan, manifest));
+    
+    updateProductionRun(productionRunId, {
+      status: 'completed',
+      progress: 100,
+      manifestPath: toPublicOutputPath(outputDir, manifestAbs),
+      exportDir: toPublicOutputPath(outputDir, exportDir),
+      completedAt: new Date().toISOString(),
+    });
+    updateEpisodePlan(plan.id, { status: 'gotowy' });
+    
+    return getProductionRun(productionRunId);
+  } catch (err) {
+    updateProductionRun(productionRunId, {
+      status: completed > clips.filter(c => c.status === 'completed').length ? 'partial' : 'failed',
+      errorMessage: err.message,
+      clipsCompleted: completed,
+    });
+    updateEpisodePlan(plan.id, { status: 'zaakceptowany' });
+    throw err;
+  } finally {
+    activeProductions.delete(plan.id);
+  }
 }

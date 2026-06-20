@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from './init.js';
 import { secondsToFrames, WAN_FRAME_MIN, WAN_FRAME_MAX } from '../video/wanConfig.js';
+import { parseJsonField, hydrateRow } from '../utils/json.js';
 
 const PLAN_STATUSES = new Set([
   'szkic',
@@ -74,15 +75,6 @@ function slugifyAssetName(value) {
  */
 export function buildAssetRefId(type, name) {
   return `${assetNamespace(type)}_${slugifyAssetName(name)}`;
-}
-
-function parseJsonField(value, fallback = null) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
 }
 
 function hydrateAsset(row) {
@@ -185,7 +177,7 @@ export function deleteAsset(id) {
 export function listAssetImages(assetId) {
   return getDb().prepare(`
     SELECT * FROM asset_images WHERE asset_id = ? ORDER BY is_primary DESC, sort_order, created_at
-  `).all(assetId);
+  `).all(assetId).map(hydrateRow);
 }
 
 export function addAssetImage(assetId, { path, label, sortOrder, isPrimary }) {
@@ -517,10 +509,6 @@ export function acceptEpisodePlan(episodePlanId) {
   if (!validation.ok) {
     throw new Error(validation.errors.join(' '));
   }
-  const plan = getEpisodePlan(episodePlanId);
-  if (!PLAN_STATUSES.has('zaakceptowany')) {
-    throw new Error('Nieprawidłowy status docelowy.');
-  }
   return updateEpisodePlan(episodePlanId, { status: 'zaakceptowany' });
 }
 
@@ -573,7 +561,7 @@ export function getCatalogForScreenwriter() {
       id: img.id,
       path: img.path,
       label: img.label,
-      is_primary: Boolean(img.is_primary),
+      is_primary: img.is_primary,
     })),
   }));
 }

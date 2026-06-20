@@ -45,13 +45,15 @@ Reszta `docs/` (w tym sekcje niżej w tym pliku, `05_EPISODE_PIPELINE`, `07_DEV_
 ## JAK URUCHOMIĆ
 
 ```bash
-cd kebabkiller_studio
+cd kebabkiller_studio2/kebabkiller
 npm run dev
+npm run status:dev
 ```
 
-- Frontend: http://localhost:5173  
-- Backend: `PORT` z `backend/.env` (domyślnie **4000**; Vite proxy czyta ten sam plik)  
-- Health: `http://localhost:{PORT}/api/health`  
+- Frontend: http://localhost:5174  
+- Backend: http://localhost:4005 (`PORT` + `FRONTEND_PORT` w `backend/.env`)  
+- Health: http://localhost:4005/api/health  
+- Macius/Symbiont (osobno): :8787 / :4001 / :5173  
 
 ```bash
 npm test --prefix backend
@@ -68,7 +70,7 @@ npm test --prefix backend
 
 1. **GPU freeze / stale po WAN21** — deployment `b36cb944…` za ciężki (~30+ custom nodes). Fix: ComfyUI-Minimal / nowy deployment.
 2. **Brak powtarzalnego WEBM** — jeden sukces, potem timeout 10 min przy `WAN_LENGTH=81` (naprawione na 33).
-3. **Vite LAN** — ✅ `host: true` w `frontend/vite.config.js` (telefon: IP:5173, ten sam Wi‑Fi).
+3. **Vite LAN** — ✅ `host: true` w `frontend/vite.config.js` (telefon: IP:**5174**, ten sam Wi‑Fi).
 
 ## ROZWIĄZANE (sesja #14)
 
