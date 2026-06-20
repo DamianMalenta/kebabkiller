@@ -1,5 +1,6 @@
 import { truncateToCharBudget, SERIES_MEMORY_MAX_CHARS } from './seriesContext.js';
 import { formatRenderSummaryForPrompt } from './summarizeRender.js';
+import { callGroq as callGroqShared, callOpenAI as callOpenAIShared, tryProviders } from '../utils/llm.js';
 
 const COMPACTION_TIMEOUT_MS = Number(process.env.MEMORY_COMPACTION_TIMEOUT_MS) || 25_000;
 
@@ -48,68 +49,24 @@ export function mergeSummariesRuleBased(
   return truncateToCharBudget(parts.join('\n'), SERIES_MEMORY_MAX_CHARS);
 }
 
-async function fetchWithTimeout(url, options) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), COMPACTION_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 async function callGroqCompaction(userMessage) {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const model = process.env.MEMORY_COMPACTION_MODEL || 'llama-3.1-8b-instant';
-  const res = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0.1,
-      max_tokens: 650,
-    }),
+  return callGroqShared(SYSTEM_PROMPT, userMessage, {
+    model: process.env.MEMORY_COMPACTION_MODEL || 'llama-3.1-8b-instant',
+    temperature: 0.1,
+    maxTokens: 650,
+    jsonMode: false,
+    timeoutMs: COMPACTION_TIMEOUT_MS,
   });
-
-  if (!res.ok) throw new Error(`Groq compaction error: ${res.status}`);
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || null;
 }
 
 async function callOpenAiCompaction(userMessage) {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const model = process.env.MEMORY_COMPACTION_OPENAI_MODEL || 'gpt-4o-mini';
-  const res = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0.1,
-      max_tokens: 650,
-    }),
+  return callOpenAIShared(SYSTEM_PROMPT, userMessage, {
+    model: process.env.MEMORY_COMPACTION_OPENAI_MODEL || 'gpt-4o-mini',
+    temperature: 0.1,
+    maxTokens: 650,
+    jsonMode: false,
+    timeoutMs: COMPACTION_TIMEOUT_MS,
   });
-
-  if (!res.ok) throw new Error(`OpenAI compaction error: ${res.status}`);
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || null;
 }
 
 export function formatSceneContextBlock(sceneContext = {}) {
@@ -178,24 +135,18 @@ export async function compactSeriesMemory({
     sceneContext,
   });
 
-  const providers = [
-    { name: 'groq', call: () => callGroqCompaction(userMessage) },
-    { name: 'openai', call: () => callOpenAiCompaction(userMessage) },
-  ];
+  const llmResult = await tryProviders(
+    [
+      { name: 'groq', call: () => callGroqCompaction(userMessage) },
+      { name: 'openai', call: () => callOpenAiCompaction(userMessage) },
+    ],
+    { logPrefix: '[MemoryCompaction]' },
+  );
 
-  const errors = [];
-  for (const provider of providers) {
-    try {
-      const raw = await provider.call();
-      if (raw) {
-        const memory = normalizeCompactionOutput(raw);
-        if (memory.length > 0) {
-          return { memory, source: provider.name };
-        }
-      }
-    } catch (err) {
-      console.warn(`[MemoryCompaction] ${provider.name} failed:`, err.message);
-      errors.push({ provider: provider.name, error: err.message });
+  if (llmResult) {
+    const memory = normalizeCompactionOutput(llmResult.result);
+    if (memory.length > 0) {
+      return { memory, source: llmResult.source };
     }
   }
 
@@ -208,6 +159,6 @@ export async function compactSeriesMemory({
   return {
     memory,
     source: 'rule_based',
-    ...(errors.length > 0 ? { llm_errors: errors } : {}),
+    llm_errors: [{ provider: 'all', error: 'All LLM providers failed or returned empty result' }],
   };
 }

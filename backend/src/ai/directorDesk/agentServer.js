@@ -10,6 +10,7 @@ import {
   listSideThreads,
 } from '../../db/directorDeskModels.js';
 import { listAssets, getEpisodePlan } from '../../db/episodeModels.js';
+import { callGroq as callGroqShared } from '../../utils/llm.js';
 import { routeIntent, INTENTS } from './intentRouter.js';
 import {
   resolveWizardMode,
@@ -45,41 +46,11 @@ function buildMicroRag(projectId, episodePlanId) {
 }
 
 async function callGroqAgent({ system, userMessage, tools }) {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const body = {
-    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+  return callGroqShared(system, userMessage, {
     temperature: 0.3,
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: userMessage },
-    ],
-  };
-
-  if (tools?.length) {
-    body.tools = tools.map((t) => ({
-      type: 'function',
-      function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters,
-      },
-    }));
-    body.tool_choice = 'auto';
-  }
-
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
+    jsonMode: false,
+    tools: tools?.length ? tools : undefined,
   });
-
-  if (!res.ok) throw new Error(`Groq agent error: ${res.status}`);
-  return res.json();
 }
 
 function widgetsFromToolResult(toolName, result) {
@@ -149,8 +120,7 @@ Wyjaśniaj technikalia bez modyfikacji projektu. Odpowiadaj po polsku, krótko.
 ${rag}`;
 
   try {
-    const data = await callGroqAgent({ system, userMessage: message, tools: [] });
-    const content = data?.choices?.[0]?.message?.content;
+    const content = await callGroqAgent({ system, userMessage: message, tools: [] });
     if (content) return { text: content, source: 'groq' };
   } catch (err) {
     console.warn('[DirectorAgent] brainstorm fallback:', err.message);

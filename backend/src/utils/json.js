@@ -1,4 +1,12 @@
 /**
+ * Strips markdown code fences and parses JSON from LLM text output.
+ */
+export function parseJsonFromText(text) {
+  const trimmed = String(text || '').trim().replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+  return JSON.parse(trimmed);
+}
+
+/**
  * Wspólna funkcja parsowania JSON dla całego backendu.
  * Bezpiecznie parsuje JSON z fallbackiem w przypadku błędu.
  */

@@ -10,6 +10,7 @@ import {
   updateEpisodePlan,
   refreshEpisodePlanStatus,
 } from '../db/episodeModels.js';
+import { callGroq as callGroqShared } from '../utils/llm.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CAPABILITIES_PATH = path.resolve(__dirname, '../../../docs/CAPABILITIES.md');
@@ -94,36 +95,9 @@ WIADOMOŚĆ TWÓRCY:
 ${userMessage}`;
 }
 
-function parseJsonFromText(text) {
-  const trimmed = text.trim().replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
-  return JSON.parse(trimmed);
-}
-
 async function callGroq(userMessage) {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
-  if (!apiKey) return null;
-
   const system = SYSTEM_PROMPT.replace('{CAPABILITIES}', loadCapabilities());
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
-    }),
-  });
-
-  if (!res.ok) throw new Error(`Groq API error: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return parseJsonFromText(data.choices?.[0]?.message?.content);
+  return callGroqShared(system, userMessage, { temperature: 0.3 });
 }
 
 function buildMockResponse(plan, userMessage) {

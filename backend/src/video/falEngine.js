@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildStartFrameAsset } from './compositeStartFrame.js';
 import { ensureOutputDir, resolveOutputPath } from './paths.js';
+import { sleep, emitProgress } from '../utils/async.js';
 
 // ─── Model registry ───────────────────────────────────────────────────────────
 
@@ -50,10 +51,6 @@ const WAN_NEGATIVE_PROMPT =
   'floating, levitating, blurry, watermark, text, low quality, ugly, distorted';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function falHeaders(apiKey) {
   return {
@@ -171,11 +168,6 @@ async function downloadFalVideo(videoUrl, outputPath) {
   const buffer = Buffer.from(await res.arrayBuffer());
   fs.writeFileSync(outputPath, buffer);
   return outputPath;
-}
-
-function emitProgress(onProgress, percent, message) {
-  if (!onProgress) return;
-  onProgress(message ? { percent, message } : percent);
 }
 
 // ─── Polling loop ─────────────────────────────────────────────────────────────

@@ -24,6 +24,15 @@ import {
 } from './kinematicsFromPrompt.js';
 import { WAN_FORMAT_PROMPT, parseI2vProfileId } from '../video/wanConfig.js';
 import { enrichDirectorForRender } from './directorDesk/workflowBuilder.js';
+import {
+  callGroq as callGroqShared,
+  callOpenAI as callOpenAIShared,
+  callAnthropic as callAnthropicShared,
+  callGemini as callGeminiShared,
+  tryProviders,
+  getLlmProviderStatus,
+} from '../utils/llm.js';
+import { deduplicateNegativePrompt } from '../utils/prompt.js';
 
 const PIPELINE_CONFIG = {
   maxRetries: 3,
@@ -128,41 +137,11 @@ function buildSuggestUserMessage({ briefPl, count, seriesContextBlock }) {
   return `${seriesContextBlock}\n\nBRIEF (PL):\n${briefPl}\n\nWygeneruj ${count} nowych propozycji scen (scene_prompt_pl). JSON only.`;
 }
 
-function parseSuggestionsFromText(text) {
-  const trimmed = text.trim().replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
-  const parsed = JSON.parse(trimmed);
-  if (!Array.isArray(parsed.suggestions)) {
+function extractSuggestions(parsed) {
+  if (!parsed || !Array.isArray(parsed.suggestions)) {
     throw new Error('LLM response missing suggestions array');
   }
   return parsed.suggestions;
-}
-
-async function callGroqRaw(systemPrompt, userMessage, { jsonObject = true } = {}) {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const body = {
-    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage },
-    ],
-    temperature: 0.4,
-  };
-  if (jsonObject) body.response_format = { type: 'json_object' };
-
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) throw new Error(`Groq API error: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content;
 }
 
 function buildMockSuggestions(briefPl, count, projectName) {
@@ -367,12 +346,10 @@ function executeAssetBinding(intentPlan, context, { userPrompt = '' } = {}) {
     .filter(Boolean)
     .join(', ');
 
-  const rawNegatives = [char?.negative_prompt || '', PIPELINE_CONFIG.baseNegativePrompt]
-    .join(', ')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const finalNegativePrompt = Array.from(new Set(rawNegatives)).join(', ');
+  const finalNegativePrompt = deduplicateNegativePrompt(
+    char?.negative_prompt || '',
+    PIPELINE_CONFIG.baseNegativePrompt,
+  );
 
   const finalPlan = {
     scene_summary: intentPlan.scene_summary,
@@ -397,111 +374,28 @@ function executeAssetBinding(intentPlan, context, { userPrompt = '' } = {}) {
   return finalPlan;
 }
 
-function parseJsonFromText(text) {
-  const trimmed = text.trim().replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
-  return JSON.parse(trimmed);
+function callGemini(userMessage) {
+  return callGeminiShared(SYSTEM_PROMPT_INTENT_ENGINE, userMessage, {
+    temperature: PIPELINE_CONFIG.temperature,
+  });
 }
 
-async function callGemini(userMessage) {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.0-flash'}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT_INTENT_ENGINE }] },
-      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-      generationConfig: {
-        temperature: PIPELINE_CONFIG.temperature,
-        responseMimeType: 'application/json',
-      },
-    }),
+function callGroq(userMessage) {
+  return callGroqShared(SYSTEM_PROMPT_INTENT_ENGINE, userMessage, {
+    temperature: PIPELINE_CONFIG.temperature,
   });
-
-  if (!res.ok) throw new Error(`Gemini API error: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return parseJsonFromText(data.candidates?.[0]?.content?.parts?.[0]?.text);
 }
 
-async function callGroq(userMessage) {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT_INTENT_ENGINE },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: PIPELINE_CONFIG.temperature,
-      response_format: { type: 'json_object' },
-    }),
+function callOpenAI(userMessage) {
+  return callOpenAIShared(SYSTEM_PROMPT_INTENT_ENGINE, userMessage, {
+    temperature: PIPELINE_CONFIG.temperature,
   });
-
-  if (!res.ok) throw new Error(`Groq API error: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return parseJsonFromText(data.choices?.[0]?.message?.content);
 }
 
-async function callOpenAI(userMessage) {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT_INTENT_ENGINE },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: PIPELINE_CONFIG.temperature,
-      response_format: { type: 'json_object' },
-    }),
+function callAnthropic(userMessage) {
+  return callAnthropicShared(SYSTEM_PROMPT_INTENT_ENGINE, userMessage, {
+    temperature: PIPELINE_CONFIG.temperature,
   });
-
-  if (!res.ok) throw new Error(`OpenAI API error: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return parseJsonFromText(data.choices?.[0]?.message?.content);
-}
-
-async function callAnthropic(userMessage) {
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-3-5-haiku-20241022',
-      max_tokens: 2048,
-      system: SYSTEM_PROMPT_INTENT_ENGINE,
-      temperature: PIPELINE_CONFIG.temperature,
-      messages: [{ role: 'user', content: userMessage }],
-    }),
-  });
-
-  if (!res.ok) throw new Error(`Anthropic API error: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  const match = data.content?.[0]?.text?.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('Anthropic returned no JSON');
-  return JSON.parse(match[0]);
 }
 
 const PROVIDERS = [
@@ -510,36 +404,7 @@ const PROVIDERS = [
   { name: 'anthropic', call: callAnthropic },
 ];
 
-export function getLlmProviderStatus() {
-  return {
-    node_options: process.env.NODE_OPTIONS || null,
-    configured: {
-      gemini: Boolean(process.env.GEMINI_API_KEY?.trim()),
-      groq: Boolean(process.env.GROQ_API_KEY?.trim()),
-      openai: Boolean(process.env.OPENAI_API_KEY?.trim()),
-      anthropic: Boolean(process.env.ANTHROPIC_API_KEY?.trim()),
-    },
-  };
-}
-
-async function tryWithRetry(providerName, fn) {
-  let delay = PIPELINE_CONFIG.baseDelayMs;
-  for (let attempt = 1; attempt <= PIPELINE_CONFIG.maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      const msg = err.message || '';
-      const isRetryable = /(503|429|Too Many Requests|fetch failed|ECONNRESET|500|502)/i.test(msg);
-      if (isRetryable && attempt < PIPELINE_CONFIG.maxRetries) {
-        console.warn(`[AI Director] ${providerName} overloaded. Attempt ${attempt}/${PIPELINE_CONFIG.maxRetries}. Waiting ${delay}ms...`);
-        await new Promise((r) => setTimeout(r, delay));
-        delay *= 2;
-        continue;
-      }
-      throw err;
-    }
-  }
-}
+export { getLlmProviderStatus };
 
 export async function expandScenePrompt(userPrompt, {
   characterId,
@@ -557,25 +422,21 @@ export async function expandScenePrompt(userPrompt, {
   const { seriesContextBlock } = resolveSeriesContext({ projectId, episodeId });
   const bindingOptions = { userPrompt };
   const userMessage = buildIntentPrompt(userPrompt, context, seriesContextBlock);
-  let lastError = null;
 
-  for (const provider of PROVIDERS) {
-    try {
-      const rawIntent = await tryWithRetry(provider.name, () => provider.call(userMessage));
-      if (rawIntent) {
-        const intentPlan = normalizeIntentPlan(rawIntent, userPrompt);
-        intentPlan._source = intentPlan._source || provider.name;
-        const plan = executeAssetBinding(intentPlan, context, bindingOptions);
-        return maybeApplyProductionProfile(plan, { i2vProfile, durationSec });
-      }
-    } catch (err) {
-      lastError = err.message;
-      console.warn(`[AI Director] ${provider.name} failed:`, err.message);
-    }
+  const llmResult = await tryProviders(
+    PROVIDERS.map((p) => ({ name: p.name, call: () => p.call(userMessage) })),
+    { maxRetries: PIPELINE_CONFIG.maxRetries, baseDelayMs: PIPELINE_CONFIG.baseDelayMs, logPrefix: '[AI Director]' },
+  );
+
+  if (llmResult) {
+    const intentPlan = normalizeIntentPlan(llmResult.result, userPrompt);
+    intentPlan._source = intentPlan._source || llmResult.source;
+    const plan = executeAssetBinding(intentPlan, context, bindingOptions);
+    return maybeApplyProductionProfile(plan, { i2vProfile, durationSec });
   }
 
-  console.warn('[AI Director] All LLM providers failed, falling back to mock:', lastError);
-  const mockIntent = buildMockIntent(userPrompt, lastError);
+  console.warn('[AI Director] All LLM providers failed, falling back to mock');
+  const mockIntent = buildMockIntent(userPrompt);
   const plan = executeAssetBinding(mockIntent, context, bindingOptions);
   return maybeApplyProductionProfile(plan, { i2vProfile, durationSec });
 }
@@ -631,9 +492,9 @@ export async function suggestEpisodePrompts({
 
   let llmError = null;
   try {
-    const raw = await callGroqRaw(SYSTEM_PROMPT_SERIES_SUGGEST, userMessage);
-    if (raw) {
-      const suggestions = parseSuggestionsFromText(raw);
+    const parsed = await callGroqShared(SYSTEM_PROMPT_SERIES_SUGGEST, userMessage, { temperature: 0.4 });
+    if (parsed) {
+      const suggestions = extractSuggestions(parsed);
       return {
         suggestions: suggestions.map((s) => ({ ...s, _source: 'groq' })),
         series_context_used: Boolean(seriesContextBlock),
