@@ -48,7 +48,14 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// Rate limiting — 200 requests per minute per IP
+app.use(cors({
+  origin: [
+    `http://localhost:${FRONTEND_PORT}`,
+    `http://127.0.0.1:${FRONTEND_PORT}`,
+  ],
+}));
+
+// Rate limiting — 200 requests per minute per IP (after CORS so 429s include CORS headers)
 const limiter = rateLimit({
   windowMs: 60 * 1000,
   max: 200,
@@ -57,13 +64,6 @@ const limiter = rateLimit({
   message: { error: 'Too many requests, please try again later.' },
 });
 app.use('/api', limiter);
-
-app.use(cors({
-  origin: [
-    `http://localhost:${FRONTEND_PORT}`,
-    `http://127.0.0.1:${FRONTEND_PORT}`,
-  ],
-}));
 app.use(express.json({ limit: '2mb' }));
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/output', express.static(OUTPUT_DIR));
