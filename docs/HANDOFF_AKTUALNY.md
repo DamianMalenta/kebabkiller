@@ -84,7 +84,6 @@ docs/11_OPUS_ARCHITECTURE_PROPOSAL.md          ← źródło prawdy
 docs/RUNCOMFY_DEPLOYMENT.md                    ← jak zbudować lekki deployment
 backend/src/video/wanConfig.js                 ← osie I2V (kamera/tło/beats)
 backend/src/ai/directorDesk/workflowBuilder.js ← żywe tło + osie
-backend/src/ai/i2vProduction.js                ← migracja na osie
 backend/src/video/compositeStartFrame.js       ← kaskada composite + pozycja/skala
 backend/src/video/frameExtractor.js            ← ekstrakcja klatek z klipu (Filar 3)
 backend/src/video/productionQueue.js           ← resolveSceneStartFrame + ciągłość

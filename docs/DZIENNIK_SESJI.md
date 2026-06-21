@@ -10,7 +10,7 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ### Zrobiono
 - **PR #17 — silnik ciągłości (Filar 3 / partial Faza D):** `frameExtractor.js` (ekstrakcja klatek z klipu, ffmpeg), `ContinuityPicker.jsx` (Picker kadru kontynuacji w UI), `resolveSceneStartFrame` w `productionQueue.js` (auto-ciągłość: last_frame z poprzedniego klipu), tabela `continuity_frames`, API endpointy ciągłości, `continuityEngine.test.js` (199 linii). 15 plików, +681 linii.
-- **PR #13 — refactor: shared utilities.** Nowy `backend/src/utils/` (`llm.js`, `json.js`, `async.js`, `prompt.js`). Zrefaktoryzowano 6 plików AI (director, agentServer, intentRouter, memoryCompaction, screenwriter, i2vProduction).
+- **PR #13 — refactor: shared utilities.** Nowy `backend/src/utils/` (`llm.js`, `json.js`, `async.js`, `prompt.js`). Zrefaktoryzowano 6 plików AI (director, agentServer, intentRouter, memoryCompaction, screenwriter; uwaga: i2vProduction refaktoryzowany w tym PR, potem usunięty).
 - **PR #14 — security hardening.** Helmet, rate limiting (`express-rate-limit`), path traversal protection, upload MIME validation, CORS przed rate limiter.
 - **PR #15 — unit tests coverage.** 9 nowych plików testowych: assetMetadata, falEngine, gitOps, jsonUtils, mockEngine, screenwriter, storyboardMock, systemAgentRouter, testRunner. Testy: 133 → **227 total**.
 - **PR #16 — error handling.** Propagacja błędów zamiast cichego połykania w routes.js, systemAgent/engine.js, episodeModels.js.

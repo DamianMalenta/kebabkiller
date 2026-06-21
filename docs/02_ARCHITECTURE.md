@@ -1,5 +1,7 @@
 # 02. Architektura Systemu
 
+> ⚠️ **LEGACY** — źródło prawdy = `docs/11_OPUS_ARCHITECTURE_PROPOSAL.md` + realny kod. Ten plik opisuje starą architekturę (Groq jako główny provider, green-screen compositing). Aktualna architektura: deterministyczny Reżyser (zero LLM w torze renderu), composite przez depth + IP-Adapter (green-screen odrzucony — docs/11 sekcja C).
+
 System dzieli się na 3 główne warstwy:
 
 ## 1. Frontend (Panel Twórcy / Studio UI)

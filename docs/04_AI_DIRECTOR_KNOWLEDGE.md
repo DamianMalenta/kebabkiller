@@ -1,5 +1,7 @@
 # 04. AI Reżyser i Zarządzanie Wiedzą (Knowledge Base)
 
+> ⚠️ **LEGACY** — źródło prawdy = `docs/11_OPUS_ARCHITECTURE_PROPOSAL.md` + realny kod. Ten plik opisuje stary model Reżysera (LLM Groq/Gemini, Faza 4.5). Aktualny Reżyser (`productionDirector.js`) jest **deterministyczny** (zero LLM w torze renderu — Faza B). "Faza 4.5" nie istnieje — aktualne fazy to A→F (docs/11 sekcja D).
+
 > Mapa docs: [00_START_TUTAJ.md](00_START_TUTAJ.md) · Stan: [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md)
 
 ## Jak „pamięta” AI Reżyser?

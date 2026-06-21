@@ -6,6 +6,26 @@
 
 Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne potwierdzone w repo, potem docelowa architektura i fazy. Zasada nadrzędna: **separacja warstw twardą granicą kodu** — to lekarstwo na chaos.
 
+## Wizja produktu (wchłonięta z docs/05, sesja planowania 2026-06-09)
+
+**Kebabkiller Studio** = fabryka serialu viralowych odcinków 9:16 (TikTok/Shorts/Reels). Twórca + Scenarzysta planują odcinek → jedna akceptacja → Reżyser produkcji generuje spójne klipy → montaż zewnętrzny. **Nie** generator jednej losowej sceny.
+
+**Przepływ:** Katalog (biblioteka assetów) → Plan odcinka (sceny, braki materiałów, preferencje) → [Akceptacja] → Reżyser produkcji (technika + render) → Klipy + manifest → Recenzja (poprawka jednej sceny = re-render jednego klipu).
+
+**Trzy elementy:** (1) Katalog główny — postacie, tła, rekwizyty; (2) Plan odcinka — sceny, braki do dostarczenia, preferencje; (3) Paczka produkcyjna — `E01_SC01.webm` + `E01_manifest.json`. Odcinek ~45 s = wiele klipów (2–10 s, max ~10 s / render GPU), 1 beat = 1 scena = 1 plik.
+
+**Mapowanie wizja → fazy implementacji (z docs/05 F1–F4 na Fazy A–F):**
+
+| docs/05 faza | Pokrycie w Fazach A–F | Status |
+|---|---|---|
+| F1 (Plan + Scenarzysta + katalog) | Faza A (PlanValidator, frozen plan, jeden kanał) | ✅ zrobione |
+| F0 (Silnik klipu I2V) | Faza B (determinizm) + Faza C (osie, Klatka Zero, GPU) | ✅ B done, C częściowo |
+| F2 (Reżyser pod plan → paczka) | Faza B (jeden builder) + Faza C (composite) + Faza D (Domino) | ✅ B done, C/D częściowo |
+| F3 (Recenzja + re-render sceny) | Faza D (resume partial) | 🔲 do weryfikacji z GPU |
+| F4 (Projekt serialu / biblia) | Faza F (engine_profile, skórka per serial) | 🔲 do zrobienia |
+
+> **docs/05 pozostaje jako archiwum wizji produktu** (nie jest już źródłem prawdy — treść wchłonięta powyżej).
+
 ## Status faz
 
 - [x] Faza A (keystone) — jeden kanał zapisu scen + PlanValidator + frozen plan + sprzątnięcie wizarda/frontendu + legacy POST=410 + naprawa docs (sesja #18)
@@ -22,7 +42,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 - ~~**Domino jest martwe.**~~ **NAPRAWIONE (Devin PR #17).** Silnik ciągłości (Filar 3): `resolveSceneStartFrame` w `productionQueue.js` czyta `continuity_mode` i podaje ostatnią klatkę poprzedniego klipu jako start następnej sceny. `frameExtractor.js` wyciąga klatki z klipu (ffmpeg). `ContinuityPicker.jsx` pozwala wybrać kadr. Tabela `continuity_frames` w schema.
 - **Brak determinizmu.** Seed = `Math.floor(Math.random()*...)` w [backend/src/video/runComfyEngine.js](../backend/src/video/runComfyEngine.js) (l.184) + LLM `temperature` 0.2-0.4 w [backend/src/ai/director.js](../backend/src/ai/director.js). Ten sam plan != ten sam klip.
 - **Podgląd != produkcja.** Tylko podgląd woła `buildDynamicWorkflowPayload` (wstrzykuje `style_tags` + anchor do promptu). Produkcja w [backend/src/video/productionQueue.js](../backend/src/video/productionQueue.js) używa `enrichDirectorJson`, który **nie** wstrzykuje stylu projektu do `positive_prompt`. Styl serialu nie trafia do GPU w renderze odcinka.
-- **4 buildery promptu o różnej kolejności bloków:** `executeAssetBinding` ([backend/src/ai/director.js](../backend/src/ai/director.js)), `applyI2vProductionProfile` ([backend/src/ai/i2vProduction.js](../backend/src/ai/i2vProduction.js)), `compileDeterministicScenePlan` + `enrichProductionPlan` ([backend/src/ai/productionDirector.js](../backend/src/ai/productionDirector.js)).
+- ~~**4 buildery promptu o różnej kolejności bloków.**~~ **NAPRAWIONE (Faza B).** Jeden builder `compileScenePlan`/`buildSceneDirectorPlan` w `productionDirector.js`. Legacy `director.js` poza torem renderu; `i2vProduction.js` usunięty.
 - **Brak stabilnych ID + zła postać.** Assety to losowe `uuid` ([backend/src/db/episodeModels.js](../backend/src/db/episodeModels.js)). `executeAssetBinding` bierze `context.characters?.[0]` (pierwsza postać z bazy), a produkcja nie przekazuje `projectId`/`episodeId` -> brak kontekstu serialu i ryzyko złej postaci.
 - **Desync composite.** `hasCompositeRefs` (legacy `reference_path`) w director.js vs `hasComposite` (episode refs) w productionDirector.js; `stripRedundantTextBlocks` wymaga obu assetów i dokładnego dopasowania stringa (parafraza LLM ucieka).
 - **Tło zamrożone.** `I2V_PRODUCTION` ([backend/src/video/wanConfig.js](../backend/src/video/wanConfig.js)) mrozi kadr przez denoise 0.85 + static + anchor; brak osobnego wektora animacji tła; override sceny nie cofa już wbitego `camera_motion`/anchor w prompcie.
@@ -83,11 +103,11 @@ flowchart LR
 
 - **Faza A (keystone, pierwsza):** jeden planista + twardy `PlanValidator` (kod) jako granica Scenarzysta->Reżyser + frozen plan; usuniecie duplikacji i martwego frontendu; **naprawa mylacych docs** (`HANDOFF_AKTUALNY.md`, `03_AGENT_STATE_AND_TASKS.md`) tak, by kazda nowa sesja startowala z prawdy (UI = Director's Desk; EpisodePlan = legacy; zrodlo prawdy = ten dokument). Done: plan poza limitami odrzucony przez kod; jeden kanal zapisu scen; docs startowe zgodne z kodem.
 - **Faza B (ZREALIZOWANA, sesja #19):** deterministyczny Reżyser — `@ID` compiler (kolumna `ref_id` w assetach, namespace z `type`, BEZ `kind`), jeden builder, staly seed, produkcja uzywa tej samej logiki co podglad (koniec preview != prod), wstrzykniecie `style_tags`/anchor. Done: 2x ten sam plan = ten sam payload.
-  - **Realne zmiany:** (1) `assets.ref_id` — stabilny, niemutowalny slug `type+name` (np. `char_kebabkiller`, bez `@`); migracja BEZ backfillu (`init.js`+`schema.sql`); namespace wyprowadzany z `type`. (2) JEDEN deterministyczny builder `compileScenePlan`/`buildSceneDirectorPlan` (`productionDirector.js`) — `expandScenePrompt` (LLM) **usuniety** z toru renderu; stara `compileDeterministicScenePlan`/`enrichProductionPlan`/`stripRedundantTextBlocks` zastapione; legacy `director.js`/`i2vProduction.js` (poza torem renderu) nietkniete. (3) `deterministicSeed(planId:sceneId)` (`wanConfig.js`) — `Math.random()` usuniety z `runComfyEngine.js`. (4) wspolny `enrichDirectorForRender` (`workflowBuilder.js`) wolany przez podglad i produkcje; rozjechany `enrichDirectorJson` (`productionQueue.js`) zastapiony. (5) **Strażnik:** `productionPayloadGolden.test.js`. Testy: 92 → 110 pass.
+  - **Realne zmiany:** (1) `assets.ref_id` — stabilny, niemutowalny slug `type+name` (np. `char_kebabkiller`, bez `@`); migracja BEZ backfillu (`init.js`+`schema.sql`); namespace wyprowadzany z `type`. (2) JEDEN deterministyczny builder `compileScenePlan`/`buildSceneDirectorPlan` (`productionDirector.js`) — `expandScenePrompt` (LLM) **usuniety** z toru renderu; stara `compileDeterministicScenePlan`/`enrichProductionPlan`/`stripRedundantTextBlocks` zastapione; legacy `director.js` (poza torem renderu) nietkniety; `i2vProduction.js` usuniety. (3) `deterministicSeed(planId:sceneId)` (`wanConfig.js`) — `Math.random()` usuniety z `runComfyEngine.js`. (4) wspolny `enrichDirectorForRender` (`workflowBuilder.js`) wolany przez podglad i produkcje; rozjechany `enrichDirectorJson` (`productionQueue.js`) zastapiony. (5) **Strażnik:** `productionPayloadGolden.test.js`. Testy: 92 → 110 pass.
 - **Faza C:** Klatka Zero (compose cutout+tlo, pozycja z panelu) + rozbicie `I2V_PRODUCTION` (kamera / animacja tla / beats) + zywe tlo + node IP-Adapter. Done: podglad kolazu 0 zl; 1 klip z zywym tlem i stala geometria.
   - **Faza C — zrobione (bez GPU), sesja #20:** podzielono fazę na czesc 0 zl / niezalezna od GPU (zrobiona) i czesc GPU (odlozona — patrz nizej). Zrealizowane:
     1. **Rozbicie `I2V_PROFILES` na niezalezne osie** kamera / tlo / beats ([backend/src/video/wanConfig.js](../backend/src/video/wanConfig.js)) — `camera.static` NIE zamraza juz tla; usuniety zlepek `staticCamera`/`singleBeat` ("zastepuj nie sklejaj").
-    2. **Zywe tlo odpiete od kamery** — `LIVING_BACKGROUND_PROMPT` (dym/ogien/neony, geometria stala) wstrzykiwany niezaleznie od `static_camera`, sterowalny override `background_motion=frozen` ([backend/src/ai/directorDesk/workflowBuilder.js](../backend/src/ai/directorDesk/workflowBuilder.js), [backend/src/ai/i2vProduction.js](../backend/src/ai/i2vProduction.js)). Anchor "feet on ground" = uziemienie POSTACI, zostaje.
+    2. **Zywe tlo odpiete od kamery** — `LIVING_BACKGROUND_PROMPT` (dym/ogien/neony, geometria stala) wstrzykiwany niezaleznie od `static_camera`, sterowalny override `background_motion=frozen` ([backend/src/ai/directorDesk/workflowBuilder.js](../backend/src/ai/directorDesk/workflowBuilder.js); `i2vProduction.js` usuniety — logika przeniesiona do `workflowBuilder.js`). Anchor "feet on ground" = uziemienie POSTACI, zostaje.
     3. **Klatka Zero — kaskada composite** (`scene → asset → fallback`): `assets.composite_default_json` (model + resolwer + pozycja/skala sterowalne), endpoint **podgladu kolazu 0 zl** `POST /composite/preview` (zero GPU), panel UI (suwaki pozycja/skala/zrodlo, live preview).
     - **Strażnik:** golden `productionPayloadGolden` zielony (swiadoma aktualizacja — node 55 niesie teraz "Living background"); `runComfyEngine.js` NIETKNIETY. Testy: 110 → 115 pass.
   - **Faza C — ODŁOŻONE (GPU, bloker z sekcji F):** czeka na lekki deployment RunComfy.
@@ -102,7 +122,7 @@ flowchart LR
 
 ### Prace Devina (PR #13–#16, po sesji #21) — cross-cutting, niezależne od faz
 
-- **PR #13 — refactor: shared utilities.** Wyekstrahowano `backend/src/utils/`: `llm.js` (wspólny wrapper wywołań LLM), `json.js` (safe JSON parse), `async.js` (sleep), `prompt.js` (dedup promptu). Zrefaktoryzowano `director.js`, `agentServer.js`, `intentRouter.js`, `memoryCompaction.js`, `screenwriter.js`, `i2vProduction.js`.
+- **PR #13 — refactor: shared utilities.** Wyekstrahowano `backend/src/utils/`: `llm.js` (wspólny wrapper wywołań LLM), `json.js` (safe JSON parse), `async.js` (sleep), `prompt.js` (dedup promptu). Zrefaktoryzowano `director.js`, `agentServer.js`, `intentRouter.js`, `memoryCompaction.js`, `screenwriter.js` (uwaga: `i2vProduction.js` refaktoryzowany w tym PR, potem usunięty).
 - **PR #14 — security hardening.** Helmet, rate limiting, path traversal protection, upload MIME validation. CORS middleware przed rate limiter (429 z headerami CORS). Zmiany w `index.js` i `routes.js`.
 - **PR #15 — unit tests coverage.** Nowe testy: `assetMetadata`, `falEngine`, `gitOps`, `jsonUtils`, `mockEngine`, `screenwriter`, `storyboardMock`, `systemAgentRouter`, `testRunner`. Testy: 133 → **227 total** (226 pass, 1 naprawiony w audycie 2026-06-21).
 - **PR #16 — error handling.** Propagacja błędów zamiast cichego połykania w `routes.js`, `systemAgent/engine.js`, `episodeModels.js`.
@@ -118,7 +138,22 @@ flowchart LR
 
 ## G. Uwaga dla nowej sesji (anti-pokrecenie)
 
-Dokumentacja w `docs/` ma **wiele sprzecznych wersji** — NIE traktuj calego `docs/` jako zrodla prawdy. Zrodlo prawdy = **TEN dokument + realny kod**. Odrzucone kierunki: Programista/`07_DEV_AGENT_PLAN.md`, Cursor Cloud Agents API jako tor naprawy, PR #9 (Groq /dev) jako drugi Rezyser, Cursor w iframe, gema-0 merge.
+Dokumentacja w `docs/` ma **wiele sprzecznych wersji** — NIE traktuj calego `docs/` jako zrodla prawdy. Zrodlo prawdy = **TEN dokument + realny kod**.
+
+**Dokumenty oznaczone LEGACY (nie ufaj, nie implementuj):**
+- `docs/01_PROJECT_VISION.md` — skrót wizji, tabela statusów nieaktualna
+- `docs/02_ARCHITECTURE.md` — stara architektura (Groq, green-screen), sprzeczna z docs/11
+- `docs/04_AI_DIRECTOR_KNOWLEDGE.md` — stary model Reżysera, fazy 4.x, nie istniejące
+- `docs/06_INSTRUKCJA_OBSLUGI_V2.md` — opisuje UI które nie istnieje (przeniesiony do `docs/archive/`)
+- `docs/10_OPUS_VISION_BRIEFING.md` — jednorazowy briefing dla sesji Cursor
+
+**Archiwum wizji (nie źródło prawdy):**
+- `docs/05_EPISODE_PIPELINE.md` — wizja produktu wchłonięta do sekcji "Wizja produktu" powyżej
+
+**Odrzucone kierunki:** Programista/`07_DEV_AGENT_PLAN.md`, Cursor Cloud Agents API jako tor naprawy, PR #9 (Groq /dev) jako drugi Rezyser, Cursor w iframe, gema-0 merge.
+
+**Usunięte pliki (referencje historyczne):**
+- `backend/src/ai/i2vProduction.js` — usunięty; logika przeniesiona do `workflowBuilder.js` + `wanConfig.js`
 
 ## H. Protokół kontynuacji (anti-konflikt)
 
@@ -131,7 +166,7 @@ Fazy B→C→D dzielą te same pliki na torze renderu, więc nie są niezależne
 | `backend/src/video/runComfyEngine.js` | seed | node IP-Adapter | last-frame | — |
 | `backend/src/video/productionQueue.js` | styl, preview=prod | — | resume + Domino | — |
 | `backend/src/ai/directorDesk/workflowBuilder.js` | @ID compiler | osie I2V | — | — |
-| `backend/src/video/wanConfig.js` / `i2vProduction.js` | — | rozbicie profilu | — | engine_profile |
+| `backend/src/video/wanConfig.js` | — | rozbicie profilu | — | engine_profile |
 | `backend/src/db/episodeModels.js` | kolumna `ref_id` (bez `kind`) | — | — | — |
 
 `runComfyEngine.js` to główny punkt zapalny B/C/D.

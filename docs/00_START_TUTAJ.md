@@ -19,27 +19,33 @@
 
 ## Gdzie jest pełna wiedza?
 
-| Potrzebujesz… | Czytaj… |
-|---------------|---------|
-| Historia sesji 1 → 2 → … | [DZIENNIK_SESJI.md](DZIENNIK_SESJI.md) |
-| Wizja produktu (skrót) | [01_PROJECT_VISION.md](01_PROJECT_VISION.md) |
-| **Pipeline odcinka (źródło prawdy wizji)** | **[05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md)** |
-| Limity silnika / Scenarzysta | [CAPABILITIES.md](CAPABILITIES.md) |
-| Architektura techniczna | [02_ARCHITECTURE.md](02_ARCHITECTURE.md) |
-| **Programista w panelu (Cursor Cloud Agents)** | **[07_DEV_AGENT_PLAN.md](07_DEV_AGENT_PLAN.md)** |
-| **Briefing architektury dla OPUS (lokalny Cursor)** | **[10_OPUS_VISION_BRIEFING.md](10_OPUS_VISION_BRIEFING.md)** |
-| Jak działa Baza Wiedzy / Reżyser (legacy) | [04_AI_DIRECTOR_KNOWLEDGE.md](04_AI_DIRECTOR_KNOWLEDGE.md) |
-| Perełki z gema-0 (wzorce) | [archive/sesja-01/05_PERELKI_Z_GEMA0.md](archive/sesja-01/05_PERELKI_Z_GEMA0.md) |
-| Szczegóły końca sesji #1 | [archive/sesja-01/06_PODSUMOWANIE.md](archive/sesja-01/06_PODSUMOWANIE.md) |
-| Protokół zamykania sesji | [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md) |
-| Audyt spójności docs | [AUDYT_SPÓJNOŚCI_2026-06-06.md](AUDYT_SPÓJNOŚCI_2026-06-06.md) |
+| Potrzebujesz… | Czytaj… | Uwagi |
+|---------------|---------|-------|
+| **ŹRÓDŁO PRAWDY architektury + wizji** | **[11_OPUS_ARCHITECTURE_PROPOSAL.md](11_OPUS_ARCHITECTURE_PROPOSAL.md)** | **Jedyne źródło prawdy** |
+| Historia sesji 1 → 2 → … | [DZIENNIK_SESJI.md](DZIENNIK_SESJI.md) | |
+| Limity silnika / Scenarzysta | [CAPABILITIES.md](CAPABILITIES.md) | |
+| Protokół zamykania sesji | [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md) | |
+| Audyt spójności docs | [AUDYT_SPÓJNOŚCI_2026-06-06.md](AUDYT_SPÓJNOŚCI_2026-06-06.md) | |
+| Perełki z gema-0 | [archive/sesja-01/05_PERELKI_Z_GEMA0.md](archive/sesja-01/05_PERELKI_Z_GEMA0.md) | |
+
+### Dokumenty LEGACY (nie implementuj — historyczne)
+
+| Plik | Dlaczego legacy |
+|------|-----------------|
+| [01_PROJECT_VISION.md](01_PROJECT_VISION.md) | Tabela statusów nieaktualna |
+| [02_ARCHITECTURE.md](02_ARCHITECTURE.md) | Stara architektura (Groq, green-screen) — sprzeczna z docs/11 |
+| [04_AI_DIRECTOR_KNOWLEDGE.md](04_AI_DIRECTOR_KNOWLEDGE.md) | Stary model Reżysera LLM, fazy 4.x nie istnieją |
+| [05_EPISODE_PIPELINE.md](05_EPISODE_PIPELINE.md) | Wizja wchłonięta do docs/11 (archiwum) |
+| [07_DEV_AGENT_PLAN.md](07_DEV_AGENT_PLAN.md) | Kierunek **odrzucony** (docs/11 sekcja G) |
+| [10_OPUS_VISION_BRIEFING.md](10_OPUS_VISION_BRIEFING.md) | Jednorazowy briefing — historyczny |
+| [archive/06_INSTRUKCJA_OBSLUGI_V2.md](archive/06_INSTRUKCJA_OBSLUGI_V2.md) | Opisuje UI które nie istnieje |
 
 ---
 
 ## Zasady (skrót)
 
 1. **Nie dotykaj `gema-0`** — osobny produkt obok.
-2. **Źródło prawdy operacyjne:** `HANDOFF_AKTUALNY.md` + `03_AGENT_STATE_AND_TASKS.md`.
+2. **Źródło prawdy:** `docs/11_OPUS_ARCHITECTURE_PROPOSAL.md` (architektura + wizja) + `HANDOFF_AKTUALNY.md` + `03_AGENT_STATE_AND_TASKS.md` (operacyjne).
 3. **Po każdej sesji** — aktualizuj handoff i dopisz wpis do dziennika (patrz protokół).
 
 ---
