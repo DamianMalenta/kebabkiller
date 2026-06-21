@@ -56,7 +56,9 @@ function toAbsoluteOutputPath(outputDir, maybePath) {
  */
 function resolveSceneStartFrame(scene, prevLastFramePublic, outputDir) {
   if (scene.start_frame_path) {
-    return toAbsoluteOutputPath(outputDir, scene.start_frame_path);
+    const resolved = toAbsoluteOutputPath(outputDir, scene.start_frame_path);
+    if (resolved) return resolved;
+    // Jawny wybór niedostępny na dysku — fall-through do auto-ciągłości.
   }
   if (scene.sort_order > 0 && prevLastFramePublic) {
     return toAbsoluteOutputPath(outputDir, prevLastFramePublic);
@@ -183,7 +185,7 @@ async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, e
     });
     publicFrames = frames.map((f) => ({ ...f, path: toPublicOutputPath(outputDir, f.path) }));
   } catch (err) {
-    console.warn(`[ProductionQueue] Ekstrakcja klatek ${clip.clip_code} nieudana:`, err.message);
+    console.warn(`[ProductionQueue] Ekstrakcja klatek ${clip.clip_code} nieudana — ciągłość do następnej sceny przerwana (fallback do kompozytu):`, err.message);
   }
 
   updateProductionClip(clip.id, {
