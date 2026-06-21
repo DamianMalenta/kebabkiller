@@ -1,8 +1,7 @@
 # Kebabkiller Studio
 
-Automatyczne studio wideo 9:16 z postacią Kebabkiller — Panel Reżysera, AI Director i silnik wideo (RunComfy / mock).
+Automatyczne studio seriali — Panel Reżysera, AI Director i silnik wideo (RunComfy / mock).
 
-Niezależny projekt. Nie dotykaj `gema-0`.
 
 ## Wymagania
 
