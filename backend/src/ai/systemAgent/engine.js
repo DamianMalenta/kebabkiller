@@ -210,11 +210,12 @@ export function createRepairEngine({ repoRoot, fs = nodeFs, git, runTests } = {}
       console.warn('[systemAgent] commit rewertu nieudany:', err.message);
     }
 
-    const updated = updateRepair(id, {
+    const patch = {
       status: 'reverted',
       apply_commit_sha: revertSha || repair.apply_commit_sha,
-      error: revertWarning,
-    });
+    };
+    if (revertWarning) patch.error = revertWarning;
+    const updated = updateRepair(id, patch);
     return { ...updated, ...(revertWarning ? { warning: revertWarning } : {}) };
   }
 

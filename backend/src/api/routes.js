@@ -771,7 +771,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       const result = await assistEpisodePlan(req.params.id, message, { apply: Boolean(apply) });
       res.json(result);
     } catch (err) {
-      res.status(errorStatus(err)).json({ error: err.message });
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -874,7 +874,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
         director_json: plan,
       });
     } catch (err) {
-      res.status(errorStatus(err)).json({ error: err.message });
+      res.status(500).json({ error: err.message });
     }
   });
 
