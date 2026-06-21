@@ -163,11 +163,12 @@ export function createRepairEngine({ repoRoot, fs = nodeFs, git, runTests } = {}
     }
 
     let applyCommitSha = null;
+    let commitWarning = null;
     try {
       applyCommitSha = gitOps.commitPaths(paths, `system-agent: ${repair.title}`);
     } catch (err) {
-      // Commit się nie udał, ale testy zielone — zostaw pliki, oznacz applied bez sha.
       applyCommitSha = null;
+      commitWarning = `Git commit failed: ${err.message}. Files applied but not committed.`;
       console.warn('[systemAgent] commit checkpoint nieudany:', err.message);
     }
 
@@ -176,9 +177,9 @@ export function createRepairEngine({ repoRoot, fs = nodeFs, git, runTests } = {}
       base_sha: baseSha,
       apply_commit_sha: applyCommitSha,
       test_summary: gate.summary || 'passed',
-      error: null,
+      error: commitWarning,
     });
-    return { ...updated, applied: true, gate };
+    return { ...updated, applied: true, gate, ...(commitWarning ? { warning: commitWarning } : {}) };
   }
 
   function safeHead() {
@@ -201,13 +202,21 @@ export function createRepairEngine({ repoRoot, fs = nodeFs, git, runTests } = {}
 
     const paths = repair.files.map((f) => f.path);
     let revertSha = null;
+    let revertWarning = null;
     try {
       revertSha = gitOps.commitPaths(paths, `system-agent: revert ${repair.title}`);
     } catch (err) {
+      revertWarning = `Git revert commit failed: ${err.message}. Files reverted but not committed.`;
       console.warn('[systemAgent] commit rewertu nieudany:', err.message);
     }
 
-    return updateRepair(id, { status: 'reverted', apply_commit_sha: revertSha || repair.apply_commit_sha });
+    const patch = {
+      status: 'reverted',
+      apply_commit_sha: revertSha || repair.apply_commit_sha,
+    };
+    if (revertWarning) patch.error = revertWarning;
+    const updated = updateRepair(id, patch);
+    return { ...updated, ...(revertWarning ? { warning: revertWarning } : {}) };
   }
 
   return { diagnose, proposeRepair, applyRepair, undoRepair, restoreFiles, repoRoot };

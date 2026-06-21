@@ -192,7 +192,7 @@ function resolveSeriesContext({ projectId, episodeId }) {
     };
   } catch (err) {
     console.warn('[AI Director] Series context unavailable:', err.message);
-    return { seriesContextBlock: '', styleBible: '' };
+    return { seriesContextBlock: '', styleBible: '', contextError: err.message };
   }
 }
 
@@ -629,6 +629,7 @@ export async function suggestEpisodePrompts({
     seriesContextBlock,
   });
 
+  let llmError = null;
   try {
     const raw = await callGroqRaw(SYSTEM_PROMPT_SERIES_SUGGEST, userMessage);
     if (raw) {
@@ -641,6 +642,7 @@ export async function suggestEpisodePrompts({
       };
     }
   } catch (err) {
+    llmError = err.message;
     console.warn('[AI Director] suggest failed:', err.message);
   }
 
@@ -650,5 +652,6 @@ export async function suggestEpisodePrompts({
     project_id: ctx.project.id,
     episode_id: ctx.episode?.id ?? null,
     _source: 'mock',
+    ...(llmError ? { llm_error: llmError } : {}),
   };
 }

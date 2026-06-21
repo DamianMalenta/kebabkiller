@@ -154,6 +154,11 @@ ${rag}`;
     if (content) return { text: content, source: 'groq' };
   } catch (err) {
     console.warn('[DirectorAgent] brainstorm fallback:', err.message);
+    return {
+      text: 'To parametry kamery i stylu wpływające na render GPU. W głównym czacie wydaj polecenie fabularne — ja przetłumaczę je na ustawienia w lewym panelu.',
+      source: 'fallback',
+      llm_error: err.message,
+    };
   }
 
   return {
@@ -228,6 +233,33 @@ ZASADY:
     }
   } catch (err) {
     console.warn('[DirectorAgent] tool agent failed:', err.message);
+    const heuristicActions = runHeuristicAgent(message, ctx);
+    if (heuristicActions.length) {
+      const results = [];
+      const widgets = [];
+      for (const { tool, args } of heuristicActions) {
+        try {
+          const result = await executeTool(tool, args, ctx);
+          results.push({ tool, result });
+          widgets.push(...widgetsFromToolResult(tool, result));
+        } catch (actionErr) {
+          results.push({ tool, error: actionErr.message });
+        }
+      }
+      return {
+        text: 'Przetworzyłem Twoją wiadomość i zaktualizowałem projekt.',
+        tool_results: results,
+        widgets,
+        source: 'heuristic',
+        llm_error: err.message,
+      };
+    }
+    return {
+      text: getStepPrompt(ctx.mode, ctx.activeStep),
+      widgets: [],
+      source: 'prompt',
+      llm_error: err.message,
+    };
   }
 
   const heuristicActions = runHeuristicAgent(message, ctx);

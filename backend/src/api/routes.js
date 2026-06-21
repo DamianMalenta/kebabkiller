@@ -110,6 +110,30 @@ const ALLOWED_UPLOAD_MIMES = new Set([
   'video/webm',
 ]);
 
+const SERVER_ERROR_PATTERNS = [
+  /API error:\s*5\d{2}/i,
+  /fetch failed/i,
+  /ECONNRESET/i,
+  /ECONNREFUSED/i,
+  /ECONNABORTED/i,
+  /ETIMEDOUT/i,
+  /socket hang up/i,
+  /\bAbortError\b/,
+  /SQLITE_FULL/i,
+  /SQLITE_BUSY/i,
+  /SQLITE_IOERR/i,
+];
+
+function isServerError(err) {
+  const msg = err?.message || '';
+  return SERVER_ERROR_PATTERNS.some((re) => re.test(msg));
+}
+
+function errorStatus(err) {
+  if (isServerError(err)) return 500;
+  return 400;
+}
+
 export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   const router = Router();
 
@@ -170,7 +194,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       });
       res.status(201).json(item);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -215,7 +239,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       });
       res.status(201).json(item);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -258,7 +282,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       const item = createRule(req.body);
       res.status(201).json(item);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -304,7 +328,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       });
       res.status(201).json(item);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -338,7 +362,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       });
       res.json(ctx);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -388,7 +412,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     try {
       res.json(getDirectorContextForEpisode(req.params.id));
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -420,7 +444,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       }
       res.status(201).json(getAsset(item.id));
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -568,7 +592,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
         cost: 0,
       });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -604,7 +628,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       });
       res.status(201).json(plan);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -710,7 +734,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       if (!deliverable) return res.status(404).json({ error: 'Deliverable not found' });
       res.json({ deliverable, plan: getEpisodePlan(deliverable.episode_plan_id) });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -740,7 +764,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
         production_started: autoProduce,
       });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -757,7 +781,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
         plan_id: plan.id,
       });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -844,7 +868,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
         : job;
       res.json(formatJobResponse(updated));
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -933,7 +957,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       const episodePlanId = req.query.episode_plan_id || null;
       res.json(getDirectorDeskState(req.params.projectId, episodePlanId));
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -945,7 +969,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       if (!brain) return res.status(404).json({ error: 'Project not found' });
       res.json(brain);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -960,7 +984,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       });
       res.json(result);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -974,7 +998,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       });
       res.json(result);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
@@ -988,7 +1012,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       });
       res.json(result);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(errorStatus(err)).json({ error: err.message });
     }
   });
 
