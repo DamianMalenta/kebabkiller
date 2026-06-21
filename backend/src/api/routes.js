@@ -100,6 +100,15 @@ function formatJobResponse(job) {
   };
 }
 
+const ALLOWED_UPLOAD_MIMES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'video/mp4',
+  'video/webm',
+]);
+
 export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   const router = Router();
 
@@ -111,7 +120,17 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       cb(null, `${Date.now()}_${safe}`);
     },
   });
-  const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+  const upload = multer({
+    storage,
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (ALLOWED_UPLOAD_MIMES.has(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error(`File type '${file.mimetype}' is not allowed.`), false);
+      }
+    },
+  });
 
   // AI-Inżynier (Faza E) — osobny moduł, własna bramka tokenem.
   router.use('/system-agent', createSystemAgentRouter());
@@ -843,6 +862,14 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     const filePath = path.isAbsolute(job.output_path)
       ? job.output_path
       : path.join(process.cwd(), job.output_path.replace(/^\//, ''));
+
+    // Path traversal protection: resolved path must be within output directory
+    const resolvedPath = path.resolve(filePath);
+    const resolvedOutputDir = path.resolve(outputDir);
+    if (!resolvedPath.startsWith(resolvedOutputDir + path.sep) && resolvedPath !== resolvedOutputDir) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Output file missing' });
     }
