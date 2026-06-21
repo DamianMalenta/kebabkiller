@@ -1,7 +1,9 @@
-# 05. Pipeline odcinka — wizja produktu (źródło prawdy)
+# 05. Pipeline odcinka — wizja produktu
+
+> ⚠️ **ARCHIWUM WIZJI** — treść wchłonięta do `docs/11_OPUS_ARCHITECTURE_PROPOSAL.md` (sekcja "Wizja produktu" + tabela mapowania F1–F4 → Fazy A–F). Ten plik pozostaje jako referencja historyczna — **nie jest źródłem prawdy**.
 
 **Zatwierdzono:** 2026-06-09 (sesja planowania z właścicielem)  
-**Status:** wizja docelowa — implementacja w toku (F1 → F2 → F3)
+**Status:** ~~wizja docelowa — implementacja w toku (F1 → F2 → F3)~~ → wchłonięta do docs/11 (2026-06-21)
 
 > Skrót dla agenta: [01_PROJECT_VISION.md](01_PROJECT_VISION.md) · Limity silnika: [CAPABILITIES.md](CAPABILITIES.md) · Stan kodu: [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md)
 

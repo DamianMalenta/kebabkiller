@@ -1,5 +1,7 @@
 # 01. Wizja Projektu: Kebabkiller Studio
 
+> ⚠️ **LEGACY** — źródło prawdy = `docs/11_OPUS_ARCHITECTURE_PROPOSAL.md` + realny kod. Tabela statusów poniżej jest **nieaktualna** (Plan odcinka + Scenarzysta + Reżyser pod plan — już zrobione w Fazach A–B). Wizja produktu wchłonięta do docs/11.
+
 ## Czym jest projekt?
 
 **Kebabkiller Studio** — oprogramowanie do tworzenia **serialu viralowych odcinków** 9:16 (TikTok, YouTube Shorts, Reels, Facebook) z postacią Kebabkiller.
