@@ -5,13 +5,10 @@ import { promisify } from 'node:util';
 import { ensureOutputDir, resolveOutputPath } from './paths.js';
 import { createRunComfyEngine } from './runComfyEngine.js';
 import { createFalEngine } from './falEngine.js';
+import { sleep } from '../utils/async.js';
 
 const execFileAsync = promisify(execFile);
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /** Deterministyczny kolor tła z jobId (format 0xRRGGBB akceptowany przez ffmpeg lavfi). */
 function colorFromJob(jobId) {

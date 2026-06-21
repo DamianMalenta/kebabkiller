@@ -1,5 +1,7 @@
 /** Lightweight intent router — cheap classification before heavy agent. */
 
+import { callGroq as callGroqShared } from '../../utils/llm.js';
+
 export const INTENTS = {
   PROJECT_COMMAND: 'PROJECT_COMMAND',
   CREATIVE_BRAINSTORM: 'CREATIVE_BRAINSTORM',
@@ -68,40 +70,19 @@ export function classifyIntentHeuristic(message, { wizardMode, inWizard } = {}) 
   return INTENTS.PROJECT_COMMAND;
 }
 
-async function callGroqRouter(userMessage) {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const system = `Classify user message into exactly one intent:
+const ROUTER_SYSTEM = `Classify user message into exactly one intent:
 - PROJECT_COMMAND: concrete project change (approve, delete scene, produce video)
 - CREATIVE_BRAINSTORM: questions, confusion, casual chat — no DB writes
 - WIZARD_STEP: onboarding answers during series/episode wizard
 Return JSON: {"intent":"PROJECT_COMMAND|CREATIVE_BRAINSTORM|WIZARD_STEP","confidence":0.0-1.0}`;
 
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+async function callGroqRouter(userMessage) {
+  try {
+    const parsed = await callGroqShared(ROUTER_SYSTEM, userMessage, {
       model: process.env.GROQ_ROUTER_MODEL || process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
       temperature: 0,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: userMessage },
-      ],
-    }),
-  });
-
-  if (!res.ok) return null;
-  const data = await res.json();
-  const raw = data.choices?.[0]?.message?.content;
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (INTENTS[parsed.intent]) {
+    });
+    if (parsed && INTENTS[parsed.intent]) {
       return { intent: parsed.intent, confidence: parsed.confidence ?? 0.5, source: 'groq' };
     }
   } catch {

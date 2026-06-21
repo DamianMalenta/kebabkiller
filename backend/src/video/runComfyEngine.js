@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { ensureOutputDir, resolveOutputPath } from './paths.js';
 import { buildStartFrameAsset } from './compositeStartFrame.js';
 import { resolveWanRenderParams, WAN_QUALITY, deterministicSeed } from './wanConfig.js';
+import { sleep, emitProgress } from '../utils/async.js';
 
 export { WAN_QUALITY, resolveWanRenderParams, secondsToFrames, I2V_PROFILES } from './wanConfig.js';
 
@@ -41,10 +42,6 @@ function formatRunComfyError(errorPayload) {
       .join(' | ');
   }
   return errorPayload.message || JSON.stringify(errorPayload);
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** RunComfy uses US/UK spellings and intermediate cancel states — normalize before branching. */
@@ -287,11 +284,6 @@ export function createRunComfyEngine(outputDir, config) {
   function deploymentBaseUrl() {
     const match = endpoint.match(/^(https:\/\/api\.runcomfy\.net\/prod\/v2\/deployments\/[^/]+)/i);
     return match ? match[1] : endpoint.replace(/\/inference\/?$/i, '');
-  }
-
-  function emitProgress(onProgress, percent, message) {
-    if (!onProgress) return;
-    onProgress(message ? { percent, message } : percent);
   }
 
   async function tryFetchReadyResult(fetchResultUrl, authHeaders) {

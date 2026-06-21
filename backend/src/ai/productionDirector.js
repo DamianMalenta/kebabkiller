@@ -2,6 +2,7 @@ import { getAsset } from '../db/episodeModels.js';
 import { getDb } from '../db/init.js';
 import { WAN_FPS, WAN_QUALITY, parseI2vProfileId, resolveWanRenderParams, deterministicSeed } from '../video/wanConfig.js';
 import { inferKinematicsFromPolish } from './kinematicsFromPrompt.js';
+import { deduplicateNegativePrompt } from '../utils/prompt.js';
 
 const BASE_NEGATIVE =
   'low quality, watermark, text overlay, deformed background, melting texture, extra limbs, mutated, bad anatomy';
@@ -108,12 +109,10 @@ function compileScenePlan(userPrompt, scene, refs, visualProfile) {
     visualProfile.preferences,
   ].filter(Boolean).join(', ');
 
-  const negativeParts = [visualProfile.negative_prompt, BASE_NEGATIVE]
-    .join(', ')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const negativePrompt = Array.from(new Set(negativeParts)).join(', ');
+  const negativePrompt = deduplicateNegativePrompt(
+    visualProfile.negative_prompt,
+    BASE_NEGATIVE,
+  );
 
   const characterRefId = refs.characterAsset?.ref_id ? `@${refs.characterAsset.ref_id}` : null;
   const locationRefId = refs.locationAsset?.ref_id ? `@${refs.locationAsset.ref_id}` : null;

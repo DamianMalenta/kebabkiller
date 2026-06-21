@@ -4,6 +4,7 @@ import {
   getEpisodePlan,
   updateEpisodePlan,
 } from '../db/episodeModels.js';
+import { parseJsonField } from '../utils/json.js';
 import {
   createProductionRun,
   updateProductionRun,
@@ -111,12 +112,7 @@ function buildReadme(plan, manifest) {
 }
 
 function parseSceneOverrides(scene) {
-  if (!scene?.ai_overrides_json) return {};
-  try {
-    return JSON.parse(scene.ai_overrides_json);
-  } catch {
-    return {};
-  }
+  return parseJsonField(scene?.ai_overrides_json, {});
 }
 
 /**
