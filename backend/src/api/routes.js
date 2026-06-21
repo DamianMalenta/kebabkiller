@@ -51,6 +51,7 @@ import {
   deleteAssetImage,
   setAssetCompositeDefault,
   setSceneCompositeOverride,
+  setSceneStartFrame,
   listEpisodePlans,
   getEpisodePlan,
   createEpisodePlan,
@@ -485,6 +486,46 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   // Faza C — Klatka Zero: override composite na poziomie sceny (najwyższy priorytet kaskady).
   router.put('/episode-plans/:planId/scenes/:sceneId/composite', (req, res) => {
     const scene = setSceneCompositeOverride(req.params.sceneId, req.body.composite ?? null);
+    if (!scene) return res.status(404).json({ error: 'Scene not found' });
+    res.json(scene);
+  });
+
+  /**
+   * Filar 3 — kadry kontynuacji: klatki wyekstrahowane z klipu POPRZEDNIEJ sceny
+   * (do Pickera). Scena 0 nie ma poprzednika → pusta lista.
+   */
+  router.get('/episode-plans/:planId/scenes/:sceneId/continuation-frames', (req, res) => {
+    const plan = getEpisodePlan(req.params.planId);
+    if (!plan) return res.status(404).json({ error: 'Episode plan not found' });
+    const scene = plan.scenes.find((s) => s.id === req.params.sceneId);
+    if (!scene) return res.status(404).json({ error: 'Scene not found' });
+
+    const prevScene = plan.scenes
+      .filter((s) => s.sort_order < scene.sort_order)
+      .sort((a, b) => b.sort_order - a.sort_order)[0] || null;
+
+    const run = getLatestProductionRun(req.params.planId);
+    const prevClip = prevScene && run
+      ? (run.clips || []).find((c) => c.plan_scene_id === prevScene.id)
+      : null;
+
+    res.json({
+      scene_id: scene.id,
+      sort_order: scene.sort_order,
+      current_start_frame: scene.start_frame_path || null,
+      auto_continuity: scene.sort_order > 0,
+      prev_scene_id: prevScene?.id || null,
+      prev_clip_code: prevClip?.clip_code || null,
+      frames: prevClip?.frames || [],
+    });
+  });
+
+  /**
+   * Filar 3 — ustaw/wyczyść kadr kontynuacji jako start sceny.
+   * `frame_path: null` → cofnięcie do auto-ciągłości (klatka końcowa poprzedniej sceny).
+   */
+  router.put('/episode-plans/:planId/scenes/:sceneId/start-frame', (req, res) => {
+    const scene = setSceneStartFrame(req.params.sceneId, req.body.frame_path ?? null);
     if (!scene) return res.status(404).json({ error: 'Scene not found' });
     res.json(scene);
   });

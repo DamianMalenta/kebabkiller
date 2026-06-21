@@ -288,6 +288,7 @@ export function normalizePlanSceneInput(scene) {
     assetId: scene.assetId ?? scene.asset_id ?? null,
     assetImageId: scene.assetImageId ?? scene.asset_image_id ?? null,
     locationAssetId: scene.locationAssetId ?? scene.location_asset_id ?? null,
+    startFramePath: scene.startFramePath ?? scene.start_frame_path ?? null,
   };
 }
 
@@ -302,6 +303,7 @@ export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true, en
       UPDATE plan_scenes
       SET sort_order = ?, description_pl = ?, duration_sec = ?,
           asset_id = ?, asset_image_id = ?, location_asset_id = ?,
+          start_frame_path = ?,
           updated_at = datetime('now')
       WHERE id = ?
     `).run(
@@ -311,12 +313,13 @@ export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true, en
       normalized.assetId,
       normalized.assetImageId,
       normalized.locationAssetId,
+      normalized.startFramePath,
       id,
     );
   } else {
     getDb().prepare(`
-      INSERT INTO plan_scenes (id, episode_plan_id, sort_order, description_pl, duration_sec, asset_id, asset_image_id, location_asset_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO plan_scenes (id, episode_plan_id, sort_order, description_pl, duration_sec, asset_id, asset_image_id, location_asset_id, start_frame_path)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       episodePlanId,
@@ -326,6 +329,7 @@ export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true, en
       normalized.assetId,
       normalized.assetImageId,
       normalized.locationAssetId,
+      normalized.startFramePath,
     );
   }
 
@@ -353,6 +357,20 @@ export function setSceneCompositeOverride(sceneId, composite) {
   getDb().prepare(`
     UPDATE plan_scenes SET ai_overrides_json = ?, updated_at = datetime('now') WHERE id = ?
   `).run(JSON.stringify(overrides), sceneId);
+  return getDb().prepare('SELECT * FROM plan_scenes WHERE id = ?').get(sceneId);
+}
+
+/**
+ * Filar 3 (silnik ciągłości): ustaw/wyczyść kadr kontynuacji jako start sceny.
+ * `framePath == null` cofa do kompozytu (auto-ciągłość z klatki końcowej poprzedniej sceny).
+ * Render-tuning (nie fabuła) — bez blokady zamrożenia planu.
+ */
+export function setSceneStartFrame(sceneId, framePath) {
+  const row = getDb().prepare('SELECT id FROM plan_scenes WHERE id = ?').get(sceneId);
+  if (!row) return null;
+  getDb().prepare(`
+    UPDATE plan_scenes SET start_frame_path = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(framePath || null, sceneId);
   return getDb().prepare('SELECT * FROM plan_scenes WHERE id = ?').get(sceneId);
 }
 

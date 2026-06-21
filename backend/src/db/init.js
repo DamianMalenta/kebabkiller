@@ -132,6 +132,11 @@ export function initDatabase(dbPath) {
     'ALTER TABLE episode_plans ADD COLUMN wizard_step TEXT NOT NULL DEFAULT \'episode_start\'',
     'ALTER TABLE plan_scenes ADD COLUMN ai_overrides_json TEXT',
     'ALTER TABLE plan_scenes ADD COLUMN storyboard_mock_json TEXT',
+    // Filar 3 (silnik ciągłości): wybrany kadr kontynuacji (klatka z poprzedniego
+    // klipu) jako start tej sceny. Nadpisuje kompozyt. Nullable, BEZ backfillu.
+    'ALTER TABLE plan_scenes ADD COLUMN start_frame_path TEXT',
+    // Filar 3: wyekstrahowane klatki-kandydaci danego klipu (do Pickera).
+    'ALTER TABLE production_clips ADD COLUMN frames_json TEXT',
     'ALTER TABLE asset_images ADD COLUMN ai_metadata_json TEXT',
     // Faza B (@ID compiler): stabilny, niemutowalny ref_id assetu. BEZ backfillu (czysta karta).
     'ALTER TABLE assets ADD COLUMN ref_id TEXT',

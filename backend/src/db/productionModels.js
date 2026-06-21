@@ -83,6 +83,7 @@ export function listProductionClips(productionRunId) {
   `).all(productionRunId).map(hydrateRow).map((clip) => ({
     ...clip,
     director_json: parseJsonField(clip.director_json),
+    frames: parseJsonField(clip.frames_json, []) || [],
   }));
 }
 
@@ -109,6 +110,7 @@ export function updateProductionClip(id, fields) {
       ? JSON.stringify(fields.directorJson)
       : undefined,
     output_path: fields.outputPath,
+    frames_json: fields.frames !== undefined ? JSON.stringify(fields.frames) : undefined,
     error_message: fields.errorMessage,
     progress: fields.progress,
     completed_at: fields.completedAt,
@@ -130,7 +132,11 @@ export function updateProductionClip(id, fields) {
   values.push(id);
   getDb().prepare(`UPDATE production_clips SET ${sets.join(', ')} WHERE id = ?`).run(...values);
   const row = getDb().prepare('SELECT * FROM production_clips WHERE id = ?').get(id);
-  return { ...row, director_json: parseJsonField(row.director_json) };
+  return {
+    ...row,
+    director_json: parseJsonField(row.director_json),
+    frames: parseJsonField(row.frames_json, []) || [],
+  };
 }
 
 export function formatClipCode(episodeCode, sortOrder) {
