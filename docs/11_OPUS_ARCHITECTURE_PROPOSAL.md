@@ -11,7 +11,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 - [x] Faza A (keystone) — jeden kanał zapisu scen + PlanValidator + frozen plan + sprzątnięcie wizarda/frontendu + legacy POST=410 + naprawa docs (sesja #18)
 - [x] Faza B — deterministyczny Reżyser: `ref_id` (@ID), jeden builder, stały seed z planu, produkcja = podgląd, golden test (sesja #19)
 - [ ] Faza C — Klatka Zero + rozbicie I2V_PRODUCTION + żywe tło + IP-Adapter _(częściowo: część bez GPU ZROBIONA — sesja #20; IP-Adapter + realny klip + AI-gen klatki ODŁOŻONE do lekkiego deploymentu RunComfy — patrz sekcja D)_
-- [ ] Faza D — realne Domino + picker klatki + resume partial
+- [~] Faza D — realne Domino + picker klatki + resume partial _(częściowo: silnik ciągłości + Picker ZROBIONE — Devin PR #17; resume partial do weryfikacji)_
 - [x] Faza E — AI-Inżynier MVP (pętla naprawcza z cofaniem) — osobny moduł `/api/system-agent`, bramka tokenem, diagnoza read-only → propose → apply (checkpoint git + bramka testów + auto-rollback) → [Cofnij] + Dziennik Napraw + panel UI (sesja #21)
 - [ ] Faza F — Studio-lustro UI + sprzątanie martwego kodu
 
@@ -19,7 +19,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 
 ## A. Błędy logiczne znalezione w kodzie (zweryfikowane)
 
-- **Domino jest martwe.** `continuity_mode: 'last_frame'` ustawiane w [backend/src/ai/directorDesk/workflowBuilder.js](../backend/src/ai/directorDesk/workflowBuilder.js) i kopiowane w [backend/src/video/productionQueue.js](../backend/src/video/productionQueue.js) (`enrichDirectorJson`), ale **nigdy nieczytane** — [backend/src/video/runComfyEngine.js](../backend/src/video/runComfyEngine.js) zawsze składa klatkę z assetów sceny. Brak realnej ciągłości.
+- ~~**Domino jest martwe.**~~ **NAPRAWIONE (Devin PR #17).** Silnik ciągłości (Filar 3): `resolveSceneStartFrame` w `productionQueue.js` czyta `continuity_mode` i podaje ostatnią klatkę poprzedniego klipu jako start następnej sceny. `frameExtractor.js` wyciąga klatki z klipu (ffmpeg). `ContinuityPicker.jsx` pozwala wybrać kadr. Tabela `continuity_frames` w schema.
 - **Brak determinizmu.** Seed = `Math.floor(Math.random()*...)` w [backend/src/video/runComfyEngine.js](../backend/src/video/runComfyEngine.js) (l.184) + LLM `temperature` 0.2-0.4 w [backend/src/ai/director.js](../backend/src/ai/director.js). Ten sam plan != ten sam klip.
 - **Podgląd != produkcja.** Tylko podgląd woła `buildDynamicWorkflowPayload` (wstrzykuje `style_tags` + anchor do promptu). Produkcja w [backend/src/video/productionQueue.js](../backend/src/video/productionQueue.js) używa `enrichDirectorJson`, który **nie** wstrzykuje stylu projektu do `positive_prompt`. Styl serialu nie trafia do GPU w renderze odcinka.
 - **4 buildery promptu o różnej kolejności bloków:** `executeAssetBinding` ([backend/src/ai/director.js](../backend/src/ai/director.js)), `applyI2vProductionProfile` ([backend/src/ai/i2vProduction.js](../backend/src/ai/i2vProduction.js)), `compileDeterministicScenePlan` + `enrichProductionPlan` ([backend/src/ai/productionDirector.js](../backend/src/ai/productionDirector.js)).
@@ -32,7 +32,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 - **Martwe stany wizarda:** `setSceneAnchors`/`reorderScenes` dozwolone, ale bez implementacji; `canAdvance` dla ASSETS nie sprawdza przypisania assetu, choć `validateEpisodePlan` wymaga ([backend/src/ai/directorDesk/wizardStateMachine.js](../backend/src/ai/directorDesk/wizardStateMachine.js)).
 - **Brak resume produkcji:** partial failure re-renderuje wszystkie sceny od zera ([backend/src/video/productionQueue.js](../backend/src/video/productionQueue.js)).
 - **Duży martwy frontend:** brak `EpisodePlan.jsx`, osierocone `JobStatus.jsx`, `MobileSceneEditor.jsx`, cały `api.episodePlans` (poza raw `produce`).
-- **AI-Inżynier nie istnieje** w kodzie.
+- ~~**AI-Inżynier nie istnieje** w kodzie.~~ **NAPRAWIONE (Faza E, sesja #21).** Moduł `backend/src/ai/systemAgent/` istnieje i działa.
 
 ## B. Docelowa architektura
 
@@ -94,10 +94,18 @@ flowchart LR
     - **node IP-Adapter** w `wan_workflow_api.json` (drugi zamek tozsamosci) + edycja toru renderu wpinajaca composite/osie do realnego workflow.
     - **realny render klipu** z zywym tlem i stala geometria (1 klip = kryterium "done" calej Fazy C).
     - **zrodlo (3) Klatki Zero: generowanie 1 obrazu AI** (pozostale zrodla compose/upload/biblioteka — zrobione).
-- **Faza D:** realne Domino (ekstrakcja ostatniej klatki -> start nastepnej) + picker klatki + resume partial. Done: odcinek 3 scen = 3 spojne klipy + manifest, retry tylko brakujacej sceny.
+- **Faza D (CZĘŚCIOWO ZREALIZOWANA, Devin PR #17):** realne Domino (ekstrakcja ostatniej klatki -> start nastepnej) + picker klatki + resume partial. Done: odcinek 3 scen = 3 spojne klipy + manifest, retry tylko brakujacej sceny.
+  - **Realne zmiany (Devin PR #17):** (1) `frameExtractor.js` — ekstrakcja klatki końcowej + N kandydatów z klipu (ffmpeg, graceful degradation). (2) `resolveSceneStartFrame` w `productionQueue.js` — auto-ciągłość: scena 2+ dostaje last_frame z poprzedniego klipu; fallback na composite gdy brak klipu. (3) `ContinuityPicker.jsx` — Picker kadru kontynuacji w UI (Director's Desk). (4) tabela `continuity_frames` w schema.sql + model w `episodeModels.js`. (5) API endpointy ciągłości w `routes.js`. (6) `continuityEngine.test.js` — 199 linii testów. **Nietknięte:** render-path determinizm (strażnik B zielony). **Pozostaje do weryfikacji:** resume partial (retry tylko brakującej sceny) — wymaga testu e2e z GPU.
 - **Faza E (ZREALIZOWANA, sesja #21):** AI-Inżynier MVP — `/api/system-agent`, petla naprawcza z checkpointami git + bramka testow + Dziennik Napraw + [Cofnij]. Done: sztuczny blad -> trafna diagnoza + diff + zastosowanie z mozliwoscia cofniecia.
   - **Realne zmiany:** osobny modul `backend/src/ai/systemAgent/` (nie dotyka render-path B/C/D): `config.js` (bramka tokenem `SYSTEM_AGENT_TOKEN`, brak tokena = wylaczony), `pathGuard.js` (deny-by-default; blok `.env`/sekretow/zlotych plikow `director.js`+`mockEngine.js`+`runComfyEngine.js`/gema-0/Scenarzysty; whitelista `backend/src`+`frontend/src`; osobne poreze odczytu vs zapisu), `engine.js` (diagnose read-only → proposeRepair[before+diff, bez zapisu] → applyRepair[checkpoint git + bramka testow → commit | auto-rollback] → undoRepair[Cofnij]), `gitOps.js` + `testRunner.js` (iniektowalne), `repairJournal.js` + tabela `system_agent_repairs` (Dziennik, bez backfillu). Router `/api/system-agent/*` za tokenem (health publiczny). Frontend: `pages/SystemAgent.jsx` + zakladka „AI-Inżynier" + `api.systemAgent` (token w localStorage). **Render-path NIETKNIETY** — strażnik B/C/D zielony. Testy: 115 → 133 pass; `vite build` OK.
 - **Faza F:** Studio-lustro UI — `engine_profile` w panelu (kaskada Studio/Serial/Odcinek/Scena z rodowodem wartosci), skorka per serial; sprzatniecie osieroconego kodu.
+
+### Prace Devina (PR #13–#16, po sesji #21) — cross-cutting, niezależne od faz
+
+- **PR #13 — refactor: shared utilities.** Wyekstrahowano `backend/src/utils/`: `llm.js` (wspólny wrapper wywołań LLM), `json.js` (safe JSON parse), `async.js` (sleep), `prompt.js` (dedup promptu). Zrefaktoryzowano `director.js`, `agentServer.js`, `intentRouter.js`, `memoryCompaction.js`, `screenwriter.js`, `i2vProduction.js`.
+- **PR #14 — security hardening.** Helmet, rate limiting, path traversal protection, upload MIME validation. CORS middleware przed rate limiter (429 z headerami CORS). Zmiany w `index.js` i `routes.js`.
+- **PR #15 — unit tests coverage.** Nowe testy: `assetMetadata`, `falEngine`, `gitOps`, `jsonUtils`, `mockEngine`, `screenwriter`, `storyboardMock`, `systemAgentRouter`, `testRunner`. Testy: 133 → **227 total** (226 pass, 1 naprawiony w audycie 2026-06-21).
+- **PR #16 — error handling.** Propagacja błędów zamiast cichego połykania w `routes.js`, `systemAgent/engine.js`, `episodeModels.js`.
 
 ## E. Rekomendacja "co robimy jako pierwsze"
 

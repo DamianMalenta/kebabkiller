@@ -21,7 +21,7 @@ describe('createMockEngine', () => {
     expect(typeof engine.render).toBe('function');
   });
 
-  test('render produces a placeholder video file', async () => {
+  test('render produces a video file (real webm via ffmpeg or text placeholder)', async () => {
     const engine = createMockEngine(outputDir);
     const progress = [];
 
@@ -35,10 +35,15 @@ describe('createMockEngine', () => {
     expect(result.outputPath).toBeTruthy();
     expect(result.engine).toBe('mock');
     expect(fs.existsSync(result.outputPath)).toBe(true);
+    expect(fs.statSync(result.outputPath).size).toBeGreaterThan(0);
 
-    const content = fs.readFileSync(result.outputPath, 'utf8');
-    expect(content).toContain('MOCK_VIDEO_PLACEHOLDER');
-    expect(content).toContain('job=job-123');
+    const buf = fs.readFileSync(result.outputPath);
+    const isWebm = buf.length >= 4 && buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3;
+    if (!isWebm) {
+      const content = buf.toString('utf8');
+      expect(content).toContain('MOCK_VIDEO_PLACEHOLDER');
+      expect(content).toContain('job=job-123');
+    }
   });
 
   test('render creates metadata file alongside video', async () => {
