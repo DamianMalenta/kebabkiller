@@ -1,6 +1,6 @@
 # 03. Stan Projektu, Problemy i Zadania
 
-**Zaktualizowano:** 2026-06-15 (sesja #20)  
+**Zaktualizowano:** 2026-06-21 (audyt docs)  
 **Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.
 
 ---
@@ -17,9 +17,9 @@ Reszta `docs/` (w tym sekcje niżej w tym pliku, `05_EPISODE_PIPELINE`, `07_DEV_
 
 ## OBECNY STATUS (jedno zdanie)
 
-**Kod:** FAZY A + B + C(część bez GPU) wdrożone. Faza C: osie I2V (kamera/tło/beats), żywe tło odpięte od kamery, Klatka Zero z kaskadą composite + podgląd kolażu 0 zł + panel UI. Testy 115 pass.  
+**Kod:** FAZY A + B + C(bez GPU) + D(częściowo) + E wdrożone. Silnik ciągłości (Filar 3 / Domino + Picker) gotowy (Devin PR #17). AI-Inżynier MVP (sesja #21). Shared utils, security hardening, error handling (Devin PR #13–#16). Testy **227 total** (226 pass + 1 naprawiony w audycie).  
 **Bloker:** część C-GPU (IP-Adapter, realny klip, AI-gen klatki) odłożona — brak **lekkiego deploymentu ComfyUI-Minimal** (panel RunComfy, nie API).  
-**Następne:** zbudować lekki deployment (`docs/RUNCOMFY_DEPLOYMENT.md`), potem TOR KOD C-GPU lub Faza E. Szczegóły w `11_OPUS_ARCHITECTURE_PROPOSAL.md`.
+**Następne:** zbudować lekki deployment (`docs/RUNCOMFY_DEPLOYMENT.md`), potem TOR KOD C-GPU, dokończenie D (resume partial) lub Faza F. Szczegóły w `11_OPUS_ARCHITECTURE_PROPOSAL.md`.
 
 > Sekcje poniżej są **archiwalne** (sesje #12–#16) — zostawione dla kontekstu historycznego.
 

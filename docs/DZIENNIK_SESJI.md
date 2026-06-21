@@ -4,6 +4,49 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ---
 
+## Prace Devina (PR #13–#17) — 2026-06-20/21
+
+**Zakres:** Pięć PR-ów Devina zmergowanych do main po sesji #21. Cross-cutting: silnik ciągłości, refactor, security, testy, error handling.
+
+### Zrobiono
+- **PR #17 — silnik ciągłości (Filar 3 / partial Faza D):** `frameExtractor.js` (ekstrakcja klatek z klipu, ffmpeg), `ContinuityPicker.jsx` (Picker kadru kontynuacji w UI), `resolveSceneStartFrame` w `productionQueue.js` (auto-ciągłość: last_frame z poprzedniego klipu), tabela `continuity_frames`, API endpointy ciągłości, `continuityEngine.test.js` (199 linii). 15 plików, +681 linii.
+- **PR #13 — refactor: shared utilities.** Nowy `backend/src/utils/` (`llm.js`, `json.js`, `async.js`, `prompt.js`). Zrefaktoryzowano 6 plików AI (director, agentServer, intentRouter, memoryCompaction, screenwriter, i2vProduction).
+- **PR #14 — security hardening.** Helmet, rate limiting (`express-rate-limit`), path traversal protection, upload MIME validation, CORS przed rate limiter.
+- **PR #15 — unit tests coverage.** 9 nowych plików testowych: assetMetadata, falEngine, gitOps, jsonUtils, mockEngine, screenwriter, storyboardMock, systemAgentRouter, testRunner. Testy: 133 → **227 total**.
+- **PR #16 — error handling.** Propagacja błędów zamiast cichego połykania w routes.js, systemAgent/engine.js, episodeModels.js.
+
+### Ustalenia
+- Render-path NIETKNIĘTY — strażnik determinizmu B zielony.
+- mockEngine teraz generuje prawdziwe wideo (ffmpeg) zamiast placeholdera tekstowego (pod silnik ciągłości).
+- Faza D częściowo zrealizowana: Domino + Picker gotowe. Resume partial do weryfikacji z GPU.
+
+### Werdykt
+Kod wzmocniony jakościowo (testy, security, error handling, utile). Silnik ciągłości gotowy. **Dokumentacja nie została zaktualizowana** — naprawione w audycie 2026-06-21.
+
+---
+
+## Sesja #21 — 2026-06-15
+
+**Zakres:** FAZA E — AI-Inżynier MVP (osobny moduł, bez GPU).
+
+### Zrobiono
+- **Krok 1** — szkielet: moduł `backend/src/ai/systemAgent/` + bramka tokenem `SYSTEM_AGENT_TOKEN` + poręcze ścieżek (`pathGuard.js`) + Dziennik Napraw (tabela `system_agent_repairs`).
+- **Krok 2–3** — diagnoza read-only + propozycja diff (bez zapisu na dysk).
+- **Krok 4** — apply z checkpointem git + bramka testów + auto-rollback.
+- **Krok 5–6** — [Cofnij] + Dziennik (UI) + domknięcie poręczy + docs.
+- Frontend: `pages/SystemAgent.jsx` + zakładka „AI-Inżynier" + `api.systemAgent` (token w localStorage).
+- Testy: 115 → **133 pass**; `vite build` OK. Render-path NIETKNIĘTY.
+
+### Ustalenia
+- Bramka tokenem: brak `SYSTEM_AGENT_TOKEN` = moduł wyłączony (bezpieczne domyślne).
+- Złote pliki (`director.js`, `mockEngine.js`, `runComfyEngine.js`) zablokowane dla AI-Inżyniera (ale nie dla pracy fazowej pod kontrolą właściciela).
+- Faza E odhaczona w `docs/11`.
+
+### Werdykt
+AI-Inżynier MVP na main. Następne: lekki deployment RunComfy (bloker C-GPU) lub Faza D.
+
+---
+
 ## Sesja #20 — 2026-06-15
 
 **Zakres:** FAZA C — część bez GPU (Klatka Zero + rozbicie I2V_PRODUCTION + żywe tło). Commit per krok, golden strażnik zielony.
