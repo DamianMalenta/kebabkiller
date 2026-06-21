@@ -33,6 +33,7 @@
 | Szczegóły końca sesji #1 | [archive/sesja-01/06_PODSUMOWANIE.md](archive/sesja-01/06_PODSUMOWANIE.md) |
 | Protokół zamykania sesji | [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md) |
 | Audyt spójności docs | [AUDYT_SPÓJNOŚCI_2026-06-06.md](AUDYT_SPÓJNOŚCI_2026-06-06.md) |
+| **Osobny projekt: Symbiont (agent-moduł)** — NIE mieszać z tym lejkiem | **[../projekt-symbiont/docs/00_START_TUTAJ.md](../projekt-symbiont/docs/00_START_TUTAJ.md)** |
 
 ---
 
