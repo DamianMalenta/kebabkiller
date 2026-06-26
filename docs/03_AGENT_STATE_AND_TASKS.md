@@ -1,6 +1,6 @@
 # 03. Stan Projektu, Problemy i Zadania
 
-**Zaktualizowano:** 2026-06-21 (audyt docs)  
+**Zaktualizowano:** 2026-06-26 (audyt docs — PR #20–#22)  
 **Start agenta:** [00_START_TUTAJ.md](00_START_TUTAJ.md) → [HANDOFF_AKTUALNY.md](HANDOFF_AKTUALNY.md) → ten plik.
 
 ---
@@ -17,9 +17,9 @@ Reszta `docs/` (w tym sekcje niżej w tym pliku, `05_EPISODE_PIPELINE`, `07_DEV_
 
 ## OBECNY STATUS (jedno zdanie)
 
-**Kod:** FAZY A + B + C(bez GPU) + D(częściowo) + E wdrożone. Silnik ciągłości (Filar 3 / Domino + Picker) gotowy (Devin PR #17). AI-Inżynier MVP (sesja #21). Shared utils, security hardening, error handling (Devin PR #13–#16). Testy **227 total** (226 pass + 1 naprawiony w audycie).  
+**Kod:** FAZY A + B + C(bez GPU) + D(częściowo) + E wdrożone. Ciągłość: Snapshot SSOT + Take validation + Picker (PR #17 + **#20–#22**; antywzorzec Domino usunięty). AI-Inżynier MVP (sesja #21). Shared utils, security, error handling (PR #13–#16). Testy **237 pass**.  
 **Bloker:** część C-GPU (IP-Adapter, realny klip, AI-gen klatki) odłożona — brak **lekkiego deploymentu ComfyUI-Minimal** (panel RunComfy, nie API).  
-**Następne:** zbudować lekki deployment (`docs/RUNCOMFY_DEPLOYMENT.md`), potem TOR KOD C-GPU, dokończenie D (resume partial) lub Faza F. Szczegóły w `11_OPUS_ARCHITECTURE_PROPOSAL.md`.
+**Następne:** zbudować lekki deployment (`docs/RUNCOMFY_DEPLOYMENT.md`), potem TOR KOD C-GPU, smoke e2e Fazy D (3 sceny + resume na GPU) lub Faza F. Szczegóły w `11_OPUS_ARCHITECTURE_PROPOSAL.md` + `SNAPSHOT_CONTINUITY_AUDIT.md`.
 
 > Sekcje poniżej są **archiwalne** (sesje #12–#16) — zostawione dla kontekstu historycznego.
 

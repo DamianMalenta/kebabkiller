@@ -20,7 +20,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 |---|---|---|
 | F1 (Plan + Scenarzysta + katalog) | Faza A (PlanValidator, frozen plan, jeden kanał) | ✅ zrobione |
 | F0 (Silnik klipu I2V) | Faza B (determinizm) + Faza C (osie, Klatka Zero, GPU) | ✅ B done, C częściowo |
-| F2 (Reżyser pod plan → paczka) | Faza B (jeden builder) + Faza C (composite) + Faza D (Domino) | ✅ B done, C/D częściowo |
+| F2 (Reżyser pod plan → paczka) | Faza B (jeden builder) + Faza C (composite) + Faza D (Snapshot ciągłości) | ✅ B done, C/D częściowo |
 | F3 (Recenzja + re-render sceny) | Faza D (resume partial) | 🔲 do weryfikacji z GPU |
 | F4 (Projekt serialu / biblia) | Faza F (engine_profile, skórka per serial) | 🔲 do zrobienia |
 
@@ -31,7 +31,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 - [x] Faza A (keystone) — jeden kanał zapisu scen + PlanValidator + frozen plan + sprzątnięcie wizarda/frontendu + legacy POST=410 + naprawa docs (sesja #18)
 - [x] Faza B — deterministyczny Reżyser: `ref_id` (@ID), jeden builder, stały seed z planu, produkcja = podgląd, golden test (sesja #19)
 - [ ] Faza C — Klatka Zero + rozbicie I2V_PRODUCTION + żywe tło + IP-Adapter _(częściowo: część bez GPU ZROBIONA — sesja #20; IP-Adapter + realny klip + AI-gen klatki ODŁOŻONE do lekkiego deploymentu RunComfy — patrz sekcja D)_
-- [~] Faza D — realne Domino + picker klatki + resume partial _(częściowo: silnik ciągłości + Picker ZROBIONE — Devin PR #17; resume partial do weryfikacji)_
+- [~] Faza D — Snapshot SSOT + picker klatki + resume partial _(częściowo: PR #17 (ekstrakcja + Picker) + PR #20–#22 (Snapshot/Take, fix resume/superseded, tenant-scope); e2e GPU do weryfikacji)_
 - [x] Faza E — AI-Inżynier MVP (pętla naprawcza z cofaniem) — osobny moduł `/api/system-agent`, bramka tokenem, diagnoza read-only → propose → apply (checkpoint git + bramka testów + auto-rollback) → [Cofnij] + Dziennik Napraw + panel UI (sesja #21)
 - [ ] Faza F — Studio-lustro UI + sprzątanie martwego kodu
 
@@ -39,7 +39,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 
 ## A. Błędy logiczne znalezione w kodzie (zweryfikowane)
 
-- ~~**Domino jest martwe.**~~ **NAPRAWIONE (Devin PR #17).** Silnik ciągłości (Filar 3): `resolveSceneStartFrame` w `productionQueue.js` czyta `continuity_mode` i podaje ostatnią klatkę poprzedniego klipu jako start następnej sceny. `frameExtractor.js` wyciąga klatki z klipu (ffmpeg). `ContinuityPicker.jsx` pozwala wybrać kadr. Tabela `continuity_frames` w schema.
+- ~~**Domino jest martwe.**~~ **NAPRAWIONE (PR #17 + #20–#22).** PR #17: ekstrakcja klatek (`frameExtractor.js`), Picker (`ContinuityPicker.jsx`), tabela `continuity_frames`. PR #20: antywzorzec „Domino” (zmienny `_last.jpg` między scenami) **zastąpiony** niemutowalnym **Snapshot SSOT** (`scene_snapshots`, `snapshotStore.freezeSnapshot`) + walidacja **Take** (`validateTakeAgainstSnapshot`). PR #21: fix superseded snapshot + resume po `plan_scene_id` (`resolveResumePoint`). PR #22: tenant-scope snapshotów (`tenantContext.js`, `DEFAULT_TENANT_ID='default'`).
 - **Brak determinizmu.** Seed = `Math.floor(Math.random()*...)` w [backend/src/video/runComfyEngine.js](../backend/src/video/runComfyEngine.js) (l.184) + LLM `temperature` 0.2-0.4 w [backend/src/ai/director.js](../backend/src/ai/director.js). Ten sam plan != ten sam klip.
 - **Podgląd != produkcja.** Tylko podgląd woła `buildDynamicWorkflowPayload` (wstrzykuje `style_tags` + anchor do promptu). Produkcja w [backend/src/video/productionQueue.js](../backend/src/video/productionQueue.js) używa `enrichDirectorJson`, który **nie** wstrzykuje stylu projektu do `positive_prompt`. Styl serialu nie trafia do GPU w renderze odcinka.
 - ~~**4 buildery promptu o różnej kolejności bloków.**~~ **NAPRAWIONE (Faza B).** Jeden builder `compileScenePlan`/`buildSceneDirectorPlan` w `productionDirector.js`. Legacy `director.js` poza torem renderu; `i2vProduction.js` usunięty.
@@ -50,7 +50,7 @@ Plan oparty na audycie **kodu** (nie dokumentacji). Najpierw błędy logiczne po
 - **Trzy kanały zapisu scen / dwóch planistów:** Scenarzysta ([backend/src/ai/screenwriter.js](../backend/src/ai/screenwriter.js), bez UI), narzędzia Desk ([backend/src/ai/directorDesk/agentTools.js](../backend/src/ai/directorDesk/agentTools.js)), REST w [backend/src/api/routes.js](../backend/src/api/routes.js).
 - **Dwa systemy "odcinków":** `GET /projects/:id/episodes` -> `episode_plans`, `POST` ten sam path -> tabela `episodes` ([backend/src/api/routes.js](../backend/src/api/routes.js)).
 - **Martwe stany wizarda:** `setSceneAnchors`/`reorderScenes` dozwolone, ale bez implementacji; `canAdvance` dla ASSETS nie sprawdza przypisania assetu, choć `validateEpisodePlan` wymaga ([backend/src/ai/directorDesk/wizardStateMachine.js](../backend/src/ai/directorDesk/wizardStateMachine.js)).
-- **Brak resume produkcji:** partial failure re-renderuje wszystkie sceny od zera ([backend/src/video/productionQueue.js](../backend/src/video/productionQueue.js)).
+- ~~**Brak resume produkcji:**~~ **CZĘŚCIOWO NAPRAWIONE (PR #17 + #21).** `resumeProductionFromPartial` + `resolveResumePoint` po `plan_scene_id`; wymaga weryfikacji e2e z GPU.
 - **Duży martwy frontend:** brak `EpisodePlan.jsx`, osierocone `JobStatus.jsx`, `MobileSceneEditor.jsx`, cały `api.episodePlans` (poza raw `produce`).
 - ~~**AI-Inżynier nie istnieje** w kodzie.~~ **NAPRAWIONE (Faza E, sesja #21).** Moduł `backend/src/ai/systemAgent/` istnieje i działa.
 
@@ -67,14 +67,14 @@ flowchart LR
   subgraph core [Rdzen KOD nie AI]
     BRAIN[StudioBrain per projekt]
     COMP["@ID compiler + staly seed"]
-    DOM[Domino last frame]
+    SNAP[Snapshot SSOT]
     COST[Straznik Kosztow]
   end
   subgraph maint [Tor utrzymania]
     INZ[AI-Inzynier z cofaniem]
   end
   REZ -.-> COMP
-  REZ -.-> DOM
+  REZ -.-> SNAP
   INZ -.->|diagnoza read-only| KLIP
   INZ -.->|naprawa kodu git checkpoint| core
 ```
@@ -83,14 +83,14 @@ flowchart LR
 - **Reżyser produkcji** — deterministyczny: jeden builder promptu z `@ID`, staly seed, ta sama logika w podglądzie i produkcji. Zero LLM w torze renderu.
 - **AI-Inżynier Studia** — osobny modul `/api/system-agent/*`, osobny prompt. Petla: zglaszasz problem -> diagnoza read-only -> propozycja diff -> wspolna zgoda -> checkpoint git -> apply + testy (auto-rollback gdy czerwone) -> reczne [Cofnij] + Dziennik Napraw. Poreze bezpieczenstwa: to **NIE drugi Rezyser** — edycje fabuly/scen odsyla do Scenarzysty; dostep tylko za **tokenem wlasciciela** (LAN/tunnel); zapis tylko do whitelisty plikow (**nigdy** `.env`, sekrety ani zlote pliki: `director.js`, `mockEngine.js`, `runComfyEngine.js`).
   - **Uwaga (anti-konflikt):** ten zakaz dotyczy **wylacznie autonomicznego AI-Inzyniera** (Faza E). Praca fazowa pod kontrola wlasciciela (Fazy B/C/D) **moze** edytowac `runComfyEngine.js` (seed, node IP-Adapter, last-frame) — pod review + zielonymi testami. „Zlote pliki" = nie kasowac / nie przepisywac hurtem, a nie „zamrozone na zawsze".
-- **Rdzeń (kod, nie AI):** `PlanValidator`, `@ID` compiler, Strażnik Kosztów, staly seed, Domino, `buildProjectBrain` (istnieje), transakcyjny czat z undo (istnieje: `is_committed`/`undo_of_id`).
+- **Rdzeń (kod, nie AI):** `PlanValidator`, `@ID` compiler, Strażnik Kosztów, staly seed, Snapshot ciągłości, `buildProjectBrain` (istnieje), transakcyjny czat z undo (istnieje: `is_committed`/`undo_of_id`).
 
 ## C. Decyzje zamkniete
 
 - Jedyny kokpit: Director's Desk. Stary flow EpisodePlan + osierocone komponenty do usuniecia.
 - Postac = wycinek PNG z alfa (`@char`); podwojny zamek: composite + IP-Adapter. Tlo = `@loc`, geometria trzymana struktura (depth), tlo zyje promptem animacji.
 - **Green-screen na martwej plycie odrzucony** — stabilnosc osiagamy struktura (depth) + IP-Adapter, nie zamrazaniem tla.
-- Klatka Zero (scena 1) = osobny tani etap. **Pierwsza klatka to problem OBRAZU, nie wideo** — iterujesz tanio na statycznym obrazie, zanim ruszy drogie GPU. Cztery zrodla: (1) skladanie `@char + @loc` (domyslne, 0 zl), (2) upload gotowej klatki, (3) generowanie 1 obrazu AI, (4) klatka z biblioteki / poprzedniego odcinka. Domino z pickerem dla scen 2+.
+- Klatka Zero (scena 1) = osobny tani etap. **Pierwsza klatka to problem OBRAZU, nie wideo** — iterujesz tanio na statycznym obrazie, zanim ruszy drogie GPU. Cztery zrodla: (1) skladanie `@char + @loc` (domyslne, 0 zl), (2) upload gotowej klatki, (3) generowanie 1 obrazu AI, (4) klatka z biblioteki / poprzedniego odcinka. Sceny 2+ = zamrożony Snapshot z poprzedniej sceny + picker klatki.
 - **Pozycja/skala Klatki Zero = KASKADA (sesja #20):** rozwiazywanie `override sceny → domyslna na assecie (@char) → fallback (hardcoded)`. NIE scena-only (retrofit dop. w Fazie F), NIE asset-only (zabija rezyserie ujec). Storage (czysta karta, bez backfillu): override sceny w `plan_scenes.ai_overrides_json.composite`; domyslna assetu w nowej nullable kolumnie `assets.composite_default_json`. Resolwer `resolveCompositeConfig` ([backend/src/video/compositeStartFrame.js](../backend/src/video/compositeStartFrame.js)). W Fazie C tylko model danych + resolwer dla composite — NIE cala kaskada UI `engine_profile` (to Faza F).
 - Koszty ku zeru: mock/obraz najpierw, GPU po akceptacji. **LLM local-first** — router intencji i rozmowa na lokalnym modelu (Ollama/llama.cpp), chmura tylko jako fallback / heavy "rozpisz pomysl".
 - gema-0: poza architektura (zero zaleznosci).
@@ -114,8 +114,12 @@ flowchart LR
     - **node IP-Adapter** w `wan_workflow_api.json` (drugi zamek tozsamosci) + edycja toru renderu wpinajaca composite/osie do realnego workflow.
     - **realny render klipu** z zywym tlem i stala geometria (1 klip = kryterium "done" calej Fazy C).
     - **zrodlo (3) Klatki Zero: generowanie 1 obrazu AI** (pozostale zrodla compose/upload/biblioteka — zrobione).
-- **Faza D (CZĘŚCIOWO ZREALIZOWANA, Devin PR #17):** realne Domino (ekstrakcja ostatniej klatki -> start nastepnej) + picker klatki + resume partial. Done: odcinek 3 scen = 3 spojne klipy + manifest, retry tylko brakujacej sceny.
-  - **Realne zmiany (Devin PR #17):** (1) `frameExtractor.js` — ekstrakcja klatki końcowej + N kandydatów z klipu (ffmpeg, graceful degradation). (2) `resolveSceneStartFrame` w `productionQueue.js` — auto-ciągłość: scena 2+ dostaje last_frame z poprzedniego klipu; fallback na composite gdy brak klipu. (3) `ContinuityPicker.jsx` — Picker kadru kontynuacji w UI (Director's Desk). (4) tabela `continuity_frames` w schema.sql + model w `episodeModels.js`. (5) API endpointy ciągłości w `routes.js`. (6) `continuityEngine.test.js` — 199 linii testów. **Nietknięte:** render-path determinizm (strażnik B zielony). **Pozostaje do weryfikacji:** resume partial (retry tylko brakującej sceny) — wymaga testu e2e z GPU.
+- **Faza D (CZĘŚCIOWO ZREALIZOWANA, PR #17 + #20–#22):** Snapshot SSOT (zamiast Domino) + picker klatki + resume partial. Done: odcinek 3 scen = 3 spójne klipy + manifest, retry tylko brakującej sceny.
+  - **Realne zmiany (PR #17):** (1) `frameExtractor.js` — ekstrakcja klatki końcowej + N kandydatów z klipu (ffmpeg). (2) `ContinuityPicker.jsx` — Picker kadru kontynuacji w UI. (3) tabela `continuity_frames` + API endpointy ciągłości. (4) `continuityEngine.test.js`.
+  - **Realne zmiany (PR #20):** (1) `scene_snapshots` — append-only, wersjonowana, content-addressed (`sha256`). (2) `snapshotStore.freezeSnapshot` — kopiuje klatkę do niemutowalnego pliku. (3) `productionQueue.js` — promocja last frame → Snapshot sceny N+1; Take (`production_clips`) walidowany przez `validateTakeAgainstSnapshot`. (4) manual `start_frame_path` → snapshot `source=manual`. (5) `SNAPSHOT_CONTINUITY_AUDIT.md`.
+  - **Realne zmiany (PR #21):** fix superseded snapshot (pobieranie najnowszego dla sceny); `resolveResumePoint` po `plan_scene_id` zamiast indeksu tablicy clips.
+  - **Realne zmiany (PR #22):** tenant-scope (`storage/tenants/{tenant_id}/...`), `tenantContext.js`, guard `checkTenantScope.mjs`. Single-tenant: `DEFAULT_TENANT_ID='default'`.
+  - **Nietknięte:** render-path determinizm (strażnik B zielony). **Pozostaje do weryfikacji:** pełny smoke e2e (3 sceny + resume partial) — wymaga GPU.
 - **Faza E (ZREALIZOWANA, sesja #21):** AI-Inżynier MVP — `/api/system-agent`, petla naprawcza z checkpointami git + bramka testow + Dziennik Napraw + [Cofnij]. Done: sztuczny blad -> trafna diagnoza + diff + zastosowanie z mozliwoscia cofniecia.
   - **Realne zmiany:** osobny modul `backend/src/ai/systemAgent/` (nie dotyka render-path B/C/D): `config.js` (bramka tokenem `SYSTEM_AGENT_TOKEN`, brak tokena = wylaczony), `pathGuard.js` (deny-by-default; blok `.env`/sekretow/zlotych plikow `director.js`+`mockEngine.js`+`runComfyEngine.js`/gema-0/Scenarzysty; whitelista `backend/src`+`frontend/src`; osobne poreze odczytu vs zapisu), `engine.js` (diagnose read-only → proposeRepair[before+diff, bez zapisu] → applyRepair[checkpoint git + bramka testow → commit | auto-rollback] → undoRepair[Cofnij]), `gitOps.js` + `testRunner.js` (iniektowalne), `repairJournal.js` + tabela `system_agent_repairs` (Dziennik, bez backfillu). Router `/api/system-agent/*` za tokenem (health publiczny). Frontend: `pages/SystemAgent.jsx` + zakladka „AI-Inżynier" + `api.systemAgent` (token w localStorage). **Render-path NIETKNIETY** — strażnik B/C/D zielony. Testy: 115 → 133 pass; `vite build` OK.
 - **Faza F:** Studio-lustro UI — `engine_profile` w panelu (kaskada Studio/Serial/Odcinek/Scena z rodowodem wartosci), skorka per serial; sprzatniecie osieroconego kodu.
@@ -126,6 +130,12 @@ flowchart LR
 - **PR #14 — security hardening.** Helmet, rate limiting, path traversal protection, upload MIME validation. CORS middleware przed rate limiter (429 z headerami CORS). Zmiany w `index.js` i `routes.js`.
 - **PR #15 — unit tests coverage.** Nowe testy: `assetMetadata`, `falEngine`, `gitOps`, `jsonUtils`, `mockEngine`, `screenwriter`, `storyboardMock`, `systemAgentRouter`, `testRunner`. Testy: 133 → **227 total** (226 pass, 1 naprawiony w audycie 2026-06-21).
 - **PR #16 — error handling.** Propagacja błędów zamiast cichego połykania w `routes.js`, `systemAgent/engine.js`, `episodeModels.js`.
+
+### Prace Devina (PR #20–#22, 2026-06-26) — ciągłość / snapshot
+
+- **PR #20 — Snapshot SSOT + Take validation.** Zastępuje antywzorzec Domino. `scene_snapshots`, `snapshotStore.js`, `snapshotModels.js`, zmiany w `productionQueue.js`. Audyt: `SNAPSHOT_CONTINUITY_AUDIT.md`.
+- **PR #21 — fixy ciągłości.** Superseded snapshot (pobieranie latest); resume po `plan_scene_id` (`resolveResumePoint`). Testy: `snapshotValidation.test.js`, `resumeResolvePoint.test.js`.
+- **PR #22 — tenant-scoped snapshots.** `tenantContext.js`, ścieżka `storage/tenants/{tenant_id}/...`, `checkTenantScope.mjs` w pretest. Testy: 227 → **237 pass**.
 
 ## E. Rekomendacja "co robimy jako pierwsze"
 
@@ -164,7 +174,7 @@ Fazy B→C→D dzielą te same pliki na torze renderu, więc nie są niezależne
 | Plik | B | C | D | F |
 |---|---|---|---|---|
 | `backend/src/video/runComfyEngine.js` | seed | node IP-Adapter | last-frame | — |
-| `backend/src/video/productionQueue.js` | styl, preview=prod | — | resume + Domino | — |
+| `backend/src/video/productionQueue.js` | styl, preview=prod | — | resume + Snapshot/Take | — |
 | `backend/src/ai/directorDesk/workflowBuilder.js` | @ID compiler | osie I2V | — | — |
 | `backend/src/video/wanConfig.js` | — | rozbicie profilu | — | engine_profile |
 | `backend/src/db/episodeModels.js` | kolumna `ref_id` (bez `kind`) | — | — | — |

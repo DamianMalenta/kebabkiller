@@ -4,6 +4,26 @@ Nowe wpisy **zawsze na górze**. Ten plik **rosną w czasie** — nie skracaj be
 
 ---
 
+## Audyt docs — PR #20–#22 (ciągłość / snapshot) — 2026-06-26
+
+**Zakres:** Synchronizacja dokumentacji z trzema zmergowanymi PR-ami Devina (Snapshot SSOT, fixy resume/superseded, tenant-scope).
+
+### Zrobiono
+- **PR #20 — Snapshot SSOT + Take validation (zastępuje Domino):** tabela `scene_snapshots` (append-only, wersjonowana, `sha256`), `snapshotStore.freezeSnapshot`, promocja last frame → Snapshot sceny N+1, `validateTakeAgainstSnapshot` na `production_clips`, manual pick → `source=manual`. Audyt: `SNAPSHOT_CONTINUITY_AUDIT.md` (+252 linii). 8 plików, +634/−26.
+- **PR #21 — dwa bugfixy:** (1) superseded snapshot — pobieranie najnowszego snapshotu sceny zamiast PK Take; test `snapshotValidation.test.js`. (2) resume po `plan_scene_id` — `resolveResumePoint(plan, clips)` zamiast indeksu tablicy; test `resumeResolvePoint.test.js`.
+- **PR #22 — tenant-scoped snapshots:** ścieżka `storage/tenants/{tenant_id}/studio/snapshots/{sha256}.jpg`, `tenantContext.js` (AsyncLocalStorage, `DEFAULT_TENANT_ID='default'`), `tenantId` jako pierwszy arg repo, `enterTenant` w workerze, guard `checkTenantScope.mjs` w pretest.
+- Zaktualizowano: `HANDOFF_AKTUALNY.md`, `03_AGENT_STATE_AND_TASKS.md`, sekcja Fazy D w `docs/11`.
+
+### Ustalenia
+- Antywzorzec „Domino” (zmienny `_last.jpg` między scenami) **zastąpiony** modelem Snapshot + Take — PR #17 nadal ważny (frameExtractor, Picker), ale rdzeń ciągłości jest teraz w #20–#22.
+- Multi-tenant: plumbing gotowy, produkcja nadal single-tenant (`default`).
+- Testy: 227 → **237 pass** (`npm test --prefix backend`).
+
+### Werdykt
+Docs zsynchronizowane z main (`2d693ec`). Następny krok bez zmian: lekki deployment RunComfy (bloker C-GPU) + smoke e2e Fazy D na GPU.
+
+---
+
 ## Prace Devina (PR #13–#17) — 2026-06-20/21
 
 **Zakres:** Pięć PR-ów Devina zmergowanych do main po sesji #21. Cross-cutting: silnik ciągłości, refactor, security, testy, error handling.
