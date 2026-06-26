@@ -4,6 +4,7 @@
  * jawny wybór sceny (Picker) i persystencję start_frame_path.
  */
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -35,6 +36,18 @@ function hasFfmpeg() {
   }
 }
 const FFMPEG = hasFfmpeg();
+
+function sha256File(absPath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(absPath)).digest('hex');
+}
+
+/** Public `/output/...` lub absolutną ścieżkę kadru → absolutna ścieżka na dysku (test helper). */
+function toAbs(outDir, maybePath) {
+  const str = String(maybePath);
+  if (/^\/?output\//.test(str)) return path.join(outDir, str.replace(/^\/?output\//, ''));
+  if (path.isAbsolute(str)) return str;
+  return path.join(outDir, str);
+}
 
 let dbPath;
 let outputDir;
@@ -171,12 +184,19 @@ describe('łańcuch ciągłości w produkcji (mock engine)', () => {
     expect(clips[0].director_json.start_frame_path == null).toBe(true);
     expect(clips[0].frames.length).toBeGreaterThan(0);
 
-    // Sceny 1..N = kadr kontynuacji z poprzedniej sceny
+    // Sceny 1..N = niemutowalny Snapshot (SSOT) promowany z klatki końcowej poprzedniej sceny
     for (let i = 1; i < clips.length; i += 1) {
       expect(clips[i].director_json.continuity_mode).toBe('last_frame');
-      expect(typeof clips[i].director_json.start_frame_path).toBe('string');
+      const startPath = clips[i].director_json.start_frame_path;
+      expect(typeof startPath).toBe('string');
+      // Snapshot jest content-addressed: nazwa pliku to snap_<sha256>.jpg i istnieje na dysku.
+      expect(path.basename(startPath)).toMatch(/^snap_[a-f0-9]{64}\.jpg$/);
+      expect(fs.existsSync(startPath)).toBe(true);
+      // Hash zaszyty w nazwie == realny hash treści (immutable, weryfikowalny).
+      expect(path.basename(startPath)).toBe(`snap_${sha256File(startPath)}.jpg`);
+      // Ciągłość zachowana: Snapshot to bajt-w-bajt kopia klatki końcowej poprzedniego klipu.
       const prevLast = pickLastFrame(clips[i - 1].frames);
-      expect(clips[i].director_json.start_frame_path).toContain(path.basename(prevLast.path));
+      expect(sha256File(startPath)).toBe(sha256File(toAbs(outputDir, prevLast.path)));
     }
   }, 60000);
 
@@ -194,6 +214,11 @@ describe('łańcuch ciągłości w produkcji (mock engine)', () => {
     const run = await processEpisodeProduction(plan.id, engine, outputDir);
     const clips = run.clips.sort((a, b) => a.sort_order - b.sort_order);
 
-    expect(clips[2].director_json.start_frame_path).toContain('custom_pick.jpg');
+    // Jawny wybór jest zamrażany jako Snapshot (source='manual') i wygrywa nad auto-ciągłością.
+    const startPath = clips[2].director_json.start_frame_path;
+    expect(path.basename(startPath)).toMatch(/^snap_[a-f0-9]{64}\.jpg$/);
+    expect(fs.existsSync(startPath)).toBe(true);
+    // Treść Snapshotu == jawnie wybrana klatka (bajt-w-bajt).
+    expect(sha256File(startPath)).toBe(sha256File(customFrame));
   }, 60000);
 });

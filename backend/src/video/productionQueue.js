@@ -20,6 +20,12 @@ import { enrichDirectorForRender } from '../ai/directorDesk/workflowBuilder.js';
 import { getDirectorProject } from '../db/directorDeskModels.js';
 import { getAsset } from '../db/episodeModels.js';
 import { extractClipFrames, pickLastFrame } from './frameExtractor.js';
+import { freezeSnapshot } from './snapshotStore.js';
+import {
+  getLatestSceneSnapshot,
+  getSceneSnapshot,
+  validateTakeAgainstSnapshot,
+} from '../db/snapshotModels.js';
 
 const CONTINUITY_FRAME_COUNT = 6;
 
@@ -49,22 +55,53 @@ function toAbsoluteOutputPath(outputDir, maybePath) {
 }
 
 /**
- * Silnik ciągłości (Filar 3): kadr startowy sceny.
- *   - jawny wybór użytkownika (`scene.start_frame_path`) ma najwyższy priorytet,
- *   - sceny N>0 bez wyboru → auto-ciągłość z klatki końcowej poprzedniego klipu,
+ * Snapshot (SSOT ciągłości): niemutowalny stan STARTOWY sceny.
+ *   - jawny wybór użytkownika (`scene.start_frame_path`) ma najwyższy priorytet —
+ *     zamrażamy go jako snapshot `manual` (immutable, content-addressed),
+ *   - sceny N>0 bez wyboru → snapshot `continuation` zamrożony przez poprzednika
+ *     (klatka końcowa N-1 wypromowana do snapshotu sceny N),
  *   - scena 0 → null (kompozyt Klatki Zero).
- * Zwraca absolutną ścieżkę do obrazu lub null.
+ * Zwraca wiersz snapshotu (lub null). To NIE jest już zmienny plik output/ — scena
+ * czyta własny, zamrożony Snapshot, nie sięga po klatkę końcową poprzednika z dysku.
  */
-function resolveSceneStartFrame(scene, prevLastFramePublic, outputDir) {
+function resolveSceneStartSnapshot(scene, run, outputDir, exportDir) {
   if (scene.start_frame_path) {
-    const resolved = toAbsoluteOutputPath(outputDir, scene.start_frame_path);
-    if (resolved) return resolved;
+    const abs = toAbsoluteOutputPath(outputDir, scene.start_frame_path);
+    if (abs) {
+      return freezeSnapshot({
+        productionRunId: run.id,
+        sceneId: scene.id,
+        sortOrder: scene.sort_order,
+        sourceAbsPath: abs,
+        exportDir,
+        toPublic: (a) => toPublicOutputPath(outputDir, a),
+        source: 'manual',
+      });
+    }
     // Jawny wybór niedostępny na dysku — fall-through do auto-ciągłości.
   }
-  if (scene.sort_order > 0 && prevLastFramePublic) {
-    return toAbsoluteOutputPath(outputDir, prevLastFramePublic);
+  if (scene.sort_order > 0) {
+    return getLatestSceneSnapshot(run.id, scene.id);
   }
   return null;
+}
+
+/**
+ * Promocja klatki końcowej klipu N do NIEMUTOWALNEGO snapshotu sceny N+1.
+ * To zastępuje anty-wzorzec "Domino" (czytanie zmiennego pliku output/ poprzednika).
+ */
+function promoteFrameToNextSnapshot({ run, nextScene, lastFrameAbs, exportDir, outputDir, originClipCode }) {
+  if (!nextScene || !lastFrameAbs) return null;
+  return freezeSnapshot({
+    productionRunId: run.id,
+    sceneId: nextScene.id,
+    sortOrder: nextScene.sort_order,
+    sourceAbsPath: lastFrameAbs,
+    exportDir,
+    toPublic: (a) => toPublicOutputPath(outputDir, a),
+    source: 'continuation',
+    originClipCode,
+  });
 }
 
 function buildManifest(plan, visualProfile, clips) {
@@ -136,7 +173,7 @@ function enrichDirectorForProduction(directorJson, plan, scene) {
   return enrichedDirector;
 }
 
-async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, onClipProgress) {
+async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, onClipProgress) {
   updateProductionClip(clip.id, { status: 'directing', progress: 10 });
 
   let directorJson = await buildSceneDirectorPlan(plan, scene, visualProfile);
@@ -171,6 +208,7 @@ async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, e
   // Ekstrakcja klatek-kandydatów + klatki końcowej (do Pickera i auto-ciągłości).
   // Degraduje łagodnie — błąd ekstrakcji nie wywraca renderu klipu.
   let publicFrames = [];
+  let lastFrameAbs = null;
   try {
     const framesDir = path.join(exportDir, 'frames');
     const frames = await extractClipFrames({
@@ -179,9 +217,27 @@ async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, e
       clipCode: clip.clip_code,
       count: CONTINUITY_FRAME_COUNT,
     });
+    lastFrameAbs = pickLastFrame(frames)?.path || null;
     publicFrames = frames.map((f) => ({ ...f, path: toPublicOutputPath(outputDir, f.path) }));
   } catch (err) {
     console.warn(`[ProductionQueue] Ekstrakcja klatek ${clip.clip_code} nieudana — ciągłość do następnej sceny przerwana (fallback do kompozytu):`, err.message);
+  }
+
+  // Take = render walidowany wobec niemutowalnego Snapshotu (start sceny). Jeśli
+  // snapshot zniknął albo został wyparty nowszą wersją w trakcie renderu → odrzucamy
+  // Take (retry/fail), zamiast cicho montować klip ze stanu, którego już nie ma.
+  if (startSnapshot) {
+    const current = getSceneSnapshot(startSnapshot.id);
+    const storageExists = !!(current && toAbsoluteOutputPath(outputDir, current.storage_path));
+    const check = validateTakeAgainstSnapshot({
+      clipSnapshotId: startSnapshot.id,
+      clipSnapshotVersion: startSnapshot.version,
+      currentSnapshot: current,
+      storageExists,
+    });
+    if (!check.ok) {
+      throw new Error(`Take odrzucony — niespójność ze Snapshotem sceny ${clip.clip_code} (${check.reason}).`);
+    }
   }
 
   updateProductionClip(clip.id, {
@@ -192,7 +248,7 @@ async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, e
     completedAt: new Date().toISOString(),
   });
 
-  return { publicPath, lastFramePublic: pickLastFrame(publicFrames)?.path || null };
+  return { publicPath, lastFramePublic: pickLastFrame(publicFrames)?.path || null, lastFrameAbs };
 }
 
 export async function processEpisodeProduction(episodePlanId, engine, outputDir) {
@@ -223,10 +279,11 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir)
 
   const clips = [];
   let completed = 0;
-  let prevLastFrame = null;
 
   try {
-    for (const scene of plan.scenes) {
+    for (let i = 0; i < plan.scenes.length; i++) {
+      const scene = plan.scenes[i];
+      const nextScene = plan.scenes[i + 1] || null;
       const clipCode = formatClipCode(plan.code, scene.sort_order);
       const userPrompt = scene.description_pl;
       const clip = createProductionClip({
@@ -238,16 +295,30 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir)
       });
       clips.push(clip);
 
-      const startFrameOverride = resolveSceneStartFrame(scene, prevLastFrame, outputDir);
+      const startSnapshot = resolveSceneStartSnapshot(scene, run, outputDir, exportDir);
+      const startFrameOverride = startSnapshot
+        ? toAbsoluteOutputPath(outputDir, startSnapshot.storage_path)
+        : null;
+      if (startSnapshot) {
+        updateProductionClip(clip.id, { snapshotId: startSnapshot.id, snapshotVersion: startSnapshot.version });
+      }
 
       let retryCount = 0;
       while (retryCount < MAX_CLIP_RETRIES) {
         try {
-          const rendered = await renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, (c, p) => {
+          const rendered = await renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, (c, p) => {
             const runProgress = Math.round(((completed + p / 100) / plan.scenes.length) * 100);
             updateProductionRun(run.id, { progress: runProgress });
           });
-          prevLastFrame = rendered.lastFramePublic;
+          // Promocja klatki końcowej do niemutowalnego snapshotu KOLEJNEJ sceny.
+          promoteFrameToNextSnapshot({
+            run,
+            nextScene,
+            lastFrameAbs: rendered.lastFrameAbs,
+            exportDir,
+            outputDir,
+            originClipCode: clipCode,
+          });
           completed += 1;
           updateProductionRun(run.id, { clipsCompleted: completed });
           break; // Success, exit retry loop
@@ -342,13 +413,27 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
   }
   
   let completed = clips.filter(c => c.status === 'completed').length;
-  // Silnik ciągłości: wznawiamy łańcuch od klatki końcowej ostatniego ukończonego klipu.
-  let prevLastFrame = failedClipIndex > 0 ? (pickLastFrame(clips[failedClipIndex - 1]?.frames || [])?.path || null) : null;
-  
+  // Silnik ciągłości: odtwarzamy łańcuch snapshotów, promując klatkę końcową ostatniego
+  // ukończonego klipu do niemutowalnego snapshotu sceny, od której wznawiamy.
+  if (failedClipIndex > 0) {
+    const prevClip = clips[failedClipIndex - 1];
+    const prevLastPublic = pickLastFrame(prevClip?.frames || [])?.path || null;
+    const prevLastAbs = prevLastPublic ? toAbsoluteOutputPath(outputDir, prevLastPublic) : null;
+    promoteFrameToNextSnapshot({
+      run: existingRun,
+      nextScene: plan.scenes[failedClipIndex],
+      lastFrameAbs: prevLastAbs,
+      exportDir,
+      outputDir,
+      originClipCode: prevClip?.clip_code || null,
+    });
+  }
+
   try {
     // Continue from first failed clip
     for (let i = failedClipIndex; i < plan.scenes.length; i++) {
       const scene = plan.scenes[i];
+      const nextScene = plan.scenes[i + 1] || null;
       const clipCode = formatClipCode(plan.code, scene.sort_order);
       const userPrompt = scene.description_pl;
       
@@ -364,16 +449,29 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
         });
       }
 
-      const startFrameOverride = resolveSceneStartFrame(scene, prevLastFrame, outputDir);
+      const startSnapshot = resolveSceneStartSnapshot(scene, existingRun, outputDir, exportDir);
+      const startFrameOverride = startSnapshot
+        ? toAbsoluteOutputPath(outputDir, startSnapshot.storage_path)
+        : null;
+      if (startSnapshot) {
+        updateProductionClip(clip.id, { snapshotId: startSnapshot.id, snapshotVersion: startSnapshot.version });
+      }
       
       let retryCount = 0;
       while (retryCount < MAX_CLIP_RETRIES) {
         try {
-          const rendered = await renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, (c, p) => {
+          const rendered = await renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, (c, p) => {
             const runProgress = Math.round(((completed + p / 100) / plan.scenes.length) * 100);
             updateProductionRun(productionRunId, { progress: runProgress });
           });
-          prevLastFrame = rendered.lastFramePublic;
+          promoteFrameToNextSnapshot({
+            run: existingRun,
+            nextScene,
+            lastFrameAbs: rendered.lastFrameAbs,
+            exportDir,
+            outputDir,
+            originClipCode: clipCode,
+          });
           completed += 1;
           updateProductionRun(productionRunId, { clipsCompleted: completed });
           break;

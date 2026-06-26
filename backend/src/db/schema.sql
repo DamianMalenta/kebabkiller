@@ -245,6 +245,9 @@ CREATE TABLE IF NOT EXISTS production_clips (
   director_json TEXT,
   output_path TEXT,
   frames_json TEXT,
+  -- Take = render walidowany wobec niemutowalnego Snapshotu (start sceny).
+  snapshot_id TEXT,
+  snapshot_version INTEGER,
   error_message TEXT,
   progress INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -255,6 +258,29 @@ CREATE TABLE IF NOT EXISTS production_clips (
 );
 
 CREATE INDEX IF NOT EXISTS idx_production_clips_run ON production_clips(production_run_id);
+
+-- Snapshot (SSOT ciągłości): niemutowalny, content-addressed (sha256) stan startowy
+-- sceny. Append-only + wersjonowany per (run, scena). Klatka końcowa klipu N jest
+-- "promowana" do NOWEGO snapshotu sceny N+1 — nigdy nie sięgamy po zmienny plik
+-- output/ poprzednika. Take (production_clips) zapisuje snapshot_id+version, wobec
+-- których był renderowany.
+CREATE TABLE IF NOT EXISTS scene_snapshots (
+  id TEXT PRIMARY KEY,
+  production_run_id TEXT NOT NULL,
+  scene_id TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  version INTEGER NOT NULL DEFAULT 1,
+  content_hash TEXT NOT NULL,
+  storage_path TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'continuation',
+  origin_clip_code TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (production_run_id) REFERENCES production_runs(id) ON DELETE CASCADE,
+  FOREIGN KEY (scene_id) REFERENCES plan_scenes(id) ON DELETE CASCADE,
+  UNIQUE(production_run_id, scene_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_scene_snapshots_run_scene ON scene_snapshots(production_run_id, scene_id);
 
 -- Director's Desk (V2)
 
