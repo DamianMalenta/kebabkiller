@@ -23,7 +23,6 @@ import { extractClipFrames, pickLastFrame } from './frameExtractor.js';
 import { freezeSnapshot } from './snapshotStore.js';
 import {
   getLatestSceneSnapshot,
-  getSceneSnapshot,
   validateTakeAgainstSnapshot,
 } from '../db/snapshotModels.js';
 
@@ -227,7 +226,10 @@ async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, e
   // snapshot zniknął albo został wyparty nowszą wersją w trakcie renderu → odrzucamy
   // Take (retry/fail), zamiast cicho montować klip ze stanu, którego już nie ma.
   if (startSnapshot) {
-    const current = getSceneSnapshot(startSnapshot.id);
+    // Pobieramy NAJNOWSZY snapshot sceny (nie po PK), aby wykryć, czy w trakcie
+    // renderu został wyparty nowszą wersją — inaczej porównywalibyśmy wiersz z
+    // samym sobą i guard supersesji/wersji nigdy by nie zadziałał.
+    const current = getLatestSceneSnapshot(startSnapshot.production_run_id, startSnapshot.scene_id);
     const storageExists = !!(current && toAbsoluteOutputPath(outputDir, current.storage_path));
     const check = validateTakeAgainstSnapshot({
       clipSnapshotId: startSnapshot.id,
