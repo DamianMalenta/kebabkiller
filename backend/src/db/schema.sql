@@ -266,6 +266,7 @@ CREATE INDEX IF NOT EXISTS idx_production_clips_run ON production_clips(producti
 -- których był renderowany.
 CREATE TABLE IF NOT EXISTS scene_snapshots (
   id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
   production_run_id TEXT NOT NULL,
   scene_id TEXT NOT NULL,
   sort_order INTEGER NOT NULL DEFAULT 0,
@@ -277,10 +278,10 @@ CREATE TABLE IF NOT EXISTS scene_snapshots (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (production_run_id) REFERENCES production_runs(id) ON DELETE CASCADE,
   FOREIGN KEY (scene_id) REFERENCES plan_scenes(id) ON DELETE CASCADE,
-  UNIQUE(production_run_id, scene_id, version)
+  UNIQUE(tenant_id, production_run_id, scene_id, version)
 );
 
-CREATE INDEX IF NOT EXISTS idx_scene_snapshots_run_scene ON scene_snapshots(production_run_id, scene_id);
+CREATE INDEX IF NOT EXISTS idx_scene_snapshots_tenant_run_scene ON scene_snapshots(tenant_id, production_run_id, scene_id);
 
 -- Director's Desk (V2)
 

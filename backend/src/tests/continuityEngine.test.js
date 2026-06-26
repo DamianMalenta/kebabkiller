@@ -189,11 +189,12 @@ describe('łańcuch ciągłości w produkcji (mock engine)', () => {
       expect(clips[i].director_json.continuity_mode).toBe('last_frame');
       const startPath = clips[i].director_json.start_frame_path;
       expect(typeof startPath).toBe('string');
-      // Snapshot jest content-addressed: nazwa pliku to snap_<sha256>.jpg i istnieje na dysku.
-      expect(path.basename(startPath)).toMatch(/^snap_[a-f0-9]{64}\.jpg$/);
+      // Composite Key w storage: ścieżka to storage/tenants/{tenant_id}/studio/snapshots/<sha256>.jpg
+      expect(startPath.replace(/\\/g, '/')).toContain('storage/tenants/default/studio/snapshots/');
+      expect(path.basename(startPath)).toMatch(/^[a-f0-9]{64}\.jpg$/);
       expect(fs.existsSync(startPath)).toBe(true);
       // Hash zaszyty w nazwie == realny hash treści (immutable, weryfikowalny).
-      expect(path.basename(startPath)).toBe(`snap_${sha256File(startPath)}.jpg`);
+      expect(path.basename(startPath)).toBe(`${sha256File(startPath)}.jpg`);
       // Ciągłość zachowana: Snapshot to bajt-w-bajt kopia klatki końcowej poprzedniego klipu.
       const prevLast = pickLastFrame(clips[i - 1].frames);
       expect(sha256File(startPath)).toBe(sha256File(toAbs(outputDir, prevLast.path)));
@@ -216,7 +217,8 @@ describe('łańcuch ciągłości w produkcji (mock engine)', () => {
 
     // Jawny wybór jest zamrażany jako Snapshot (source='manual') i wygrywa nad auto-ciągłością.
     const startPath = clips[2].director_json.start_frame_path;
-    expect(path.basename(startPath)).toMatch(/^snap_[a-f0-9]{64}\.jpg$/);
+    expect(startPath.replace(/\\/g, '/')).toContain('storage/tenants/default/studio/snapshots/');
+    expect(path.basename(startPath)).toMatch(/^[a-f0-9]{64}\.jpg$/);
     expect(fs.existsSync(startPath)).toBe(true);
     // Treść Snapshotu == jawnie wybrana klatka (bajt-w-bajt).
     expect(sha256File(startPath)).toBe(sha256File(customFrame));

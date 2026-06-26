@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "node --use-system-ca --experimental-sqlite --watch src/index.js",
     "start": "node --use-system-ca --experimental-sqlite src/index.js",
+    "check:tenant": "node scripts/checkTenantScope.mjs",
+    "pretest": "node scripts/checkTenantScope.mjs",
     "test": "node --experimental-sqlite --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --forceExit"
   },
   "dependencies": {
