@@ -32,6 +32,19 @@ body {
   min-height: 70vh;
 }
 
+.dev-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(220px, 28%) 1fr;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .dev-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .director-sidebar.collapsed {
   max-width: 3.5rem;
   overflow: hidden;

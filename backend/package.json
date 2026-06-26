@@ -7,8 +7,8 @@
     "node": ">=22.4.0"
   },
   "scripts": {
-    "dev": "node --use-system-ca --experimental-sqlite --watch src/index.js",
-    "start": "node --use-system-ca --experimental-sqlite src/index.js",
+    "dev": "node --experimental-sqlite --watch src/index.js",
+    "start": "node --experimental-sqlite src/index.js",
     "test": "node --experimental-sqlite --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --forceExit"
   },
   "dependencies": {
