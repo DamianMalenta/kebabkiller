@@ -35,6 +35,24 @@ export function getActiveProductionCount() {
   return activeProductions.size;
 }
 
+/**
+ * Wyznacza punkt wznowienia produkcji względem TOŻSAMOŚCI sceny (plan_scene_id),
+ * a nie pozycji w tablicy `clips`. Indeksy `clips` i `plan.scenes` nie muszą być
+ * wyrównane (np. gdy dla którejś sceny klip nigdy nie powstał), więc poleganie na
+ * plan.scenes[indexW clips] potrafiło wskazać złą scenę. Mapowanie po id usuwa to
+ * kruche założenie.
+ * @returns {{ failedClip: object|null, startSceneIndex: number }}
+ */
+export function resolveResumePoint(plan, clips) {
+  const failedClip = clips.find(c => c.status === 'failed') || null;
+  if (!failedClip) return { failedClip: null, startSceneIndex: -1 };
+  const startSceneIndex = plan.scenes.findIndex(s => s.id === failedClip.plan_scene_id);
+  if (startSceneIndex === -1) {
+    throw new Error(`Resume: nieudany klip ${failedClip.clip_code} wskazuje scenę (plan_scene_id=${failedClip.plan_scene_id}) spoza planu odcinka.`);
+  }
+  return { failedClip, startSceneIndex };
+}
+
 function resolveExportDir(outputDir, episodeCode) {
   return path.join(outputDir, 'export', episodeCode);
 }
@@ -404,26 +422,27 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
   updateEpisodePlan(plan.id, { status: 'w_produkcji' });
   
   const clips = listProductionClips(productionRunId);
-  const failedClipIndex = clips.findIndex(c => c.status === 'failed');
-  
-  if (failedClipIndex === -1) {
+  const { failedClip, startSceneIndex } = resolveResumePoint(plan, clips);
+
+  if (!failedClip) {
     // No failed clips found, mark as completed
     updateProductionRun(productionRunId, { status: 'completed', progress: 100 });
     updateEpisodePlan(plan.id, { status: 'gotowy' });
     activeProductions.delete(plan.id);
     return getProductionRun(productionRunId);
   }
-  
+
   let completed = clips.filter(c => c.status === 'completed').length;
-  // Silnik ciągłości: odtwarzamy łańcuch snapshotów, promując klatkę końcową ostatniego
-  // ukończonego klipu do niemutowalnego snapshotu sceny, od której wznawiamy.
-  if (failedClipIndex > 0) {
-    const prevClip = clips[failedClipIndex - 1];
+  // Silnik ciągłości: odtwarzamy łańcuch snapshotów, promując klatkę końcową poprzedniej
+  // sceny (po jej id, nie indeksie) do niemutowalnego snapshotu sceny, od której wznawiamy.
+  if (startSceneIndex > 0) {
+    const prevScene = plan.scenes[startSceneIndex - 1];
+    const prevClip = clips.find(c => c.plan_scene_id === prevScene.id);
     const prevLastPublic = pickLastFrame(prevClip?.frames || [])?.path || null;
     const prevLastAbs = prevLastPublic ? toAbsoluteOutputPath(outputDir, prevLastPublic) : null;
     promoteFrameToNextSnapshot({
       run: existingRun,
-      nextScene: plan.scenes[failedClipIndex],
+      nextScene: plan.scenes[startSceneIndex],
       lastFrameAbs: prevLastAbs,
       exportDir,
       outputDir,
@@ -433,7 +452,7 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
 
   try {
     // Continue from first failed clip
-    for (let i = failedClipIndex; i < plan.scenes.length; i++) {
+    for (let i = startSceneIndex; i < plan.scenes.length; i++) {
       const scene = plan.scenes[i];
       const nextScene = plan.scenes[i + 1] || null;
       const clipCode = formatClipCode(plan.code, scene.sort_order);
