@@ -75,6 +75,7 @@ import {
 } from '../db/productionModels.js';
 import { enqueueVideoJob } from '../video/queue.js';
 import { enqueueEpisodeProduction } from '../video/productionQueue.js';
+import { DEFAULT_TENANT_ID, assertTenantId } from '../tenant/tenantContext.js';
 import {
   getDirectorDeskState,
   handleDirectorMessage,
@@ -136,6 +137,17 @@ function errorStatus(err) {
 
 export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   const router = Router();
+
+  // Tenant plumbing (single-tenant na teraz): tenant_id przenoszony jawnie z
+  // żądania (nagłówek x-tenant-id) do dispatchu joba, fallback do stałej
+  // 'default' (ASCII). Gotowe na multi-tenant bez zmian sygnatur — wystarczy
+  // podpiąć realne źródło tenant_id (auth) w tym jednym miejscu.
+  const resolveRequestTenantId = (req) => {
+    const raw = req.get?.('x-tenant-id') || req.headers?.['x-tenant-id'];
+    const tenantId = raw ? String(raw).trim() : DEFAULT_TENANT_ID;
+    assertTenantId(tenantId);
+    return tenantId;
+  };
 
   fs.mkdirSync(uploadsDir, { recursive: true });
   const storage = multer.diskStorage({
@@ -757,7 +769,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       const plan = acceptEpisodePlan(req.params.id);
       const autoProduce = req.body?.start_production !== false;
       if (autoProduce) {
-        enqueueEpisodeProduction(plan.id, videoEngine, outputDir);
+        enqueueEpisodeProduction(plan.id, videoEngine, outputDir, resolveRequestTenantId(req));
       }
       res.json({
         ...plan,
@@ -775,7 +787,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       if (!FROZEN_PLAN_STATUSES.has(plan.status)) {
         return res.status(400).json({ error: 'Plan musi być zaakceptowany przed produkcją.' });
       }
-      enqueueEpisodeProduction(plan.id, videoEngine, outputDir);
+      enqueueEpisodeProduction(plan.id, videoEngine, outputDir, resolveRequestTenantId(req));
       res.status(202).json({
         message: 'Produkcja uruchomiona.',
         plan_id: plan.id,

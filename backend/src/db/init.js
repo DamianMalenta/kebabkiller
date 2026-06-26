@@ -143,6 +143,7 @@ export function initDatabase(dbPath) {
     // Snapshot SSOT: niemutowalny, content-addressed stan startowy sceny (append-only).
     `CREATE TABLE IF NOT EXISTS scene_snapshots (
       id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL DEFAULT 'default',
       production_run_id TEXT NOT NULL,
       scene_id TEXT NOT NULL,
       sort_order INTEGER NOT NULL DEFAULT 0,
@@ -154,9 +155,14 @@ export function initDatabase(dbPath) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (production_run_id) REFERENCES production_runs(id) ON DELETE CASCADE,
       FOREIGN KEY (scene_id) REFERENCES plan_scenes(id) ON DELETE CASCADE,
-      UNIQUE(production_run_id, scene_id, version)
+      UNIQUE(tenant_id, production_run_id, scene_id, version)
     )`,
     'CREATE INDEX IF NOT EXISTS idx_scene_snapshots_run_scene ON scene_snapshots(production_run_id, scene_id)',
+    // Multi-tenant plumbing: scene_snapshots scope'owane per najemca. Single-tenant
+    // na teraz (backfill na 'default'), ale repo wymusza WHERE tenant_id na każdym
+    // zapytaniu, a storage path zawiera {tenant_id}. BEZ usuwania starego indeksu.
+    "ALTER TABLE scene_snapshots ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'",
+    'CREATE INDEX IF NOT EXISTS idx_scene_snapshots_tenant_run_scene ON scene_snapshots(tenant_id, production_run_id, scene_id)',
     'ALTER TABLE asset_images ADD COLUMN ai_metadata_json TEXT',
     // Faza B (@ID compiler): stabilny, niemutowalny ref_id assetu. BEZ backfillu (czysta karta).
     'ALTER TABLE assets ADD COLUMN ref_id TEXT',

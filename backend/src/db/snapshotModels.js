@@ -3,52 +3,68 @@
  *
  * Snapshot to NIEMUTOWALNY, content-addressed (sha256) stan startowy sceny.
  * Tabela jest append-only: nie ma UPDATE ani DELETE. Każde "zamrożenie" tworzy
- * nową wersję per (production_run, scena). Take (production_clips) zapisuje
- * snapshot_id + snapshot_version, wobec których był renderowany.
+ * nową wersję per (tenant, production_run, scena). Take (production_clips)
+ * zapisuje snapshot_id + snapshot_version, wobec których był renderowany.
  *
  * fs / hash / content-addressing realizuje warstwa video/snapshotStore.js — tu
  * trzymamy wyłącznie odczyt/zapis wiersza, zgodnie ze stylem pozostałych modeli.
+ *
+ * MULTI-TENANT (ślepy odczyt, zero global lookups):
+ *   - `tenantId` jest PIERWSZYM, WYMAGANYM argumentem każdej metody,
+ *   - każde zapytanie ma `WHERE tenant_id = :tenant_id` (egzekwowane przez guard
+ *     scripts/checkTenantScope.mjs — SQL bez tego filtra blokuje build),
+ *   - `tenant_id` jest walidowany jako czyste ASCII przy zapisie.
  */
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from './init.js';
+import { assertTenantId } from '../tenant/tenantContext.js';
 
-/** Najwyższa istniejąca wersja snapshotu dla (run, scena); 0 gdy brak. */
-export function latestSnapshotVersion(productionRunId, sceneId) {
+/** Najwyższa istniejąca wersja snapshotu dla (tenant, run, scena); 0 gdy brak. */
+export function latestSnapshotVersion(tenantId, productionRunId, sceneId) {
+  assertTenantId(tenantId);
   const row = getDb().prepare(`
     SELECT MAX(version) AS v FROM scene_snapshots
-    WHERE production_run_id = ? AND scene_id = ?
-  `).get(productionRunId, sceneId);
+    WHERE tenant_id = :tenant_id AND production_run_id = :production_run_id AND scene_id = :scene_id
+  `).get({ tenant_id: tenantId, production_run_id: productionRunId, scene_id: sceneId });
   return row?.v ?? 0;
 }
 
 /** Najnowszy (najwyższa wersja) snapshot startowy danej sceny w danym runie. */
-export function getLatestSceneSnapshot(productionRunId, sceneId) {
+export function getLatestSceneSnapshot(tenantId, productionRunId, sceneId) {
+  assertTenantId(tenantId);
   return getDb().prepare(`
     SELECT * FROM scene_snapshots
-    WHERE production_run_id = ? AND scene_id = ?
+    WHERE tenant_id = :tenant_id AND production_run_id = :production_run_id AND scene_id = :scene_id
     ORDER BY version DESC LIMIT 1
-  `).get(productionRunId, sceneId) || null;
+  `).get({ tenant_id: tenantId, production_run_id: productionRunId, scene_id: sceneId }) || null;
 }
 
-export function getSceneSnapshot(id) {
+export function getSceneSnapshot(tenantId, id) {
+  assertTenantId(tenantId);
   if (!id) return null;
-  return getDb().prepare('SELECT * FROM scene_snapshots WHERE id = ?').get(id) || null;
-}
-
-export function listSceneSnapshots(productionRunId, sceneId) {
   return getDb().prepare(`
     SELECT * FROM scene_snapshots
-    WHERE production_run_id = ? AND scene_id = ?
+    WHERE tenant_id = :tenant_id AND id = :id
+  `).get({ tenant_id: tenantId, id }) || null;
+}
+
+export function listSceneSnapshots(tenantId, productionRunId, sceneId) {
+  assertTenantId(tenantId);
+  return getDb().prepare(`
+    SELECT * FROM scene_snapshots
+    WHERE tenant_id = :tenant_id AND production_run_id = :production_run_id AND scene_id = :scene_id
     ORDER BY version ASC
-  `).all(productionRunId, sceneId);
+  `).all({ tenant_id: tenantId, production_run_id: productionRunId, scene_id: sceneId });
 }
 
 /**
  * Append-only zapis snapshotu. Wersja jest auto-inkrementowana, gdy nie podano.
  * Idempotencja po treści: jeśli najnowszy snapshot sceny ma identyczny
  * `content_hash`, zwracamy go zamiast tworzyć duplikat wersji.
+ *
+ * @param {string} tenantId  PIERWSZY, wymagany argument (czyste ASCII).
  */
-export function createSceneSnapshot({
+export function createSceneSnapshot(tenantId, {
   productionRunId,
   sceneId,
   sortOrder = 0,
@@ -57,10 +73,11 @@ export function createSceneSnapshot({
   source = 'continuation',
   originClipCode = null,
 }) {
+  assertTenantId(tenantId);
   if (!productionRunId || !sceneId) throw new Error('createSceneSnapshot: productionRunId i sceneId są wymagane.');
   if (!contentHash || !storagePath) throw new Error('createSceneSnapshot: contentHash i storagePath są wymagane.');
 
-  const existing = getLatestSceneSnapshot(productionRunId, sceneId);
+  const existing = getLatestSceneSnapshot(tenantId, productionRunId, sceneId);
   if (existing && existing.content_hash === contentHash) {
     return existing;
   }
@@ -69,17 +86,33 @@ export function createSceneSnapshot({
   const version = (existing?.version ?? 0) + 1;
   getDb().prepare(`
     INSERT INTO scene_snapshots (
-      id, production_run_id, scene_id, sort_order, version,
+      id, tenant_id, production_run_id, scene_id, sort_order, version,
       content_hash, storage_path, source, origin_clip_code
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, productionRunId, sceneId, sortOrder, version, contentHash, storagePath, source, originClipCode);
+    ) VALUES (
+      :id, :tenant_id, :production_run_id, :scene_id, :sort_order, :version,
+      :content_hash, :storage_path, :source, :origin_clip_code
+    )
+  `).run({
+    id,
+    tenant_id: tenantId,
+    production_run_id: productionRunId,
+    scene_id: sceneId,
+    sort_order: sortOrder,
+    version,
+    content_hash: contentHash,
+    storage_path: storagePath,
+    source,
+    origin_clip_code: originClipCode,
+  });
 
-  return getSceneSnapshot(id);
+  return getSceneSnapshot(tenantId, id);
 }
 
 /**
  * Walidacja Take wobec Snapshotu (optymistyczna kontrola współbieżności).
- * Czysta funkcja — testowalna bez bazy.
+ * Czysta funkcja — testowalna bez bazy. Nie dotyka SQL, więc nie podlega
+ * regule WHERE tenant_id; izolację najemcy zapewnia warstwa odczytu, która
+ * dostarcza tu `currentSnapshot` już zawężony do tenant_id.
  *
  * @param {object} params
  * @param {string|null} params.clipSnapshotId   snapshot zapisany na klipie

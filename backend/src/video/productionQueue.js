@@ -25,6 +25,7 @@ import {
   getLatestSceneSnapshot,
   validateTakeAgainstSnapshot,
 } from '../db/snapshotModels.js';
+import { DEFAULT_TENANT_ID, enterTenant } from '../tenant/tenantContext.js';
 
 const CONTINUITY_FRAME_COUNT = 6;
 
@@ -81,16 +82,16 @@ function toAbsoluteOutputPath(outputDir, maybePath) {
  * Zwraca wiersz snapshotu (lub null). To NIE jest już zmienny plik output/ — scena
  * czyta własny, zamrożony Snapshot, nie sięga po klatkę końcową poprzednika z dysku.
  */
-function resolveSceneStartSnapshot(scene, run, outputDir, exportDir) {
+function resolveSceneStartSnapshot(tenantId, scene, run, outputDir) {
   if (scene.start_frame_path) {
     const abs = toAbsoluteOutputPath(outputDir, scene.start_frame_path);
     if (abs) {
-      return freezeSnapshot({
+      return freezeSnapshot(tenantId, {
         productionRunId: run.id,
         sceneId: scene.id,
         sortOrder: scene.sort_order,
         sourceAbsPath: abs,
-        exportDir,
+        storageRoot: outputDir,
         toPublic: (a) => toPublicOutputPath(outputDir, a),
         source: 'manual',
       });
@@ -98,7 +99,7 @@ function resolveSceneStartSnapshot(scene, run, outputDir, exportDir) {
     // Jawny wybór niedostępny na dysku — fall-through do auto-ciągłości.
   }
   if (scene.sort_order > 0) {
-    return getLatestSceneSnapshot(run.id, scene.id);
+    return getLatestSceneSnapshot(tenantId, run.id, scene.id);
   }
   return null;
 }
@@ -107,14 +108,14 @@ function resolveSceneStartSnapshot(scene, run, outputDir, exportDir) {
  * Promocja klatki końcowej klipu N do NIEMUTOWALNEGO snapshotu sceny N+1.
  * To zastępuje anty-wzorzec "Domino" (czytanie zmiennego pliku output/ poprzednika).
  */
-function promoteFrameToNextSnapshot({ run, nextScene, lastFrameAbs, exportDir, outputDir, originClipCode }) {
+function promoteFrameToNextSnapshot({ tenantId, run, nextScene, lastFrameAbs, outputDir, originClipCode }) {
   if (!nextScene || !lastFrameAbs) return null;
-  return freezeSnapshot({
+  return freezeSnapshot(tenantId, {
     productionRunId: run.id,
     sceneId: nextScene.id,
     sortOrder: nextScene.sort_order,
     sourceAbsPath: lastFrameAbs,
-    exportDir,
+    storageRoot: outputDir,
     toPublic: (a) => toPublicOutputPath(outputDir, a),
     source: 'continuation',
     originClipCode,
@@ -190,7 +191,7 @@ function enrichDirectorForProduction(directorJson, plan, scene) {
   return enrichedDirector;
 }
 
-async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, onClipProgress) {
+async function renderClip(tenantId, clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, onClipProgress) {
   updateProductionClip(clip.id, { status: 'directing', progress: 10 });
 
   let directorJson = await buildSceneDirectorPlan(plan, scene, visualProfile);
@@ -247,7 +248,7 @@ async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, e
     // Pobieramy NAJNOWSZY snapshot sceny (nie po PK), aby wykryć, czy w trakcie
     // renderu został wyparty nowszą wersją — inaczej porównywalibyśmy wiersz z
     // samym sobą i guard supersesji/wersji nigdy by nie zadziałał.
-    const current = getLatestSceneSnapshot(startSnapshot.production_run_id, startSnapshot.scene_id);
+    const current = getLatestSceneSnapshot(tenantId, startSnapshot.production_run_id, startSnapshot.scene_id);
     const storageExists = !!(current && toAbsoluteOutputPath(outputDir, current.storage_path));
     const check = validateTakeAgainstSnapshot({
       clipSnapshotId: startSnapshot.id,
@@ -271,7 +272,10 @@ async function renderClip(clip, scene, plan, visualProfile, engine, outputDir, e
   return { publicPath, lastFramePublic: pickLastFrame(publicFrames)?.path || null, lastFrameAbs };
 }
 
-export async function processEpisodeProduction(episodePlanId, engine, outputDir) {
+export async function processEpisodeProduction(episodePlanId, engine, outputDir, tenantId = DEFAULT_TENANT_ID) {
+  // Context Injection: worker ustawia tenant_id w AsyncLocalStorage na samym
+  // starcie obsługi joba (tenant_id przyniesiony w payloadzie dispatchu).
+  enterTenant(tenantId);
   if (activeProductions.has(episodePlanId)) return getLatestProductionRun(episodePlanId);
 
   const plan = getEpisodePlan(episodePlanId);
@@ -315,7 +319,7 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir)
       });
       clips.push(clip);
 
-      const startSnapshot = resolveSceneStartSnapshot(scene, run, outputDir, exportDir);
+      const startSnapshot = resolveSceneStartSnapshot(tenantId, scene, run, outputDir);
       const startFrameOverride = startSnapshot
         ? toAbsoluteOutputPath(outputDir, startSnapshot.storage_path)
         : null;
@@ -326,16 +330,16 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir)
       let retryCount = 0;
       while (retryCount < MAX_CLIP_RETRIES) {
         try {
-          const rendered = await renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, (c, p) => {
+          const rendered = await renderClip(tenantId, clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, (c, p) => {
             const runProgress = Math.round(((completed + p / 100) / plan.scenes.length) * 100);
             updateProductionRun(run.id, { progress: runProgress });
           });
           // Promocja klatki końcowej do niemutowalnego snapshotu KOLEJNEJ sceny.
           promoteFrameToNextSnapshot({
+            tenantId,
             run,
             nextScene,
             lastFrameAbs: rendered.lastFrameAbs,
-            exportDir,
             outputDir,
             originClipCode: clipCode,
           });
@@ -389,10 +393,13 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir)
   }
 }
 
-export function enqueueEpisodeProduction(episodePlanId, engine, outputDir) {
+export function enqueueEpisodeProduction(episodePlanId, engine, outputDir, tenantId = DEFAULT_TENANT_ID) {
+  // "dispatchTakeJob": tenant_id jest częścią payloadu joba (a nie globalnym
+  // lookupem). Worker (poniżej) ustawia go w AsyncLocalStorage na starcie.
+  const job = { episodePlanId, engine, outputDir, tenantId };
   setImmediate(() => {
-    processEpisodeProduction(episodePlanId, engine, outputDir).catch((err) => {
-      console.error(`[ProductionQueue] Episode ${episodePlanId} production failed:`, err.message);
+    processEpisodeProduction(job.episodePlanId, job.engine, job.outputDir, job.tenantId).catch((err) => {
+      console.error(`[ProductionQueue] Episode ${job.episodePlanId} production failed:`, err.message);
     });
   });
 }
@@ -400,7 +407,9 @@ export function enqueueEpisodeProduction(episodePlanId, engine, outputDir) {
 /**
  * Resume production from a partial run - continues from first failed clip
  */
-export async function resumeProductionFromPartial(productionRunId, engine, outputDir) {
+export async function resumeProductionFromPartial(productionRunId, engine, outputDir, tenantId = DEFAULT_TENANT_ID) {
+  // Context Injection: ustaw tenant_id w AsyncLocalStorage na starcie joba.
+  enterTenant(tenantId);
   const existingRun = getProductionRun(productionRunId);
   if (!existingRun) throw new Error('Production run not found');
   if (existingRun.status !== 'partial') throw new Error('Only partial runs can be resumed');
@@ -441,10 +450,10 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
     const prevLastPublic = pickLastFrame(prevClip?.frames || [])?.path || null;
     const prevLastAbs = prevLastPublic ? toAbsoluteOutputPath(outputDir, prevLastPublic) : null;
     promoteFrameToNextSnapshot({
+      tenantId,
       run: existingRun,
       nextScene: plan.scenes[startSceneIndex],
       lastFrameAbs: prevLastAbs,
-      exportDir,
       outputDir,
       originClipCode: prevClip?.clip_code || null,
     });
@@ -470,7 +479,7 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
         });
       }
 
-      const startSnapshot = resolveSceneStartSnapshot(scene, existingRun, outputDir, exportDir);
+      const startSnapshot = resolveSceneStartSnapshot(tenantId, scene, existingRun, outputDir);
       const startFrameOverride = startSnapshot
         ? toAbsoluteOutputPath(outputDir, startSnapshot.storage_path)
         : null;
@@ -481,15 +490,15 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
       let retryCount = 0;
       while (retryCount < MAX_CLIP_RETRIES) {
         try {
-          const rendered = await renderClip(clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, (c, p) => {
+          const rendered = await renderClip(tenantId, clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, (c, p) => {
             const runProgress = Math.round(((completed + p / 100) / plan.scenes.length) * 100);
             updateProductionRun(productionRunId, { progress: runProgress });
           });
           promoteFrameToNextSnapshot({
+            tenantId,
             run: existingRun,
             nextScene,
             lastFrameAbs: rendered.lastFrameAbs,
-            exportDir,
             outputDir,
             originClipCode: clipCode,
           });
