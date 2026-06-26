@@ -111,6 +111,8 @@ export function updateProductionClip(id, fields) {
       : undefined,
     output_path: fields.outputPath,
     frames_json: fields.frames !== undefined ? JSON.stringify(fields.frames) : undefined,
+    snapshot_id: fields.snapshotId,
+    snapshot_version: fields.snapshotVersion,
     error_message: fields.errorMessage,
     progress: fields.progress,
     completed_at: fields.completedAt,

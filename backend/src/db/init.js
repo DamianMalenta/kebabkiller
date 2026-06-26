@@ -137,6 +137,26 @@ export function initDatabase(dbPath) {
     'ALTER TABLE plan_scenes ADD COLUMN start_frame_path TEXT',
     // Filar 3: wyekstrahowane klatki-kandydaci danego klipu (do Pickera).
     'ALTER TABLE production_clips ADD COLUMN frames_json TEXT',
+    // Snapshot SSOT: Take (klip) zapisuje snapshot_id+version, wobec których renderował.
+    'ALTER TABLE production_clips ADD COLUMN snapshot_id TEXT',
+    'ALTER TABLE production_clips ADD COLUMN snapshot_version INTEGER',
+    // Snapshot SSOT: niemutowalny, content-addressed stan startowy sceny (append-only).
+    `CREATE TABLE IF NOT EXISTS scene_snapshots (
+      id TEXT PRIMARY KEY,
+      production_run_id TEXT NOT NULL,
+      scene_id TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      version INTEGER NOT NULL DEFAULT 1,
+      content_hash TEXT NOT NULL,
+      storage_path TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'continuation',
+      origin_clip_code TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (production_run_id) REFERENCES production_runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (scene_id) REFERENCES plan_scenes(id) ON DELETE CASCADE,
+      UNIQUE(production_run_id, scene_id, version)
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_scene_snapshots_run_scene ON scene_snapshots(production_run_id, scene_id)',
     'ALTER TABLE asset_images ADD COLUMN ai_metadata_json TEXT',
     // Faza B (@ID compiler): stabilny, niemutowalny ref_id assetu. BEZ backfillu (czysta karta).
     'ALTER TABLE assets ADD COLUMN ref_id TEXT',
