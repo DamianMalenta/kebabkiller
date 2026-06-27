@@ -243,6 +243,10 @@ export function createRunComfyEngine(outputDir, config) {
         `[RunComfyEngine] Submitting job ${jobId} to RunComfy` +
         (workflow.workflow_api_json ? ` (workflow_api_json, nodes: ${nodeIds})` : ' (overrides)'),
       );
+      const debugPath = path.join(__dirname, '..', '..', '..', 'debug_payload.json');
+      fs.writeFileSync(debugPath, JSON.stringify(workflow, null, 2), 'utf8');
+      process.exit(1);
+
       const submitResponse = await fetch(endpoint, {
           method: 'POST',
           headers: {
