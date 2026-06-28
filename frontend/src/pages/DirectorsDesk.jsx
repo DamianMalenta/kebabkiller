@@ -4,6 +4,7 @@ import { api } from '../api/client.js';
 import SeriesBrainSidebar from '../components/directorDesk/SeriesBrainSidebar.jsx';
 import ChatCenter from '../components/directorDesk/ChatCenter.jsx';
 import ContinuityPicker from '../components/ContinuityPicker.jsx';
+import KlatkaZeroPanel from '../components/KlatkaZeroPanel.jsx';
 
 const SUGGESTIONS_BY_STEP = {
   series_start: ['Kebabkiller Poczatki, klimat realistyczny z humorem', 'Zmień nazwę serialu na: '],
@@ -32,6 +33,8 @@ export default function DirectorsDesk() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 640);
   const [error, setError] = useState('');
   const [episodes, setEpisodes] = useState([]);
+  const [allAssets, setAllAssets] = useState([]);
+  const [selectedSceneId, setSelectedSceneId] = useState(null);
 
   const refresh = useCallback(async () => {
     setError('');
@@ -54,6 +57,38 @@ export default function DirectorsDesk() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    api.assets.list().then(setAllAssets).catch(() => setAllAssets([]));
+  }, []);
+
+  const characterAssets = useMemo(
+    () => allAssets.filter((a) => a.type === 'character' && a.images?.length),
+    [allAssets],
+  );
+  const locationAssets = useMemo(
+    () => allAssets.filter((a) => a.type === 'location' && a.images?.length),
+    [allAssets],
+  );
+
+  const episodeScenes = useMemo(() => {
+    const scenes = state?.brain?.episode?.scenes || [];
+    return scenes.slice().sort((a, b) => a.sort_order - b.sort_order);
+  }, [state?.brain?.episode?.scenes]);
+
+  useEffect(() => {
+    if (!episodePlanId) {
+      setSelectedSceneId(null);
+      return;
+    }
+    if (episodeScenes.length === 0) {
+      setSelectedSceneId(null);
+      return;
+    }
+    setSelectedSceneId((prev) => (
+      prev && episodeScenes.some((s) => s.id === prev) ? prev : episodeScenes[0].id
+    ));
+  }, [episodePlanId, episodeScenes]);
 
   const suggestions = useMemo(() => {
     const step = state?.wizard?.step || 'series_start';
@@ -127,6 +162,34 @@ export default function DirectorsDesk() {
 
       {error && (
         <p className="mb-4 rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-2 text-sm text-red-300">{error}</p>
+      )}
+
+      {episodePlanId && characterAssets.length > 0 && locationAssets.length > 0 && (
+        <div className="mb-4 space-y-3">
+          {episodeScenes.length > 0 && (
+            <label className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-zinc-400">Scena dla Klatki Zero:</span>
+              <select
+                value={selectedSceneId || ''}
+                onChange={(e) => setSelectedSceneId(e.target.value)}
+                className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-200"
+              >
+                {episodeScenes.map((scene, idx) => (
+                  <option key={scene.id} value={scene.id}>
+                    Scena {idx + 1}
+                    {scene.description_pl ? ` — ${scene.description_pl.slice(0, 40)}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <KlatkaZeroPanel
+            characterAssets={characterAssets}
+            locationAssets={locationAssets}
+            planId={episodePlanId}
+            sceneId={selectedSceneId}
+          />
+        </div>
       )}
 
       <div className="director-desk-grid">
