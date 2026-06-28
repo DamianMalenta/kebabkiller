@@ -160,6 +160,22 @@ function inferMediaExtension(url, contentType, buffer) {
   return '.mp4';
 }
 
+function resolveLoadImageInput(processedAssets, directorJson) {
+  if (processedAssets?.startFrame?.type === 'base64' && processedAssets.startFrame.data) {
+    return processedAssets.startFrame.data;
+  }
+
+  const snapshotPath = processedAssets?.startSnapshot?.storage_path
+    ?? directorJson?.start_frame_path;
+  if (snapshotPath) {
+    const normalized = String(snapshotPath).replace(/\\/g, '/');
+    if (/^https?:\/\//i.test(normalized)) return normalized;
+    return path.basename(normalized);
+  }
+
+  return null;
+}
+
 /**
  * Builds a full ComfyUI API workflow for RunComfy dynamic inference.
  * Sends workflow_api_json (not overrides) so node 51 WEBP is omitted — only SaveWEBM (52) runs.
@@ -193,18 +209,22 @@ export function buildRunComfyWorkflow(jobId, userPrompt, directorJson, processed
   workflow['54'].inputs = cloneInputs('54', workflow);
   workflow['54'].inputs.width = renderParams.width;
   workflow['54'].inputs.height = renderParams.height;
-  workflow['54'].inputs.length = renderParams.length;
+  workflow['54'].inputs.length = 81;
 
   workflow['56'].inputs = cloneInputs('56', workflow);
   workflow['56'].inputs.seed = seed;
   workflow['56'].inputs.steps = renderParams.steps;
-  // cfg stays at template value (6) — WAN I2V with ModelSamplingSD3 works with cfg 5–9
-  workflow['56'].inputs.denoise = renderParams.denoise;
+  workflow['56'].inputs.cfg = 5.0;
+  workflow['56'].inputs.denoise = 0.70;
 
-  if (processedAssets.startFrame?.type === 'base64') {
-    workflow['59'].inputs = cloneInputs('59', workflow);
-    workflow['59'].inputs.image = processedAssets.startFrame.data;
+  const loadImage = resolveLoadImageInput(processedAssets, directorJson);
+  if (!loadImage) {
+    throw new Error(
+      'RunComfy workflow: brak klatki startowej (node 59) — podaj startSnapshot/startFrame zamiast przykładowego obrazu z szablonu.',
+    );
   }
+  workflow['59'].inputs = cloneInputs('59', workflow);
+  workflow['59'].inputs.image = loadImage;
 
   if (!workflow[WEBM_OUTPUT_NODE_ID]) {
     throw new Error(`Workflow template missing SaveWEBM node ${WEBM_OUTPUT_NODE_ID}`);
@@ -243,10 +263,6 @@ export function createRunComfyEngine(outputDir, config) {
         `[RunComfyEngine] Submitting job ${jobId} to RunComfy` +
         (workflow.workflow_api_json ? ` (workflow_api_json, nodes: ${nodeIds})` : ' (overrides)'),
       );
-      const debugPath = path.join(__dirname, '..', '..', '..', 'debug_payload.json');
-      fs.writeFileSync(debugPath, JSON.stringify(workflow, null, 2), 'utf8');
-      process.exit(1);
-
       const submitResponse = await fetch(endpoint, {
           method: 'POST',
           headers: {
