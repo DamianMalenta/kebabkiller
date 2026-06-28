@@ -51,6 +51,7 @@ import {
   deleteAssetImage,
   setAssetCompositeDefault,
   setSceneCompositeOverride,
+  attachPlanSceneAssets,
   setSceneStartFrame,
   listEpisodePlans,
   getEpisodePlan,
@@ -524,6 +525,18 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     const scene = setSceneCompositeOverride(req.params.sceneId, req.body.composite ?? null);
     if (!scene) return res.status(404).json({ error: 'Scene not found' });
     res.json(scene);
+  });
+
+  router.put('/episode-plans/:planId/scenes/:sceneId/assets', (req, res) => {
+    const plan = getEpisodePlan(req.params.planId);
+    if (!plan) return res.status(404).json({ error: 'Episode plan not found' });
+    const scene = attachPlanSceneAssets(req.params.planId, req.params.sceneId, {
+      assetId: req.body.asset_id,
+      assetImageId: req.body.asset_image_id,
+      locationAssetId: req.body.location_asset_id,
+    });
+    if (!scene) return res.status(404).json({ error: 'Scene not found' });
+    res.json({ scene, plan: getEpisodePlan(req.params.planId) });
   });
 
   /**

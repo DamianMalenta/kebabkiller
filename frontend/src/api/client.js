@@ -117,6 +117,11 @@ export const api = {
   episodePlans: {
     get: (id) => request(`/episode-plans/${id}`),
     production: (id) => request(`/episode-plans/${id}/production`),
+    attachSceneAssets: (planId, sceneId, body) =>
+      request(`/episode-plans/${planId}/scenes/${sceneId}/assets`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
   },
 
   // Filar 3 — silnik ciągłości: kadr z poprzedniej sceny na start następnej.

@@ -12,16 +12,38 @@ function assetImagePath(asset) {
   return (asset?.images?.find((i) => i.is_primary) || asset?.images?.[0])?.path;
 }
 
+function buildCompositeFromScene(scene) {
+  const saved = scene?.ai_overrides?.composite || {};
+  return {
+    ...DEFAULT_COMPOSITE,
+    ...saved,
+    position: { ...DEFAULT_COMPOSITE.position, ...(saved.position || {}) },
+  };
+}
+
+function initialSelectionFromScene(scene) {
+  const composite = buildCompositeFromScene(scene);
+  return {
+    characterId: composite.characterAssetId || scene?.asset_id || null,
+    locationId: composite.locationAssetId || scene?.location_asset_id || null,
+    compositionText: composite.composition_override || '',
+    composite,
+  };
+}
+
 export default function KlatkaZeroPanel({
   characterAssets = [],
   locationAssets = [],
   planId,
   sceneId,
+  scene = null,
   embedded = false,
+  onSaved,
 }) {
   const [selectedCharacterId, setSelectedCharacterId] = useState(null);
   const [selectedLocationId, setSelectedLocationId] = useState(null);
   const [compositionText, setCompositionText] = useState('');
+  const [compositeConfig, setCompositeConfig] = useState(DEFAULT_COMPOSITE);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -30,13 +52,15 @@ export default function KlatkaZeroPanel({
   const debounceRef = useRef(null);
 
   useEffect(() => {
-    setSelectedCharacterId(null);
-    setSelectedLocationId(null);
-    setCompositionText('');
+    const initial = initialSelectionFromScene(scene);
+    setSelectedCharacterId(initial.characterId);
+    setSelectedLocationId(initial.locationId);
+    setCompositionText(initial.compositionText);
+    setCompositeConfig(initial.composite);
     setPreview(null);
     setError('');
     setMessage('');
-  }, [sceneId]);
+  }, [sceneId, scene]);
 
   const runPreview = useCallback(async () => {
     if (!selectedCharacterId && !selectedLocationId) {
@@ -50,7 +74,7 @@ export default function KlatkaZeroPanel({
         characterAssetId: selectedCharacterId || undefined,
         locationAssetId: selectedLocationId || undefined,
         sceneComposite: {
-          ...DEFAULT_COMPOSITE,
+          ...compositeConfig,
           composition_override: compositionText || undefined,
         },
       });
@@ -61,7 +85,7 @@ export default function KlatkaZeroPanel({
     } finally {
       setLoading(false);
     }
-  }, [selectedCharacterId, selectedLocationId, compositionText]);
+  }, [selectedCharacterId, selectedLocationId, compositionText, compositeConfig]);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -74,14 +98,22 @@ export default function KlatkaZeroPanel({
     setSaving(true);
     setError('');
     setMessage('');
+    const compositePayload = {
+      ...compositeConfig,
+      characterAssetId: selectedCharacterId,
+      locationAssetId: selectedLocationId,
+      composition_override: compositionText || undefined,
+    };
     try {
-      await api.composite.setSceneOverride(planId, sceneId, {
-        ...DEFAULT_COMPOSITE,
-        characterAssetId: selectedCharacterId,
-        locationAssetId: selectedLocationId,
-        composition_override: compositionText || undefined,
-      });
-      setMessage('Parametry sceny zablokowane (override composite).');
+      await Promise.all([
+        api.episodePlans.attachSceneAssets(planId, sceneId, {
+          asset_id: selectedCharacterId,
+          location_asset_id: selectedLocationId,
+        }),
+        api.composite.setSceneOverride(planId, sceneId, compositePayload),
+      ]);
+      setMessage('Parametry sceny zablokowane — assety i composite zapisane.');
+      onSaved?.();
     } catch (err) {
       setError(err.message);
     } finally {

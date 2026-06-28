@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import SeriesBrainSidebar from '../components/directorDesk/SeriesBrainSidebar.jsx';
 import ChatCenter from '../components/directorDesk/ChatCenter.jsx';
@@ -20,8 +20,22 @@ const SUGGESTIONS_BY_STEP = {
   free_mode: ['Stwórz nowy odcinek', 'Zmień opis sceny 1', 'Uruchom produkcję GPU'],
 };
 
+function extractCreatedEpisodeId(toolResults) {
+  if (!toolResults?.length) return null;
+  for (const entry of toolResults) {
+    if (
+      (entry.tool === 'startEpisodeWizard' || entry.tool === 'createEpisodePlan')
+      && entry.result?.id
+    ) {
+      return entry.result.id;
+    }
+  }
+  return null;
+}
+
 export default function DirectorsDesk() {
   const { projectId } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const episodePlanId = searchParams.get('episode') || null;
 
@@ -50,6 +64,15 @@ export default function DirectorsDesk() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }, [projectId, episodePlanId]);
+
+  const refreshBrain = useCallback(async () => {
+    try {
+      const data = await api.directorDesk.getState(projectId, episodePlanId);
+      setState(data);
+    } catch (err) {
+      setError(err.message);
     }
   }, [projectId, episodePlanId]);
 
@@ -109,7 +132,14 @@ export default function DirectorsDesk() {
         wizard: result.wizard,
       }));
       setMessages((prev) => [...prev, ...(result.messages || [])]);
-      // Refresh episode list if a new episode was likely created
+
+      const newEpisodeId = extractCreatedEpisodeId(result.tool_results);
+      if (newEpisodeId && newEpisodeId !== episodePlanId) {
+        api.projects.episodes(projectId).then(setEpisodes).catch(() => {});
+        navigate(`/desk/${projectId}?episode=${newEpisodeId}`);
+        return;
+      }
+
       if (result.tool_results?.some((r) => r.tool === 'startEpisodeWizard' || r.tool === 'createEpisodePlan')) {
         api.projects.episodes(projectId).then(setEpisodes).catch(() => {});
       }
@@ -173,6 +203,7 @@ export default function DirectorsDesk() {
           locationAssets={locationAssets}
           storyboard={state?.brain?.storyboard}
           wizardStep={state?.wizard?.step}
+          onSceneSaved={refreshBrain}
         />
       )}
 

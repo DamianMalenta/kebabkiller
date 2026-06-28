@@ -30,6 +30,7 @@ export default function SceneWorkbench({
   locationAssets = [],
   storyboard = null,
   wizardStep = null,
+  onSceneSaved,
 }) {
   const [activeTab, setActiveTab] = useState('identity');
 
@@ -128,6 +129,8 @@ export default function SceneWorkbench({
               locationAssets={locationAssets}
               planId={planId}
               sceneId={selectedSceneId}
+              scene={selectedScene}
+              onSaved={onSceneSaved}
             />
           ) : (
             <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 p-6 text-sm text-zinc-400">

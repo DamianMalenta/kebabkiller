@@ -28,6 +28,7 @@ import {
 import { buildEpisodeStoryboardMock, buildSceneStoryboardMock } from './storyboardMock.js';
 import { previewWorkflowForScene } from './workflowBuilder.js';
 import { buildSceneDirectorPlan, buildEpisodeVisualProfile } from '../productionDirector.js';
+import { attachPlanSceneAssets } from '../../db/episodeModels.js';
 
 export function getToolDefinitions(allowedNames) {
   const all = {
@@ -471,18 +472,11 @@ export async function executeTool(name, args, ctx) {
 
     case 'attachSceneAsset': {
       if (!episodePlanId) throw new Error('Brak aktywnego planu odcinka.');
-      const plan = getEpisodePlan(episodePlanId);
-      const scenes = plan.scenes.map((s) =>
-        s.id === args.scene_id
-          ? {
-              ...s,
-              asset_id: args.asset_id ?? s.asset_id,
-              asset_image_id: args.asset_image_id ?? s.asset_image_id,
-              location_asset_id: args.location_asset_id ?? s.location_asset_id,
-            }
-          : s,
-      );
-      return replacePlanScenes(episodePlanId, scenes);
+      return attachPlanSceneAssets(episodePlanId, args.scene_id, {
+        assetId: args.asset_id,
+        assetImageId: args.asset_image_id,
+        locationAssetId: args.location_asset_id,
+      });
     }
 
     case 'produceEpisode':

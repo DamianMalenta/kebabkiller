@@ -361,6 +361,31 @@ export function setSceneCompositeOverride(sceneId, composite) {
 }
 
 /**
+ * Przypisz assety katalogu do sceny (postac + lokacja) bez nadpisywania opisu/czasu.
+ */
+export function attachPlanSceneAssets(episodePlanId, sceneId, { assetId, assetImageId, locationAssetId } = {}) {
+  assertPlanEditable(episodePlanId);
+  const plan = getEpisodePlan(episodePlanId);
+  const scene = plan?.scenes?.find((s) => s.id === sceneId);
+  if (!scene) return null;
+
+  return upsertPlanScene(
+    episodePlanId,
+    {
+      id: scene.id,
+      sort_order: scene.sort_order,
+      description_pl: scene.description_pl,
+      duration_sec: scene.duration_sec,
+      asset_id: assetId !== undefined ? assetId : scene.asset_id,
+      asset_image_id: assetImageId !== undefined ? assetImageId : scene.asset_image_id,
+      location_asset_id: locationAssetId !== undefined ? locationAssetId : scene.location_asset_id,
+      start_frame_path: scene.start_frame_path,
+    },
+    { refreshStatus: true, enforceEditable: false },
+  );
+}
+
+/**
  * Filar 3 (silnik ciągłości): ustaw/wyczyść kadr kontynuacji jako start sceny.
  * `framePath == null` cofa do kompozytu (auto-ciągłość z klatki końcowej poprzedniej sceny).
  * Render-tuning (nie fabuła) — bez blokady zamrożenia planu.
