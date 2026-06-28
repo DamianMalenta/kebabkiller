@@ -7,7 +7,7 @@ import { api } from '../api/client.js';
  * i pozwala wybrać kadr, od którego ma startować dana scena (spójna kontynuacja).
  * „Auto" = klatka końcowa poprzedniej sceny (domyślne zachowanie).
  */
-function SceneContinuityRow({ planId, scene, onChanged }) {
+export function SceneContinuityRow({ planId, scene, onChanged, showProduceHint = false }) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -58,9 +58,14 @@ function SceneContinuityRow({ planId, scene, onChanged }) {
       {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
 
       {frames.length === 0 ? (
-        <p className="text-xs text-zinc-500">
-          Brak klatek poprzedniej sceny — wyprodukuj odcinek, żeby wybrać kadr kontynuacji.
-        </p>
+        <div className="text-xs text-zinc-500">
+          <p>Brak klatek poprzedniej sceny — wyprodukuj odcinek, żeby wybrać kadr kontynuacji.</p>
+          {showProduceHint && (
+            <p className="mt-2 text-amber-400/80">
+              Plan odcinka gotowy — użyj przycisku „Uruchom Produkcję GPU” w czacie poniżej.
+            </p>
+          )}
+        </div>
       ) : (
         <>
           <div className="flex gap-2 overflow-x-auto pb-1">

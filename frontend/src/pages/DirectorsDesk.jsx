@@ -3,8 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import SeriesBrainSidebar from '../components/directorDesk/SeriesBrainSidebar.jsx';
 import ChatCenter from '../components/directorDesk/ChatCenter.jsx';
-import ContinuityPicker from '../components/ContinuityPicker.jsx';
-import KlatkaZeroPanel from '../components/KlatkaZeroPanel.jsx';
+import SceneWorkbench from '../components/SceneWorkbench.jsx';
 
 const SUGGESTIONS_BY_STEP = {
   series_start: ['Kebabkiller Poczatki, klimat realistyczny z humorem', 'Zmień nazwę serialu na: '],
@@ -164,32 +163,17 @@ export default function DirectorsDesk() {
         <p className="mb-4 rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-2 text-sm text-red-300">{error}</p>
       )}
 
-      {episodePlanId && characterAssets.length > 0 && locationAssets.length > 0 && (
-        <div className="mb-4 space-y-3">
-          {episodeScenes.length > 0 && (
-            <label className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-zinc-400">Scena dla Klatki Zero:</span>
-              <select
-                value={selectedSceneId || ''}
-                onChange={(e) => setSelectedSceneId(e.target.value)}
-                className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-200"
-              >
-                {episodeScenes.map((scene, idx) => (
-                  <option key={scene.id} value={scene.id}>
-                    Scena {idx + 1}
-                    {scene.description_pl ? ` — ${scene.description_pl.slice(0, 40)}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <KlatkaZeroPanel
-            characterAssets={characterAssets}
-            locationAssets={locationAssets}
-            planId={episodePlanId}
-            sceneId={selectedSceneId}
-          />
-        </div>
+      {episodePlanId && (
+        <SceneWorkbench
+          planId={episodePlanId}
+          scenes={episodeScenes}
+          selectedSceneId={selectedSceneId}
+          onSceneChange={setSelectedSceneId}
+          characterAssets={characterAssets}
+          locationAssets={locationAssets}
+          storyboard={state?.brain?.storyboard}
+          wizardStep={state?.wizard?.step}
+        />
       )}
 
       <div className="director-desk-grid">
@@ -210,11 +194,6 @@ export default function DirectorsDesk() {
         </div>
       </div>
 
-      {episodePlanId && (
-        <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
-          <ContinuityPicker planId={episodePlanId} />
-        </div>
-      )}
     </div>
   );
 }
