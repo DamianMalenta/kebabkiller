@@ -8,6 +8,9 @@ const PROJECT = {
   canon: { style_tags: ['neon noir'], default_i2v_profile: 'I2V_PRODUCTION' },
 };
 const SCENE = { duration_sec: 4, sort_order: 0, ai_overrides: {} };
+const PREVIEW_START_FRAME = {
+  startFrame: { type: 'base64', data: 'data:image/png;base64,preview' },
+};
 
 describe('enrichDirectorForRender (jedna wspólna funkcja: preview = prod)', () => {
   test('wstrzykuje style_tags + generatorTags + anchor do positive_prompt', () => {
@@ -42,7 +45,7 @@ describe('enrichDirectorForRender (jedna wspólna funkcja: preview = prod)', () 
     const { enrichedDirector } = enrichDirectorForRender(args);
     const payload = buildDynamicWorkflowPayload({
       jobId: 'preview',
-      processedAssets: { startFrame: null },
+      processedAssets: PREVIEW_START_FRAME,
       ...args,
     });
 

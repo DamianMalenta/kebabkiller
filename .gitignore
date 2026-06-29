@@ -12,3 +12,4 @@ frontend/dist/
 _docs_old_quarantine/
 .cursorrules_disabled/
 docs/_temp_key_files.txt
+modal/.venv/

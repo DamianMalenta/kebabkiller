@@ -30,6 +30,10 @@ const PROJECT = {
   generator_tags: ['[Tryb Akcji]'],
 };
 
+const PREVIEW_START_FRAME = {
+  startFrame: { type: 'base64', data: 'data:image/png;base64,preview' },
+};
+
 /** Zbuduj payload GPU dla każdej sceny planu — ta sama logika co productionQueue. */
 function buildPlanPayload(plan, project) {
   const visualProfile = buildEpisodeVisualProfile(plan);
@@ -39,7 +43,7 @@ function buildPlanPayload(plan, project) {
       jobId: 'golden',
       userPrompt: scene.description_pl,
       directorJson,
-      processedAssets: { startFrame: null },
+      processedAssets: PREVIEW_START_FRAME,
       project,
       scene: { ...scene, ai_overrides: JSON.parse(scene.ai_overrides_json || '{}') },
       generatorTags: project.generator_tags,

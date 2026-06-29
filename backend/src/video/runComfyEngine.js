@@ -209,13 +209,13 @@ export function buildRunComfyWorkflow(jobId, userPrompt, directorJson, processed
   workflow['54'].inputs = cloneInputs('54', workflow);
   workflow['54'].inputs.width = renderParams.width;
   workflow['54'].inputs.height = renderParams.height;
-  workflow['54'].inputs.length = 81;
+  workflow['54'].inputs.length = renderParams.length;
 
   workflow['56'].inputs = cloneInputs('56', workflow);
   workflow['56'].inputs.seed = seed;
   workflow['56'].inputs.steps = renderParams.steps;
   workflow['56'].inputs.cfg = 5.0;
-  workflow['56'].inputs.denoise = 0.70;
+  workflow['56'].inputs.denoise = renderParams.denoise;
 
   const loadImage = resolveLoadImageInput(processedAssets, directorJson);
   if (!loadImage) {
