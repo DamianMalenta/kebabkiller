@@ -31,12 +31,19 @@ function initialSelectionFromScene(scene) {
   };
 }
 
+const FROZEN_STATUSES = new Set(['zaakceptowany', 'w_produkcji', 'gotowy']);
+
+function isPlanFrozenStatus(status) {
+  return FROZEN_STATUSES.has(status);
+}
+
 export default function KlatkaZeroPanel({
   characterAssets = [],
   locationAssets = [],
   planId,
   sceneId,
   scene = null,
+  planStatus = null,
   embedded = false,
   onSaved,
 }) {
@@ -95,6 +102,10 @@ export default function KlatkaZeroPanel({
 
   async function handleSave() {
     if (!planId || !sceneId || !selectedCharacterId || !selectedLocationId) return;
+    if (isPlanFrozenStatus(planStatus)) {
+      setError('Plan jest zamrożony — edycja możliwa tylko w statusie szkic / gotowy_do_akceptacji.');
+      return;
+    }
     setSaving(true);
     setError('');
     setMessage('');
@@ -103,6 +114,7 @@ export default function KlatkaZeroPanel({
       characterAssetId: selectedCharacterId,
       locationAssetId: selectedLocationId,
       composition_override: compositionText || undefined,
+      frame_confirmed: true,
     };
     try {
       await Promise.all([
@@ -123,6 +135,8 @@ export default function KlatkaZeroPanel({
 
   if (!planId || !sceneId) return null;
 
+  const readOnly = isPlanFrozenStatus(planStatus);
+
   const shellClass = embedded
     ? 'flex flex-col gap-6'
     : 'flex flex-col gap-6 rounded-xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl';
@@ -134,6 +148,12 @@ export default function KlatkaZeroPanel({
           <h2 className="text-lg font-semibold uppercase tracking-wide text-zinc-100">Klatka Zero</h2>
           <p className="mt-1 font-mono text-xs text-zinc-500">SCENE_ID: {sceneId}</p>
         </div>
+      )}
+
+      {readOnly && (
+        <p className="rounded-lg border border-amber-900/50 bg-amber-950/30 p-3 text-sm text-amber-200">
+          Plan w statusie <strong>{planStatus}</strong> — podgląd działa, zapis wyłączony. Poczekaj na koniec produkcji lub użyj nowego odcinka.
+        </p>
       )}
 
       {error && <p className="rounded-lg bg-red-950/60 p-3 text-sm text-red-300">{error}</p>}
@@ -148,7 +168,8 @@ export default function KlatkaZeroPanel({
                 <button
                   key={asset.id}
                   type="button"
-                  onClick={() => setSelectedCharacterId(asset.id)}
+                  onClick={() => !readOnly && setSelectedCharacterId(asset.id)}
+                  disabled={readOnly}
                   className={`group relative aspect-[3/4] overflow-hidden rounded-lg border-2 transition-all duration-200 ${
                     selectedCharacterId === asset.id
                       ? 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
@@ -175,7 +196,8 @@ export default function KlatkaZeroPanel({
                 <button
                   key={asset.id}
                   type="button"
-                  onClick={() => setSelectedLocationId(asset.id)}
+                  onClick={() => !readOnly && setSelectedLocationId(asset.id)}
+                  disabled={readOnly}
                   className={`group relative aspect-video overflow-hidden rounded-lg border-2 transition-all duration-200 ${
                     selectedLocationId === asset.id
                       ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)]'
@@ -199,7 +221,8 @@ export default function KlatkaZeroPanel({
             <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Override (Kamera)</h3>
             <textarea
               value={compositionText}
-              onChange={(e) => setCompositionText(e.target.value)}
+              onChange={(e) => !readOnly && setCompositionText(e.target.value)}
+              readOnly={readOnly}
               placeholder="Instrukcje dla modelu (ujęcie z dołu, makro, dym, agresywny ruch)…"
               className="h-24 w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-sm text-zinc-300 placeholder-zinc-600 transition-colors focus:border-zinc-500 focus:bg-zinc-900 focus:outline-none"
             />
@@ -230,7 +253,7 @@ export default function KlatkaZeroPanel({
         <button
           type="button"
           onClick={handleSave}
-          disabled={!selectedCharacterId || !selectedLocationId || saving}
+          disabled={readOnly || !selectedCharacterId || !selectedLocationId || saving}
           className="rounded-md bg-zinc-200 px-6 py-2 text-xs font-bold uppercase tracking-wider text-zinc-950 transition-all hover:bg-white disabled:cursor-not-allowed disabled:opacity-30"
         >
           {saving ? 'Zapisuję…' : 'Zablokuj Parametry Sceny'}

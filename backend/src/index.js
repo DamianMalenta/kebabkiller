@@ -9,6 +9,7 @@ import { initDatabase } from './db/init.js';
 import { createApiRouter } from './api/routes.js';
 import { createVideoEngine } from './video/mockEngine.js';
 import { recoverVideoJobsOnStartup } from './video/queue.js';
+import { recoverStuckProductionOnStartup } from './video/productionRecovery.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -38,6 +39,13 @@ const recovery = recoverVideoJobsOnStartup(videoEngine);
 if (recovery.interrupted || recovery.requeued) {
   console.log(
     `[VideoQueue] Recovery: ${recovery.interrupted} interrupted → failed, ${recovery.requeued} pending re-enqueued`,
+  );
+}
+
+const prodRecovery = recoverStuckProductionOnStartup();
+if (prodRecovery.runsRecovered || prodRecovery.plansRecovered) {
+  console.log(
+    `[ProductionQueue] Recovery: ${prodRecovery.runsRecovered} stuck runs, ${prodRecovery.plansRecovered} stuck plans`,
   );
 }
 

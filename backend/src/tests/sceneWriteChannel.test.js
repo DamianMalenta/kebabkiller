@@ -21,6 +21,7 @@ import { applyScreenwriterProposal } from '../ai/screenwriter.js';
 let testDir;
 let projectId;
 let asset;
+let loc;
 let imageId;
 
 beforeEach(() => {
@@ -28,6 +29,7 @@ beforeEach(() => {
   testDir = dir;
   projectId = createProject({ name: 'Kanal Test', description: 'Klimat' }).id;
   asset = createAsset({ type: 'character', name: 'Kebab', descriptionPl: 'Hero' });
+  loc = createAsset({ type: 'location', name: 'Piec', descriptionPl: 'Kuchnia' });
   addAssetImage(asset.id, { path: '/uploads/k.jpg', isPrimary: true });
   imageId = (getAsset(asset.id).images || [])[0]?.id;
 });
@@ -56,20 +58,20 @@ describe('jeden kanał zapisu scen — równoważność wejść', () => {
     // Kanał REST / PUT — snake_case
     const planRest = makePlan('CH-REST');
     replacePlanScenes(planRest.id, [
-      { description_pl: 'Przy piecu', duration_sec: 4, asset_id: asset.id, asset_image_id: imageId },
+      { description_pl: 'Przy piecu', duration_sec: 4, asset_id: asset.id, asset_image_id: imageId, location_asset_id: loc.id },
     ]);
 
     // Kanał Director's Desk — narzędzie upsertScene
     const planDesk = makePlan('CH-DESK');
     setEpisodeWizardStep(planDesk.id, EPISODE_STEPS.STORYBOARD);
     await executeTool('upsertScene', {
-      description_pl: 'Przy piecu', duration_sec: 4, asset_id: asset.id, asset_image_id: imageId,
+      description_pl: 'Przy piecu', duration_sec: 4, asset_id: asset.id, asset_image_id: imageId, location_asset_id: loc.id,
     }, deskCtx(planDesk.id));
 
     // Kanał Scenarzysta — proposal apply (camelCase mapping)
     const planSw = makePlan('CH-SW');
     applyScreenwriterProposal(planSw.id, {
-      scenes: [{ description_pl: 'Przy piecu', duration_sec: 4, asset_id: asset.id, asset_image_id: imageId }],
+      scenes: [{ description_pl: 'Przy piecu', duration_sec: 4, asset_id: asset.id, asset_image_id: imageId, location_asset_id: loc.id }],
     });
 
     const pick = (id) => {
@@ -93,7 +95,7 @@ describe('jeden kanał zapisu scen — frozen guard na każdym wejściu', () => 
   function acceptedPlan(code) {
     const plan = makePlan(code);
     replacePlanScenes(plan.id, [
-      { description_pl: 'S1', duration_sec: 4, asset_id: asset.id, asset_image_id: imageId },
+      { description_pl: 'S1', duration_sec: 4, asset_id: asset.id, asset_image_id: imageId, location_asset_id: loc.id },
     ]);
     acceptEpisodePlan(plan.id);
     return plan;

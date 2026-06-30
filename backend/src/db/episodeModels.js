@@ -174,6 +174,37 @@ export function deleteAsset(id) {
   return getDb().prepare('DELETE FROM assets WHERE id = ?').run(id).changes > 0;
 }
 
+/** Sceny planu odwołujące się do assetu (postać lub lokacja). */
+export function listAssetSceneReferences(assetId) {
+  return getDb().prepare(`
+    SELECT ps.id AS scene_id, ps.sort_order, ep.id AS episode_plan_id, ep.code AS episode_code
+    FROM plan_scenes ps
+    JOIN episode_plans ep ON ep.id = ps.episode_plan_id
+    WHERE ps.asset_id = ? OR ps.location_asset_id = ?
+    ORDER BY ep.code, ps.sort_order
+  `).all(assetId, assetId);
+}
+
+export function tryDeleteAsset(id) {
+  const refs = listAssetSceneReferences(id);
+  if (refs.length > 0) {
+    return {
+      ok: false,
+      error: 'Asset jest używany w planie odcinka. Najpierw odłącz go od scen lub usuń odcinek.',
+      scenes: refs.map((r) => ({
+        episode_code: r.episode_code,
+        sort_order: r.sort_order,
+        scene_id: r.scene_id,
+      })),
+    };
+  }
+  const deleted = deleteAsset(id);
+  if (!deleted) {
+    return { ok: false, error: 'Asset not found', scenes: [] };
+  }
+  return { ok: true };
+}
+
 export function listAssetImages(assetId) {
   return getDb().prepare(`
     SELECT * FROM asset_images WHERE asset_id = ? ORDER BY is_primary DESC, sort_order, created_at
@@ -522,6 +553,9 @@ export function validateEpisodePlan(episodePlanId) {
     }
     if (!scene.asset_id && !scene.asset_image_id) {
       errors.push(`Scena #${scene.sort_order + 1}: brak przypisanego assetu / zdjęcia.`);
+    }
+    if (!scene.location_asset_id) {
+      errors.push(`Scena #${scene.sort_order + 1}: brak lokacji.`);
     }
     const dur = Number(scene.duration_sec);
     if (!Number.isFinite(dur) || dur < 2 || dur > 10) {

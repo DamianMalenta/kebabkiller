@@ -336,7 +336,25 @@ export function updateProject(id, fields) {
 }
 
 export function deleteProject(id) {
-  return getDb().prepare('DELETE FROM projects WHERE id = ?').run(id).changes > 0;
+  const db = getDb();
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare(`
+      UPDATE video_jobs
+      SET project_id = NULL, episode_id = NULL, updated_at = datetime('now')
+      WHERE project_id = ?
+    `).run(id);
+    const changes = db.prepare('DELETE FROM projects WHERE id = ?').run(id).changes;
+    db.exec('COMMIT');
+    return changes > 0;
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // ignore rollback failure
+    }
+    throw err;
+  }
 }
 
 // --- Episodes ---

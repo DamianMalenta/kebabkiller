@@ -31,7 +31,7 @@ foreach ($svc in $services) {
     Write-Host ("  [{0}] {1,-18} PID {2,-7} {3}" -f 'OK', $svc.Name, $info.Pid, $health) -ForegroundColor Green
     Write-Host "       $($info.Command)"
     if ($info.Command -notmatch 'kebabkiller_studio2') {
-      Write-Host '       [!] Inny projekt na tym porcie — zmien PORT/FRONTEND_PORT w backend/.env' -ForegroundColor Yellow
+      Write-Host '       [!] Inny projekt na tym porcie - zmien PORT/FRONTEND_PORT w backend/.env' -ForegroundColor Yellow
     }
   } else {
     Write-Host ("  [--] {0,-18} wylaczony" -f $svc.Name)

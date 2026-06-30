@@ -2,6 +2,15 @@ import { WEBP_OUTPUT_NODE_ID, WEBM_OUTPUT_NODE_ID } from '../../video/runComfyEn
 
 const BASE = 'https://mock.api.runcomfy.com';
 
+function mockWebmBuffer() {
+  const buf = Buffer.alloc(64, 0);
+  buf[0] = 0x1a;
+  buf[1] = 0x45;
+  buf[2] = 0xdf;
+  buf[3] = 0xa3;
+  return buf;
+}
+
 export function mockRunComfyFetch(jest, mode = 'webm') {
   return jest.fn((url, init) => {
     const urlStr = String(url);
@@ -33,7 +42,13 @@ export function mockRunComfyFetch(jest, mode = 'webm') {
     }
 
     if (urlStr.includes('/result/')) {
-      const outputs = mode === 'webp'
+      const outputs = mode === 'emptyWebm'
+        ? {
+            [WEBM_OUTPUT_NODE_ID]: {
+              images: [{ url: `${BASE}/output.webm`, filename: 'ComfyUI_00001_.webm' }],
+            },
+          }
+        : mode === 'webp'
         ? {
             [WEBP_OUTPUT_NODE_ID]: {
               images: [{ url: `${BASE}/output.webp`, filename: '1199.webp' }],
@@ -55,18 +70,22 @@ export function mockRunComfyFetch(jest, mode = 'webm') {
     }
 
     if (urlStr.includes('output.webm')) {
+      const body = mode === 'emptyWebm' ? Buffer.alloc(0) : mockWebmBuffer();
       return Promise.resolve({
         ok: true,
         headers: { get: () => 'video/webm' },
-        arrayBuffer: () => Promise.resolve(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])),
+        arrayBuffer: () => Promise.resolve(body),
       });
     }
 
     if (urlStr.includes('output.webp')) {
+      const buf = Buffer.alloc(64, 0);
+      buf.write('RIFF', 0);
+      buf.write('WEBP', 8);
       return Promise.resolve({
         ok: true,
         headers: { get: () => 'image/webp' },
-        arrayBuffer: () => Promise.resolve(Buffer.from('RIFFxxxxWEBP')),
+        arrayBuffer: () => Promise.resolve(buf),
       });
     }
 

@@ -19,6 +19,7 @@ import {
 
 function buildAcceptablePlan(code) {
   const asset = createAsset({ type: 'character', name: `Hero-${code}`, descriptionPl: 'Hero' });
+  const loc = createAsset({ type: 'location', name: `Loc-${code}`, descriptionPl: 'Piec' });
   addAssetImage(asset.id, { path: `/uploads/${code}.jpg`, isPrimary: true });
   const imageId = (getAsset(asset.id).images || [])[0]?.id;
   const plan = createEpisodePlan({ code, logline: 'Test fabuła', targetDurationSec: 20 });
@@ -27,8 +28,9 @@ function buildAcceptablePlan(code) {
     durationSec: 4,
     assetId: asset.id,
     assetImageId: imageId,
+    locationAssetId: loc.id,
   })));
-  return { plan, asset, imageId };
+  return { plan, asset, loc, imageId };
 }
 
 let dbPath;
@@ -53,6 +55,7 @@ describe('episode plan validation', () => {
 
   test('accepts valid plan with assigned assets', () => {
     const asset = createAsset({ type: 'character', name: 'Kebab', descriptionPl: 'Hero' });
+    const loc = createAsset({ type: 'location', name: 'Piec', descriptionPl: 'Kuchnia' });
     addAssetImage(asset.id, { path: '/uploads/test.jpg', isPrimary: true });
     const images = getAsset(asset.id).images || [];
     const plan = createEpisodePlan({
@@ -66,30 +69,35 @@ describe('episode plan validation', () => {
         durationSec: 4,
         assetId: asset.id,
         assetImageId: images[0]?.id,
+        locationAssetId: loc.id,
       },
       {
         descriptionPl: 'Upada',
         durationSec: 4,
         assetId: asset.id,
         assetImageId: images[0]?.id,
+        locationAssetId: loc.id,
       },
       {
         descriptionPl: 'Leży',
         durationSec: 4,
         assetId: asset.id,
         assetImageId: images[0]?.id,
+        locationAssetId: loc.id,
       },
       {
         descriptionPl: 'Wstaje',
         durationSec: 4,
         assetId: asset.id,
         assetImageId: images[0]?.id,
+        locationAssetId: loc.id,
       },
       {
         descriptionPl: 'Koniec',
         durationSec: 4,
         assetId: asset.id,
         assetImageId: images[0]?.id,
+        locationAssetId: loc.id,
       },
     ]);
 
@@ -102,6 +110,7 @@ describe('episode plan validation', () => {
 
   test('replacePlanScenes accepts snake_case fields from frontend API', () => {
     const asset = createAsset({ type: 'character', name: 'KebabSnake', descriptionPl: 'Hero' });
+    const loc = createAsset({ type: 'location', name: 'PiecSnake', descriptionPl: 'Kuchnia' });
     addAssetImage(asset.id, { path: '/uploads/snake.jpg', isPrimary: true });
     const images = getAsset(asset.id).images || [];
     const plan = createEpisodePlan({
@@ -116,30 +125,35 @@ describe('episode plan validation', () => {
         duration_sec: 4,
         asset_id: asset.id,
         asset_image_id: images[0]?.id,
+        location_asset_id: loc.id,
       },
       {
         description_pl: 'Upada',
         duration_sec: 4,
         asset_id: asset.id,
         asset_image_id: images[0]?.id,
+        location_asset_id: loc.id,
       },
       {
         description_pl: 'Leży',
         duration_sec: 4,
         asset_id: asset.id,
         asset_image_id: images[0]?.id,
+        location_asset_id: loc.id,
       },
       {
         description_pl: 'Wstaje',
         duration_sec: 4,
         asset_id: asset.id,
         asset_image_id: images[0]?.id,
+        location_asset_id: loc.id,
       },
       {
         description_pl: 'Koniec',
         duration_sec: 4,
         asset_id: asset.id,
         asset_image_id: images[0]?.id,
+        location_asset_id: loc.id,
       },
     ]);
 

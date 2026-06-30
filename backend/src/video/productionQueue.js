@@ -412,7 +412,9 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
   enterTenant(tenantId);
   const existingRun = getProductionRun(productionRunId);
   if (!existingRun) throw new Error('Production run not found');
-  if (existingRun.status !== 'partial') throw new Error('Only partial runs can be resumed');
+  if (existingRun.status !== 'partial' && existingRun.status !== 'failed') {
+    throw new Error('Resume dostępne tylko dla runów partial lub failed.');
+  }
   
   const plan = getEpisodePlan(existingRun.episode_plan_id);
   if (!plan) throw new Error('Plan odcinka nie istnieje.');

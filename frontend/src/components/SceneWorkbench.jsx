@@ -23,6 +23,7 @@ const TABS = [
 
 export default function SceneWorkbench({
   planId,
+  planStatus = null,
   scenes = [],
   selectedSceneId,
   onSceneChange,
@@ -128,6 +129,7 @@ export default function SceneWorkbench({
               characterAssets={characterAssets}
               locationAssets={locationAssets}
               planId={planId}
+              planStatus={planStatus}
               sceneId={selectedSceneId}
               scene={selectedScene}
               onSaved={onSceneSaved}

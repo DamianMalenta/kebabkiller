@@ -71,6 +71,8 @@ npm run dev
 - UI: http://localhost:5174  
 - API: http://localhost:4005/api/health (`PORT` + `FRONTEND_PORT` w `backend/.env`; domyślnie **4005/5174**). Macius/Symbiont: **8787/4001/5173** — osobny stack.
 
+**Tor twórcy (V2):** [Katalog](/catalog) → assety → [Reżyseria](/desk) → plan odcinka → **Gotowość planu** → **Produkcja** (RunComfy) → pobierz WEBM w panelu.
+
 Klucze: `GROQ_API_KEY` (Reżyser), `RUNCOMFY_*` + `VIDEO_ENGINE=runcomfy` (generator).
 
 ---

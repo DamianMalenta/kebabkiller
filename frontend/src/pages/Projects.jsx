@@ -119,7 +119,7 @@ export default function Projects() {
       <header>
         <h1 className="text-3xl font-bold">Panel Sterowania Seriali</h1>
         <p className="mt-2 text-zinc-400">
-          Projekty, Style Bible i odcinki — bez Postmana. Pamięć serialowa rośnie po zatwierdzeniu kanonu na Dashboardzie.
+          Projekty, Style Bible i odcinki. Pamięć serialowa rośnie po zatwierdzeniu kanonu w Stole Reżyserskim.
         </p>
       </header>
 
@@ -196,24 +196,52 @@ export default function Projects() {
             {!isCreatingNew && selectedProject && episodes.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-lg font-bold text-zinc-300 mb-4">Lista Odcinków</h3>
+                {episodes.some((e) => e.status === 'w_produkcji') && (
+                  <p className="mb-3 rounded-lg border border-amber-800/50 bg-amber-950/30 px-3 py-2 text-sm text-amber-200">
+                    Ostrzeżenie: odcinek w produkcji — jeśli utknął, otwórz Reżyserię i użyj panelu Produkcja (Resume).
+                  </p>
+                )}
+                {episodes.filter((e) => !(e.scenes?.length)).length > 0 && (
+                  <p className="mb-3 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-400">
+                    Niektóre odcinki mają 0 scen — usuń duplikaty lub dokończ plan w Reżyserii.
+                  </p>
+                )}
                 <div className="grid gap-3">
-                  {episodes.map(ep => (
-                    <button
+                  {episodes.map((ep) => (
+                    <div
                       key={ep.id}
-                      onClick={() => navigate(`/desk/${selectedProject.id}?episode=${ep.id}`)}
-                      className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-left transition hover:border-amber-700/50 hover:bg-zinc-800"
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4"
                     >
-                      <div>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/desk/${selectedProject.id}?episode=${ep.id}`)}
+                        className="min-w-0 flex-1 text-left transition hover:opacity-90"
+                      >
                         <p className="font-bold text-amber-500">{ep.code}</p>
                         <p className="text-sm text-zinc-300">{ep.title || 'Szkic'}</p>
-                      </div>
-                      <div className="text-right">
+                        <p className="text-xs text-zinc-500">{ep.scenes?.length ?? 0} scen</p>
+                      </button>
+                      <div className="flex items-center gap-2">
                         <span className="inline-block rounded-full bg-zinc-800 px-2.5 py-1 text-xs text-zinc-400">
                           {ep.status}
                         </span>
-                        <p className="mt-1 text-xs text-zinc-500">Otwórz w Stole Reżyserskim →</p>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!window.confirm(`Usunąć odcinek ${ep.code}?`)) return;
+                            try {
+                              await api.episodePlans.delete(ep.id);
+                              await refreshProject(selectedProject.id);
+                            } catch (err) {
+                              setError(err.message);
+                            }
+                          }}
+                          className="rounded-lg border border-red-900 px-2 py-1 text-xs text-red-400 hover:bg-red-950"
+                        >
+                          Usuń
+                        </button>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>

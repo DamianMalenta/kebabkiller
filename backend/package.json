@@ -9,11 +9,15 @@
   "scripts": {
     "dev": "node --use-system-ca --experimental-sqlite --watch src/index.js",
     "start": "node --use-system-ca --experimental-sqlite src/index.js",
-    "check:tenant": "node scripts/checkTenantScope.mjs",
+    "cleanup:studio-health": "node --experimental-sqlite scripts/studio-health-cleanup.mjs",
+    "smoke:runcomfy": "node --use-system-ca --experimental-sqlite scripts/runcomfy-smoke.mjs",
+    "audit:runcomfy": "node --use-system-ca --experimental-sqlite scripts/audit-runcomfy.mjs",
+    "probe:runcomfy": "node --use-system-ca scripts/probe-runcomfy-deployment.mjs",
     "pretest": "node scripts/checkTenantScope.mjs",
     "test": "node --experimental-sqlite --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --forceExit"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -26,6 +30,7 @@
   "devDependencies": {
     "@jest/globals": "^30.4.1",
     "jest": "^30.4.2",
-    "jest-fetch-mock": "^3.0.3"
+    "jest-fetch-mock": "^3.0.3",
+    "supertest": "^7.2.2"
   }
 }

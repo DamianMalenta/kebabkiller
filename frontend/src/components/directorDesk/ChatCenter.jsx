@@ -22,6 +22,7 @@ export default function ChatCenter({
   suggestions = [],
   onSend,
   onConfirm,
+  onProductionStarted,
   loading,
 }) {
   const [input, setInput] = useState('');
@@ -71,6 +72,7 @@ export default function ChatCenter({
                 {renderChatWidget(widget, {
                   onConfirm: () => onConfirm?.(widget.props),
                   onReject: () => {},
+                  onProductionStarted,
                 })}
               </div>
             ))}

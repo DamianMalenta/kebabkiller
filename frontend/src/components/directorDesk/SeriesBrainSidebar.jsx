@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 export default function SeriesBrainSidebar({ brain, collapsed, onToggle, onRemoveTag }) {
   if (!brain) {
     return (
@@ -77,6 +79,13 @@ export default function SeriesBrainSidebar({ brain, collapsed, onToggle, onRemov
               </p>
             </section>
           )}
+
+          <Link
+            to="/catalog"
+            className="block rounded-lg border border-zinc-700 px-3 py-2 text-center text-xs text-amber-300 hover:bg-zinc-900"
+          >
+            + Dodaj asset w Katalogu
+          </Link>
         </div>
       )}
     </aside>

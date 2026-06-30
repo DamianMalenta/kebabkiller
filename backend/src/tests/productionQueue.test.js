@@ -34,16 +34,17 @@ afterEach(() => {
 describe('productionQueue', () => {
   test('renders episode package with manifest and clips', async () => {
     const char = createAsset({ type: 'character', name: 'Hero', descriptionPl: 'Kebab', canonEn: 'Wrap' });
+    const loc = createAsset({ type: 'location', name: 'Piec', descriptionPl: 'Kuchnia', canonEn: 'Oven' });
     addAssetImage(char.id, { path: '/uploads/h.jpg', isPrimary: true });
     const asset = getAsset(char.id);
 
     const plan = createEpisodePlan({ code: 'E03', title: 'Test', logline: 'Smoke', targetDurationSec: 20 });
     replacePlanScenes(plan.id, [
-      { descriptionPl: 'Scena A', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
-      { descriptionPl: 'Scena B', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
-      { descriptionPl: 'Scena C', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
-      { descriptionPl: 'Scena D', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
-      { descriptionPl: 'Scena E', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
+      { descriptionPl: 'Scena A', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id, locationAssetId: loc.id },
+      { descriptionPl: 'Scena B', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id, locationAssetId: loc.id },
+      { descriptionPl: 'Scena C', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id, locationAssetId: loc.id },
+      { descriptionPl: 'Scena D', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id, locationAssetId: loc.id },
+      { descriptionPl: 'Scena E', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id, locationAssetId: loc.id },
     ]);
     acceptEpisodePlan(plan.id);
 
@@ -68,14 +69,15 @@ describe('productionQueue', () => {
 
   test('partial clip failure resets plan to zaakceptowany for retry', async () => {
     const char = createAsset({ type: 'character', name: 'FailHero', descriptionPl: 'Kebab', canonEn: 'Wrap' });
+    const loc = createAsset({ type: 'location', name: 'FailPiec', descriptionPl: 'Kuchnia', canonEn: 'Oven' });
     addAssetImage(char.id, { path: '/uploads/h2.jpg', isPrimary: true });
     const asset = getAsset(char.id);
 
     const plan = createEpisodePlan({ code: 'E04', title: 'Partial', logline: 'Fail mid-run', targetDurationSec: 12 });
     replacePlanScenes(plan.id, [
-      { descriptionPl: 'Scena A', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
-      { descriptionPl: 'Scena B', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
-      { descriptionPl: 'Scena C', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id },
+      { descriptionPl: 'Scena A', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id, locationAssetId: loc.id },
+      { descriptionPl: 'Scena B', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id, locationAssetId: loc.id },
+      { descriptionPl: 'Scena C', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id, locationAssetId: loc.id },
     ]);
     acceptEpisodePlan(plan.id);
 

@@ -314,6 +314,16 @@ export async function handleDirectorMessage({
     inWizard: mode !== 'free',
   });
 
+  // W trybie odcinka długie polecenia fabularne nie powinny kończyć w brainstormie.
+  if (
+    routed.intent === INTENTS.CREATIVE_BRAINSTORM
+    && mode === 'episode'
+    && message.trim().length >= 40
+    && !/^(co|dlaczego|jak|gdzie|kiedy|czemu)\b/i.test(message.trim())
+  ) {
+    routed.intent = INTENTS.PROJECT_COMMAND;
+  }
+
   let response;
   if (routed.intent === INTENTS.CREATIVE_BRAINSTORM) {
     let threadId = sideThreadId;

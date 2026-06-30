@@ -45,6 +45,7 @@ describe('productionDirector', () => {
 
   test('buildSceneDirectorPlan applies I2V_PRODUCTION and clip code format', async () => {
     const char = createAsset({ type: 'character', name: 'Kebab2', descriptionPl: 'Hero', canonEn: 'Dürüm wrap tiny legs' });
+    const loc = createAsset({ type: 'location', name: 'Piec2', descriptionPl: 'Kuchnia', canonEn: 'Brick oven' });
     addAssetImage(char.id, { path: '/uploads/char.jpg', isPrimary: true });
     const asset = getAsset(char.id);
 
@@ -55,30 +56,35 @@ describe('productionDirector', () => {
         durationSec: 4,
         assetId: char.id,
         assetImageId: asset.images[0].id,
+        locationAssetId: loc.id,
       },
       {
         descriptionPl: 'Kebabkiller upada',
         durationSec: 4,
         assetId: char.id,
         assetImageId: asset.images[0].id,
+        locationAssetId: loc.id,
       },
       {
         descriptionPl: 'Kebabkiller leży',
         durationSec: 4,
         assetId: char.id,
         assetImageId: asset.images[0].id,
+        locationAssetId: loc.id,
       },
       {
         descriptionPl: 'Koniec',
         durationSec: 4,
         assetId: char.id,
         assetImageId: asset.images[0].id,
+        locationAssetId: loc.id,
       },
       {
         descriptionPl: 'Finał',
         durationSec: 4,
         assetId: char.id,
         assetImageId: asset.images[0].id,
+        locationAssetId: loc.id,
       },
     ]);
     acceptEpisodePlan(plan.id);

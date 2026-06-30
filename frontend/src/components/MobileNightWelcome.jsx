@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { useDayPhase, useIsCoarsePointer } from '../hooks/useMobile.js';
 
 const STATUS_HINTS = {
@@ -120,12 +120,9 @@ export default function MobileCompanionPanel({ episodes, onNewEpisode, creating 
   );
 }
 
-export function MobileQuickNav({ onNewEpisode }) {
+export function MobileQuickNav() {
   const mobile = useIsCoarsePointer();
-  const location = useLocation();
   if (!mobile) return null;
-
-  const onEpisode = location.pathname.startsWith('/episodes/');
 
   return (
     <nav
@@ -133,30 +130,22 @@ export function MobileQuickNav({ onNewEpisode }) {
       aria-label="Szybka nawigacja"
     >
       <div className="mx-auto flex max-w-lg items-stretch justify-around gap-0.5">
-        <QuickNavLink to="/" label="Start" />
+        <QuickNavLink to="/projects" label="Seriale" />
         <QuickNavLink to="/catalog" label="Katalog" />
-        <button
-          type="button"
-          onClick={onNewEpisode}
-          className="flex min-h-[48px] flex-col items-center justify-center rounded-xl bg-amber-500 px-3 text-xs font-bold text-zinc-950 active:scale-95"
-        >
-          + Plan
-        </button>
-        <QuickNavLink to={onEpisode ? location.pathname : '/'} label={onEpisode ? 'Plan' : 'Odcinki'} activeOverride={onEpisode} />
+        <QuickNavLink to="/desk" label="Reżyseria" />
         <QuickNavLink to="/settings" label="Wiedza" />
       </div>
     </nav>
   );
 }
 
-function QuickNavLink({ to, label, activeOverride }) {
+function QuickNavLink({ to, label }) {
   return (
     <NavLink
       to={to}
-      end={to === '/'}
       className={({ isActive }) =>
         `flex min-h-[48px] min-w-[56px] flex-col items-center justify-center rounded-xl px-2 text-xs font-medium transition active:scale-95 ${
-          activeOverride || isActive ? 'text-amber-400' : 'text-zinc-500'
+          isActive ? 'text-amber-400' : 'text-zinc-500'
         }`
       }
     >

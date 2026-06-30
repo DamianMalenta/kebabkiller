@@ -98,7 +98,7 @@ export default function Catalog() {
         <p>
           Plan odcinka przypisuje do scen <strong className="text-zinc-300">postacie</strong> i{' '}
           <strong className="text-zinc-300">lokacje</strong> z tego katalogu. Każdy asset potrzebuje co najmniej jednego zdjęcia (JPG/PNG).
-          Po dodaniu wróć na <Link to="/" className="text-amber-400 hover:underline">Dashboard</Link> → Nowy odcinek.
+          Po dodaniu wróć do <Link to="/desk" className="text-amber-400 hover:underline">Reżyserii</Link> lub utwórz projekt w <Link to="/projects" className="text-amber-400 hover:underline">Serialach</Link>.
         </p>
       </StepGuide>
 

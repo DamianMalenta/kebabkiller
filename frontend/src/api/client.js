@@ -116,7 +116,24 @@ export const api = {
 
   episodePlans: {
     get: (id) => request(`/episode-plans/${id}`),
+    validate: (id) => request(`/episode-plans/${id}/validate`),
+    accept: (id, { startProduction = false } = {}) =>
+      request(`/episode-plans/${id}/accept`, {
+        method: 'POST',
+        body: JSON.stringify({ start_production: startProduction }),
+      }),
+    produce: (id) =>
+      request(`/episode-plans/${id}/produce`, { method: 'POST' }),
     production: (id) => request(`/episode-plans/${id}/production`),
+    getProductionRun: (runId) => request(`/production-runs/${runId}`),
+    resumeProduction: (runId) =>
+      request(`/production-runs/${runId}/resume`, { method: 'POST' }),
+    assist: (id, { message, apply = false }) =>
+      request(`/episode-plans/${id}/assist`, {
+        method: 'POST',
+        body: JSON.stringify({ message, apply }),
+      }),
+    delete: (id) => request(`/episode-plans/${id}`, { method: 'DELETE' }),
     attachSceneAssets: (planId, sceneId, body) =>
       request(`/episode-plans/${planId}/scenes/${sceneId}/assets`, {
         method: 'PUT',
@@ -161,13 +178,17 @@ export const api = {
       }),
   },
 
+  /** @deprecated Use directorDesk chat + episodePlans API instead */
   director: {
+    /** @deprecated */
     preview: (body) => request('/director/preview', { method: 'POST', body: JSON.stringify(body) }),
+    /** @deprecated */
     suggest: (body) => request('/director/suggest', { method: 'POST', body: JSON.stringify(body) }),
     projectContext: (projectId, episodeId) => {
       const q = episodeId ? `?episode_id=${encodeURIComponent(episodeId)}` : '';
       return request(`/projects/${projectId}/director-context${q}`);
     },
+    /** @deprecated Use episodePlans.get */
     episodeContext: (episodeId) => request(`/episodes/${episodeId}/director-context`),
   },
 
@@ -177,7 +198,7 @@ export const api = {
     create: (body) => request('/projects', { method: 'POST', body: JSON.stringify(body) }),
     update: (id, body) => request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
-    episodes: (projectId) => request(`/projects/${projectId}/episodes`),
+    episodes: (projectId) => request(`/projects/${projectId}/episode-plans`),
   },
 
   episodes: {
@@ -186,6 +207,7 @@ export const api = {
     delete: (id) => request(`/episodes/${id}`, { method: 'DELETE' }),
   },
 
+  /** @deprecated Legacy job queue — use episodePlans.produce + ProductionPanel */
   jobs: {
     list: () => request('/jobs'),
     get: (id) => request(`/jobs/${id}`),

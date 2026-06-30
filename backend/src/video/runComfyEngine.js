@@ -44,6 +44,11 @@ function formatRunComfyError(errorPayload) {
   return errorPayload.message || JSON.stringify(errorPayload);
 }
 
+export function parseRunComfyDeploymentId(endpoint) {
+  const match = String(endpoint || '').match(/\/deployments\/([^/]+)/i);
+  return match ? match[1] : null;
+}
+
 /** RunComfy uses US/UK spellings and intermediate cancel states — normalize before branching. */
 export function normalizeRunComfyStatus(status) {
   return String(status || '').trim().toLowerCase().replace(/-/g, '_');
@@ -90,6 +95,15 @@ export function runComfyPollStatusMessage(status, attempts, elapsedMs) {
   return `${phase} · poll #${attempts} · ${elapsedMin} min · ${status}`;
 }
 
+export function isVideoLikeMediaEntry(entry) {
+  const filename = (entry?.filename || '').toLowerCase();
+  const url = (entry?.url || '').toLowerCase();
+  return filename.endsWith('.webm')
+    || filename.endsWith('.mp4')
+    || url.includes('.webm')
+    || url.includes('.mp4');
+}
+
 function collectMediaCandidates(outputs) {
   const videoCandidates = [];
   const imageCandidates = [];
@@ -99,11 +113,42 @@ function collectMediaCandidates(outputs) {
       if (entry?.url) videoCandidates.push({ ...entry, nodeId, kind: 'video' });
     }
     for (const entry of nodeOutput?.images || []) {
-      if (entry?.url) imageCandidates.push({ ...entry, nodeId, kind: 'image' });
+      if (!entry?.url) continue;
+      if (isVideoLikeMediaEntry(entry)) {
+        videoCandidates.push({ ...entry, nodeId, kind: 'video' });
+      } else {
+        imageCandidates.push({ ...entry, nodeId, kind: 'image' });
+      }
     }
   }
 
   return { videoCandidates, imageCandidates };
+}
+
+const MIN_MEDIA_BYTES = 32;
+
+/** Validates downloaded media — rejects empty/corrupt WEBM (SaveWEBM race on RunComfy CDN). */
+export function validateMediaBuffer(buffer, ext) {
+  if (!buffer?.length) {
+    return { ok: false, reason: 'empty file (0 bytes)' };
+  }
+  if (buffer.length < MIN_MEDIA_BYTES) {
+    return { ok: false, reason: `file too small (${buffer.length} B)` };
+  }
+  if (ext === '.webm') {
+    const webmMagic = buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3;
+    if (!webmMagic) {
+      return { ok: false, reason: 'invalid WEBM header (expected EBML magic 0x1A45DFA3)' };
+    }
+  }
+  if (ext === '.webp' && buffer.length >= 12) {
+    const riff = buffer.toString('ascii', 0, 4);
+    const webp = buffer.toString('ascii', 8, 12);
+    if (riff !== 'RIFF' || webp !== 'WEBP') {
+      return { ok: false, reason: 'invalid WEBP header' };
+    }
+  }
+  return { ok: true };
 }
 
 /**
@@ -131,6 +176,14 @@ export function pickRunComfyMedia(outputs) {
       `Nodes w odpowiedzi API: ${nodeIds}. W deployment RunComfy włącz output z SaveWEBM (node 52).`,
     );
     return node51;
+  }
+
+  const webmInImages = imageCandidates.find((c) => isVideoLikeMediaEntry(c));
+  if (webmInImages) {
+    console.warn(
+      `[RunComfyEngine] WEBM w tablicy images (node ${webmInImages.nodeId}) — traktuję jako wideo.`,
+    );
+    return { ...webmInImages, kind: 'video' };
   }
 
   if (imageCandidates[0]) {
@@ -177,8 +230,9 @@ function resolveLoadImageInput(processedAssets, directorJson) {
 }
 
 /**
- * Builds a full ComfyUI API workflow for RunComfy dynamic inference.
- * Sends workflow_api_json (not overrides) so node 51 WEBP is omitted — only SaveWEBM (52) runs.
+ * Builds a full ComfyUI API workflow for RunComfy Serverless inference (V2).
+ * Deployment GPU is provisioned by RunComfy from wan_workflow_api.json;
+ * each job sends workflow_api_json (not panel "My Workflows"). Node 51 WEBP omitted — SaveWEBM (52) only.
  * @see https://docs.runcomfy.com/serverless/async-queue-endpoints
  */
 export function buildRunComfyWorkflow(jobId, userPrompt, directorJson, processedAssets) {
@@ -259,9 +313,10 @@ export function createRunComfyEngine(outputDir, config) {
   // Wysłanie głównego JSONa
   async function submitJob(workflow, jobId) {
       const nodeIds = Object.keys(workflow.workflow_api_json || workflow.overrides || {}).join(', ');
+      const deploymentId = parseRunComfyDeploymentId(endpoint) || '?';
       console.log(
-        `[RunComfyEngine] Submitting job ${jobId} to RunComfy` +
-        (workflow.workflow_api_json ? ` (workflow_api_json, nodes: ${nodeIds})` : ' (overrides)'),
+        `[RunComfyEngine] Submitting job ${jobId} → deployment ${deploymentId}` +
+        ` · WAN_LENGTH=${resolveWanRenderParams().length} · nodes: ${nodeIds}`,
       );
       const submitResponse = await fetch(endpoint, {
           method: 'POST',
@@ -316,10 +371,7 @@ export function createRunComfyEngine(outputDir, config) {
       if (isRunComfyFailedStatus(resultData.status)) {
         throw new Error(`RunComfy render failed: ${formatRunComfyError(resultData.error)}`);
       }
-      if (resultData.outputs && pickRunComfyMedia(resultData.outputs)) {
-        return fetchResultUrl;
-      }
-      if (isRunComfySuccessStatus(resultData.status) && resultData.outputs) {
+      if (pickRunComfyMedia(resultData.outputs)) {
         return fetchResultUrl;
       }
     } catch (err) {
@@ -328,6 +380,31 @@ export function createRunComfyEngine(outputDir, config) {
     }
 
     return null;
+  }
+
+  async function waitForResultMedia(fetchResultUrl, authHeaders) {
+    const maxWaitMs = Number(process.env.RUNCOMFY_RESULT_WAIT_MS) || 120_000;
+    const intervalMs = Number(process.env.RUNCOMFY_RESULT_WAIT_INTERVAL_MS) || 3000;
+    const started = Date.now();
+    let attempt = 0;
+
+    while (Date.now() - started < maxWaitMs) {
+      attempt += 1;
+      const readyUrl = await tryFetchReadyResult(fetchResultUrl, authHeaders);
+      if (readyUrl) return readyUrl;
+
+      if (attempt === 1 || attempt % 5 === 0) {
+        console.log(
+          `[RunComfyEngine] Job completed — wynik bez URL wideo, czekam na CDN (próba ${attempt})…`,
+        );
+      }
+      await sleep(intervalMs);
+    }
+
+    throw new Error(
+      'RunComfy zakończył job, ale w /result nie ma pobieralnego wideo po oczekiwaniu na CDN. ' +
+      'Sprawdź panel RunComfy (SaveWEBM / ffmpeg na deploymentcie).',
+    );
   }
 
   // Pętla pobierająca (Polling Loop)
@@ -374,8 +451,8 @@ export function createRunComfyEngine(outputDir, config) {
           }
 
           if (isRunComfySuccessStatus(status)) {
-            emitProgress(onProgress, 90, 'GPU zakończyło — pobieranie wyniku…');
-            return fetchResultUrl;
+            emitProgress(onProgress, 90, 'GPU zakończyło — czekam na plik wideo…');
+            return waitForResultMedia(fetchResultUrl, authHeaders);
           }
 
           if (normalizeRunComfyStatus(status) === 'in_queue'
@@ -405,7 +482,7 @@ export function createRunComfyEngine(outputDir, config) {
 
               throw new Error(
                 `RunComfy wygląda na zawieszone (in_progress > ${Math.round(staleAfterMs / 60000)} min, request_id: ${requestId}). ` +
-                'Anuluj job w panelu RunComfy, żeby nie przepalać salda. Sprawdź też lżejszy deployment (ComfyUI-Minimal).',
+                'Anuluj job w panelu RunComfy, żeby nie przepalać salda. Jeśli powtarza się po WAN21 — ticket do RunComfy (nowy deployment z wan_workflow_api.json).',
               );
             }
           } else if (status) {
@@ -430,6 +507,36 @@ export function createRunComfyEngine(outputDir, config) {
       );
   }
 
+  async function fetchMediaBuffer(media) {
+    const retries = Number(process.env.RUNCOMFY_DOWNLOAD_RETRIES) || 8;
+    const retryMs = Number(process.env.RUNCOMFY_DOWNLOAD_RETRY_MS) || 3000;
+    let lastError;
+
+    for (let attempt = 1; attempt <= retries; attempt += 1) {
+      const mediaRes = await fetch(media.url);
+      if (!mediaRes.ok) {
+        lastError = new Error(`Failed to download media (${mediaRes.status}) from ${media.url}`);
+        if (attempt < retries) await sleep(retryMs);
+        continue;
+      }
+
+      const buffer = Buffer.from(await mediaRes.arrayBuffer());
+      const ext = inferMediaExtension(media.url, mediaRes.headers.get('content-type'), buffer);
+      const validation = validateMediaBuffer(buffer, ext);
+      if (validation.ok) {
+        return { buffer, ext };
+      }
+
+      lastError = new Error(
+        `RunComfy media invalid (${validation.reason}, ${buffer.length} B, próba ${attempt}/${retries})`,
+      );
+      console.warn(`[RunComfyEngine] ${lastError.message} — ${media.url}`);
+      if (attempt < retries) await sleep(retryMs);
+    }
+
+    throw lastError ?? new Error('RunComfy media download failed');
+  }
+
   async function downloadVideo(resultUrl, outputDir, jobId) {
       console.log(`[RunComfyEngine] Fetching result from ${resultUrl}`);
       const resultRes = await fetch(resultUrl, { headers: { Authorization: `Bearer ${apiKey}` } });
@@ -441,7 +548,7 @@ export function createRunComfyEngine(outputDir, config) {
 
       const resultData = JSON.parse(resultText);
 
-      if (resultData.status === 'failed') {
+      if (isRunComfyFailedStatus(resultData.status)) {
         throw new Error(`RunComfy render failed: ${formatRunComfyError(resultData.error)}`);
       }
 
@@ -453,13 +560,7 @@ export function createRunComfyEngine(outputDir, config) {
       }
 
       console.log(`[RunComfyEngine] Downloading media (${media.kind}, node ${media.nodeId}): ${media.url}`);
-      const mediaRes = await fetch(media.url);
-      if (!mediaRes.ok) {
-        throw new Error(`Failed to download media (${mediaRes.status}) from ${media.url}`);
-      }
-
-      const buffer = Buffer.from(await mediaRes.arrayBuffer());
-      const ext = inferMediaExtension(media.url, mediaRes.headers.get('content-type'), buffer);
+      const { buffer, ext } = await fetchMediaBuffer(media);
       const outputPath = resolveOutputPath(outputDir, jobId, ext);
       fs.writeFileSync(outputPath, buffer);
       console.log(`[RunComfyEngine] Saved ${buffer.length} bytes → ${outputPath}`);

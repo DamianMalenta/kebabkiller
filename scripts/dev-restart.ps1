@@ -49,4 +49,4 @@ Write-Host "  Frontend: http://127.0.0.1:$frontendPort/"
 Write-Host "  Backend:  http://127.0.0.1:$backendPort/api/health"
 Write-Host ''
 
-& "$PSScriptRoot\dev-status.ps1"
+& (Join-Path $PSScriptRoot 'dev-status.ps1')

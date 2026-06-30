@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import SeriesBrainSidebar from '../components/directorDesk/SeriesBrainSidebar.jsx';
 import ChatCenter from '../components/directorDesk/ChatCenter.jsx';
 import SceneWorkbench from '../components/SceneWorkbench.jsx';
+import PlanReadinessPanel from '../components/directorDesk/PlanReadinessPanel.jsx';
+import ProductionPanel from '../components/directorDesk/ProductionPanel.jsx';
 
 const SUGGESTIONS_BY_STEP = {
   series_start: ['Kebabkiller Poczatki, klimat realistyczny z humorem', 'Zmień nazwę serialu na: '],
@@ -48,6 +50,8 @@ export default function DirectorsDesk() {
   const [episodes, setEpisodes] = useState([]);
   const [allAssets, setAllAssets] = useState([]);
   const [selectedSceneId, setSelectedSceneId] = useState(null);
+  const productionPanelRef = useRef(null);
+  const workbenchRef = useRef(null);
 
   const refresh = useCallback(async () => {
     setError('');
@@ -79,6 +83,14 @@ export default function DirectorsDesk() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (episodePlanId || !episodes.length) return;
+    const drafts = episodes.filter((e) => e.status === 'szkic' || e.status === 'gotowy_do_akceptacji');
+    if (drafts.length === 1) {
+      navigate(`/desk/${projectId}?episode=${drafts[0].id}`, { replace: true });
+    }
+  }, [episodePlanId, episodes, navigate, projectId]);
 
   useEffect(() => {
     api.assets.list().then(setAllAssets).catch(() => setAllAssets([]));
@@ -137,6 +149,7 @@ export default function DirectorsDesk() {
       if (newEpisodeId && newEpisodeId !== episodePlanId) {
         api.projects.episodes(projectId).then(setEpisodes).catch(() => {});
         navigate(`/desk/${projectId}?episode=${newEpisodeId}`);
+        setTimeout(() => workbenchRef.current?.scrollIntoView({ behavior: 'smooth' }), 300);
         return;
       }
 
@@ -149,6 +162,9 @@ export default function DirectorsDesk() {
       setSending(false);
     }
   }
+
+  const planStatus = state?.brain?.episode?.status || null;
+  const episodeLogline = state?.brain?.episode?.logline || '';
 
   if (loading && !state) {
     return <p className="text-zinc-400">Ładowanie stołu reżyserskiego…</p>;
@@ -193,9 +209,39 @@ export default function DirectorsDesk() {
         <p className="mb-4 rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-2 text-sm text-red-300">{error}</p>
       )}
 
+      {!episodePlanId && episodes.length > 1 && (
+        <p className="mb-4 rounded-lg border border-amber-800/40 bg-amber-950/20 px-4 py-2 text-sm text-amber-200">
+          Wybierz odcinek w nagłówku, aby edytować sceny i uruchomić produkcję.
+        </p>
+      )}
+
       {episodePlanId && (
+        <>
+          <PlanReadinessPanel
+            episodePlanId={episodePlanId}
+            planStatus={planStatus}
+            logline={episodeLogline}
+            scenes={episodeScenes}
+            onAccepted={() => refreshBrain()}
+            onProductionStarted={() => {
+              refreshBrain();
+              productionPanelRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          />
+          <ProductionPanel
+            episodePlanId={episodePlanId}
+            planStatus={planStatus}
+            onRefresh={() => refreshBrain()}
+            scrollRef={productionPanelRef}
+          />
+        </>
+      )}
+
+      {episodePlanId && (
+        <div ref={workbenchRef}>
         <SceneWorkbench
           planId={episodePlanId}
+          planStatus={planStatus}
           scenes={episodeScenes}
           selectedSceneId={selectedSceneId}
           onSceneChange={setSelectedSceneId}
@@ -205,6 +251,7 @@ export default function DirectorsDesk() {
           wizardStep={state?.wizard?.step}
           onSceneSaved={refreshBrain}
         />
+        </div>
       )}
 
       <div className="director-desk-grid">
@@ -220,6 +267,10 @@ export default function DirectorsDesk() {
             suggestions={suggestions}
             onSend={handleSend}
             onConfirm={(props) => handleSend('Akceptuję zmianę', { summary: props.summary, action: props.action })}
+            onProductionStarted={() => {
+              productionPanelRef.current?.scrollIntoView({ behavior: 'smooth' });
+              refreshBrain();
+            }}
             loading={sending}
           />
         </div>

@@ -30,6 +30,23 @@ const COMMAND_PATTERNS = [
   /\bcofnij\b/i,
   /\bundo\b/i,
   /\bakceptuję\b/i,
+  /\bstwórz odcinek\b/i,
+  /\bnowy odcinek\b/i,
+  /\bzrób scen/i,
+  /\bodcinek w stylu\b/i,
+  /\bwypiek\b/i,
+  /\bw piecu\b/i,
+];
+
+const FABULAR_PATTERNS = [
+  /\bscena\b/i,
+  /\bkebab/i,
+  /\bpiec\b/i,
+  /\błopat/i,
+  /\bnóżk/i,
+  /\bujęci/i,
+  /\bkamera\b/i,
+  /\bthriller\b/i,
 ];
 
 const WIZARD_PATTERNS = [
@@ -56,6 +73,10 @@ export function classifyIntentHeuristic(message, { wizardMode, inWizard } = {}) 
   }
 
   if (COMMAND_PATTERNS.some((re) => re.test(text))) {
+    return INTENTS.PROJECT_COMMAND;
+  }
+
+  if (text.length >= 80 && FABULAR_PATTERNS.some((re) => re.test(text))) {
     return INTENTS.PROJECT_COMMAND;
   }
 

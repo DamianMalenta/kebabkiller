@@ -11,11 +11,11 @@ import {
   normalizeRunComfyStatus,
   pickRunComfyMedia,
   runComfyPollProgressPercent,
-  WAN_QUALITY,
+  validateMediaBuffer,
   WEBM_OUTPUT_NODE_ID,
   WEBP_OUTPUT_NODE_ID,
 } from '../video/runComfyEngine.js';
-import { deterministicSeed } from '../video/wanConfig.js';
+import { deterministicSeed, resolveWanRenderParams } from '../video/wanConfig.js';
 import { mockRunComfyFetch } from './helpers/runComfyFetchMock.js';
 
 const RUNCOMFY_CONFIG = {
@@ -56,6 +56,7 @@ describe('RunComfy status helpers', () => {
 
 describe('buildRunComfyWorkflow', () => {
   test('submits workflow_api_json without node 51 and with WAN_QUALITY params', () => {
+    const wan = resolveWanRenderParams();
     const payload = buildRunComfyWorkflow('job-1', 'user prompt', {
       positive_prompt: 'director positive',
       negative_prompt: 'director negative',
@@ -67,11 +68,11 @@ describe('buildRunComfyWorkflow', () => {
     expect(payload.workflow_api_json[WEBM_OUTPUT_NODE_ID]?.class_type).toBe('SaveWEBM');
     expect(payload.workflow_api_json['55'].inputs.text).toBe('director positive');
     expect(payload.workflow_api_json['53'].inputs.text).toBe('director negative');
-    expect(payload.workflow_api_json['54'].inputs.width).toBe(WAN_QUALITY.width);
-    expect(payload.workflow_api_json['54'].inputs.height).toBe(WAN_QUALITY.height);
-    expect(payload.workflow_api_json['54'].inputs.length).toBe(WAN_QUALITY.length);
-    expect(payload.workflow_api_json['56'].inputs.steps).toBe(WAN_QUALITY.steps);
-    expect(payload.workflow_api_json['56'].inputs.denoise).toBe(WAN_QUALITY.denoise);
+    expect(payload.workflow_api_json['54'].inputs.width).toBe(wan.width);
+    expect(payload.workflow_api_json['54'].inputs.height).toBe(wan.height);
+    expect(payload.workflow_api_json['54'].inputs.length).toBe(wan.length);
+    expect(payload.workflow_api_json['56'].inputs.steps).toBe(wan.steps);
+    expect(payload.workflow_api_json['56'].inputs.denoise).toBe(wan.denoise);
     expect(typeof payload.workflow_api_json['56'].inputs.seed).toBe('number');
   });
 
@@ -151,8 +152,34 @@ describe('pickRunComfyMedia', () => {
     warn.mockRestore();
   });
 
+  test('picks node 52 WEBM listed under images (RunComfy API quirk)', () => {
+    const media = pickRunComfyMedia({
+      [WEBM_OUTPUT_NODE_ID]: {
+        images: [{ url: 'https://x/ComfyUI_00001_.webm', filename: 'ComfyUI_00001_.webm' }],
+      },
+    });
+    expect(media.nodeId).toBe(WEBM_OUTPUT_NODE_ID);
+    expect(media.kind).toBe('video');
+  });
+
   test('returns null when outputs are empty', () => {
     expect(pickRunComfyMedia({})).toBeNull();
+  });
+});
+
+describe('validateMediaBuffer', () => {
+  test('rejects empty and tiny WEBM', () => {
+    expect(validateMediaBuffer(Buffer.alloc(0), '.webm').ok).toBe(false);
+    expect(validateMediaBuffer(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), '.webm').ok).toBe(false);
+  });
+
+  test('accepts WEBM with EBML magic and minimum size', () => {
+    const buf = Buffer.alloc(64, 0);
+    buf[0] = 0x1a;
+    buf[1] = 0x45;
+    buf[2] = 0xdf;
+    buf[3] = 0xa3;
+    expect(validateMediaBuffer(buf, '.webm').ok).toBe(true);
   });
 });
 
@@ -283,6 +310,29 @@ describe('createRunComfyEngine.render', () => {
     expect(fs.existsSync(result.outputPath)).toBe(true);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  test('rejects empty WEBM from RunComfy CDN after retries', async () => {
+    jest.useRealTimers();
+    process.env.RUNCOMFY_DOWNLOAD_RETRIES = '2';
+    process.env.RUNCOMFY_DOWNLOAD_RETRY_MS = '1';
+    global.fetch = mockRunComfyFetch(jest, 'emptyWebm');
+    const engine = createRunComfyEngine(outputDir, engineConfig());
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(engine.render({
+      jobId: 'job-empty-webm',
+      userPrompt: 'test',
+      directorJson: renderDirectorJson(),
+      renderStrategy: 'native_i2v',
+      onProgress: jest.fn(),
+    })).rejects.toThrow(/invalid|empty|too small/i);
+
+    delete process.env.RUNCOMFY_DOWNLOAD_RETRIES;
+    delete process.env.RUNCOMFY_DOWNLOAD_RETRY_MS;
+    errorSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   test('throws when RunComfy submit returns HTTP 500', async () => {

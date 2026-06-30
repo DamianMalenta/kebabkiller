@@ -276,7 +276,9 @@ export function getWizardContext(projectId, episodePlanId) {
     logline: episode?.logline,
     sceneCount: episode?.scenes?.length ?? 0,
     assetsReady: episode && episode.scenes.length > 0
-      ? episode.scenes.every((s) => s.description_pl?.trim() && (s.asset_id || s.asset_image_id))
+      ? episode.scenes.every((s) =>
+        s.description_pl?.trim() && s.asset_id && s.location_asset_id,
+      )
       : false,
     storyboardApproved: episode?.status && FROZEN_PLAN_STATUSES.has(episode.status),
   };

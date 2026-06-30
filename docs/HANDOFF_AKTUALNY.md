@@ -1,6 +1,6 @@
 # HANDOFF AKTUALNY — stan na teraz
 
-**Ostatnia aktualizacja:** 2026-06-26 (audyt docs — PR #20–#22 Devina: Snapshot SSOT + fixy ciągłości + tenant-scope)
+**Ostatnia aktualizacja:** 2026-06-30 (Tor Twórcy — Wave 0–4: ProductionPanel, PlanReadiness, recovery, jeden Katalog, resume API)
 **Poprzednia sesja właściciela:** #21 (Faza E). Po niej: PR #13–#17, potem PR #20–#22 (ciągłość / snapshot).
 
 ---
@@ -30,7 +30,8 @@ Nie dotykać `gema-0`.
 - **Faza E** ✅ (sesja #21): AI-Inżynier MVP — osobny moduł `backend/src/ai/systemAgent/` + `/api/system-agent/*` (bramka tokenem `SYSTEM_AGENT_TOKEN`), pętla diagnoza read-only → propose → apply (checkpoint git + bramka testów + auto-rollback) → [Cofnij] + Dziennik Napraw, panel UI „AI-Inżynier". Render-path NIETKNIĘTY.
 - **Devin PRs #13–#16** (cross-cutting): refactor shared utils (`backend/src/utils/`), security hardening (helmet, rate limiting, path traversal), error handling, +90 unit testów.
 - **Devin PRs #20–#22** (ciągłość): `scene_snapshots` + `snapshotStore.freezeSnapshot` + `validateTakeAgainstSnapshot`; fix superseded snapshot (#21); `resolveResumePoint` po tożsamości sceny (#21); `tenantContext.js` + guard `checkTenantScope.mjs` (#22). Audyt: `SNAPSHOT_CONTINUITY_AUDIT.md`.
-- **Testy:** `npm test --prefix backend` = **237 pass**; `vite build` OK.
+- **Testy:** `npm test --prefix backend` = **239 pass**; `vite build` OK.
+- **Tor Twórcy (Wave 0–4)** ✅: `ProductionPanel`, `PlanReadinessPanel`, `CostGuardBanner`, recovery stuck runs, DELETE asset 409, resume + ZIP export, jeden Katalog, mobile Reżyseria, intent fabuła→plan, walidacja lokacji per scena.
 
 ---
 
@@ -54,9 +55,11 @@ Dopiero po tym ma sens TOR KOD Fazy C-GPU (IP-Adapter + wpięcie composite/osi d
 npm run dev
 npm test --prefix backend
 npm run status:dev
+npm run cleanup:studio-health --prefix backend   # opcjonalnie: smoke/zombie w DB
 ```
 
-- Frontend: http://localhost:5174 · Backend: http://localhost:4005 (`PORT` + `FRONTEND_PORT` w `backend/.env`). Macius: :5173/:4001 — nie koliduje.
+- Frontend: http://localhost:5174 · Backend: http://localhost:4005
+- **Tor twórcy:** Katalog → Reżyseria (`/desk`) → Gotowość planu → Produkcja → WEBM w UI
 
 ---
 

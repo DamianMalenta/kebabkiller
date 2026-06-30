@@ -67,7 +67,7 @@ describe('createGitOps', () => {
 
     ops.restorePaths(['file.txt']);
     expect(ops.isClean(['file.txt'])).toBe(true);
-    expect(fs.readFileSync(path.join(repoRoot, 'file.txt'), 'utf8')).toBe('committed change\n');
+    expect(fs.readFileSync(path.join(repoRoot, 'file.txt'), 'utf8').replace(/\r\n/g, '\n')).toBe('committed change\n');
   });
 
   test('restorePaths with empty array does nothing', () => {

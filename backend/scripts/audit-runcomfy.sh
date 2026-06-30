@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Audyt deploymentu RunComfy bez panelu — ustawienia, workflow, custom node'y.
+# Audyt deploymentu RunComfy — wariant bash (curl + jq + object_info).
+# Windows / pełny audyt lokalny: npm run audit:runcomfy  (Node, bez curl)
 # Użycie:
 #   cd backend && ./scripts/audit-runcomfy.sh
 #   ./scripts/audit-runcomfy.sh --request-id <uuid>   # status / podpowiedź cancel

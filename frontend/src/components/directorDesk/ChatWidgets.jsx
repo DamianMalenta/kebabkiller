@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { api } from '../../api/client.js';
 
 export function SceneCard({ scene }) {
   const layers = scene.layers || scene.collage_hint?.map((path, i) => ({ path, label: `Warstwa ${i + 1}` })) || [];
@@ -95,7 +96,7 @@ export function AssetUploadRequest({ hint, asset_type: assetType }) {
   );
 }
 
-export function ProductionTrigger({ episode_plan_id: episodePlanId, message, onProduce }) {
+export function ProductionTrigger({ episode_plan_id: episodePlanId, message, onProductionStarted }) {
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
 
@@ -103,8 +104,9 @@ export function ProductionTrigger({ episode_plan_id: episodePlanId, message, onP
     setStatus('loading');
     setError('');
     try {
-      await fetch(`/api/episode-plans/${episodePlanId}/produce`, { method: 'POST' });
+      await api.episodePlans.produce(episodePlanId);
       setStatus('success');
+      onProductionStarted?.();
     } catch (err) {
       setError(err.message || 'Błąd uruchamiania produkcji');
       setStatus('error');
@@ -116,11 +118,11 @@ export function ProductionTrigger({ episode_plan_id: episodePlanId, message, onP
       <p className="mb-3 text-sm text-emerald-100">{message}</p>
       {status === 'idle' && (
         <button type="button" onClick={handleProduce} className="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-bold text-zinc-950 shadow-md shadow-emerald-500/20 hover:bg-emerald-400">
-          🚀 Uruchom Produkcję GPU (RunComfy)
+          Uruchom produkcję (RunComfy)
         </button>
       )}
-      {status === 'loading' && <p className="text-xs text-zinc-400">Wysyłanie do RunComfy...</p>}
-      {status === 'success' && <p className="text-xs text-emerald-400 font-bold">✓ Zlecenie w trakcie! Sprawdź terminal lub zakładkę Seriale.</p>}
+      {status === 'loading' && <p className="text-xs text-zinc-400">Wysyłanie do RunComfy…</p>}
+      {status === 'success' && <p className="text-xs text-emerald-400 font-bold">Zlecenie wysłane — status w panelu Produkcja poniżej.</p>}
       {status === 'error' && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );

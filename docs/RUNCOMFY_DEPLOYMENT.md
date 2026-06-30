@@ -2,6 +2,24 @@
 
 **Cel:** uniknąć freeze GPU po `Model WAN21 prepared…` i uzyskać stabilny output WEBM (node 52).
 
+---
+
+## Model integracji — RunComfy Serverless API
+
+Kebabkiller Studio **nie hostuje ComfyUI**. Deployment GPU buduje **zespół RunComfy** na podstawie przesłanego [`wan_workflow_api.json`](../backend/src/video/wan_workflow_api.json). Studio wysyła pełny `workflow_api_json` per job — **My Workflows w panelu nie są wymagane**.
+
+```text
+POST https://api.runcomfy.net/prod/v2/deployments/{deployment_id}/inference
+Authorization: Bearer {RUNCOMFY_API_KEY}
+Body: { "workflow_api_json": { ... } }
+```
+
+Dokumentacja: [RunComfy Serverless — async queue](https://docs.runcomfy.com/serverless/async-queue-endpoints)
+
+Przy problemach freeze po WAN21: ticket do RunComfy + aktualny `wan_workflow_api.json` (opcja `--bundle` poniżej).
+
+---
+
 ## STAN 2026-06-15 (sesja #20) — diagnoza + PROTEZA (nie docelowe rozwiązanie)
 
 > **WAŻNE:** poniższe to stopgap niezgodny z planem („nowy deployment, nie reużywaj starego z Managerem"). Docelowo Faza C-GPU = **nowy lekki deployment ComfyUI-Minimal** (sekcja niżej). Bloker „lekki deployment" NADAL otwarty.
@@ -33,6 +51,21 @@ Ciężki deployment z ~30+ custom nodes + ComfyUI Manager powoduje zawieszenie p
 
 ## Audyt bez panelu
 
+**Node (Windows / PowerShell — zalecane):**
+
+```bash
+cd backend
+npm run audit:runcomfy
+npm run audit:runcomfy -- --json --strict
+npm run audit:runcomfy -- --live --probe-api --bundle
+npm run smoke:runcomfy -- --dry-run
+npm run smoke:runcomfy -- --repeat 2
+```
+
+Sprawdza: `.env`, kontrakt `wan_workflow_api.json`, historię jobów SQLite, pliki `output/`. `--bundle` = paczka na ticket RunComfy.
+
+**Bash (curl + jq — deployment API, object_info):**
+
 ```bash
 cd backend
 chmod +x scripts/audit-runcomfy.sh   # raz
@@ -41,18 +74,18 @@ chmod +x scripts/audit-runcomfy.sh   # raz
 ./scripts/audit-runcomfy.sh --request-id <uuid_z_logu_backendu>
 ```
 
-Skrypt czyta `RUNCOMFY_*` z `backend/.env`, pobiera ustawienia deploymentu, workflow, listę custom node’ów (`object_info`) i porównuje z lokalnym `wan_workflow_api.json`.
+Skrypt bash czyta `RUNCOMFY_*` z `backend/.env`, pobiera ustawienia deploymentu, workflow, listę custom node’ów (`object_info`) i porównuje z lokalnym `wan_workflow_api.json`.
 
 ## Smoke test WEBM
 
 ```bash
-# Mock (bez GPU) — testy Jest
+# Mock (bez GPU) — testy Jest + dry-run
 npm test --prefix backend
+npm run smoke:runcomfy --prefix backend -- --dry-run
 
-# Live (wymaga kluczy RunComfy)
-cd backend
-VIDEO_ENGINE=runcomfy WAN_LENGTH=33 npm start
-# W Studio lub curl POST /api/jobs z promptem testowym
+# Live RunComfy (wymaga kluczy + VIDEO_ENGINE=runcomfy w .env)
+npm run smoke:runcomfy --prefix backend
+npm run smoke:runcomfy --prefix backend -- --repeat 2
 ```
 
 Oczekiwany wynik: plik `backend/output/{jobId}.webm` + `.meta.json`.

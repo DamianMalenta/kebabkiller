@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
+import archiver from 'archiver';
 import {
   listCharacters,
   getCharacter,
@@ -46,7 +47,7 @@ import {
   getAsset,
   createAsset,
   updateAsset,
-  deleteAsset,
+  tryDeleteAsset,
   addAssetImage,
   deleteAssetImage,
   setAssetCompositeDefault,
@@ -75,7 +76,7 @@ import {
   getProductionRun,
 } from '../db/productionModels.js';
 import { enqueueVideoJob } from '../video/queue.js';
-import { enqueueEpisodeProduction } from '../video/productionQueue.js';
+import { enqueueEpisodeProduction, resumeProductionFromPartial } from '../video/productionQueue.js';
 import { DEFAULT_TENANT_ID, assertTenantId } from '../tenant/tenantContext.js';
 import {
   getDirectorDeskState,
@@ -382,6 +383,14 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   router.get('/projects/:projectId/episodes', (req, res) => {
     const project = getProject(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
+    res.set('Deprecation', 'true');
+    res.set('Link', '</api/projects/' + req.params.projectId + '/episode-plans>; rel="successor-version"');
+    res.json(listEpisodePlans(req.params.projectId));
+  });
+
+  router.get('/projects/:projectId/episode-plans', (req, res) => {
+    const project = getProject(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
     res.json(listEpisodePlans(req.params.projectId));
   });
 
@@ -395,10 +404,11 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     });
   });
 
-  router.get('/episodes/:id', (req, res) => {
-    const item = getEpisode(req.params.id);
-    if (!item) return res.status(404).json({ error: 'Episode not found' });
-    res.json(item);
+  router.get('/episodes/:id', (_req, res) => {
+    res.status(410).json({
+      error: 'Legacy endpoint wycofany. Użyj /api/episode-plans/:id',
+      use_instead: '/api/episode-plans/:id',
+    });
   });
 
   router.put('/episodes/:id', (req, res) => {
@@ -481,8 +491,12 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   });
 
   router.delete('/assets/:id', (req, res) => {
-    if (!deleteAsset(req.params.id)) {
-      return res.status(404).json({ error: 'Asset not found' });
+    const result = tryDeleteAsset(req.params.id);
+    if (!result.ok) {
+      if (result.scenes?.length) {
+        return res.status(409).json({ error: result.error, scenes: result.scenes });
+      }
+      return res.status(404).json({ error: result.error || 'Asset not found' });
     }
     res.status(204).end();
   });
@@ -528,15 +542,19 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   });
 
   router.put('/episode-plans/:planId/scenes/:sceneId/assets', (req, res) => {
-    const plan = getEpisodePlan(req.params.planId);
-    if (!plan) return res.status(404).json({ error: 'Episode plan not found' });
-    const scene = attachPlanSceneAssets(req.params.planId, req.params.sceneId, {
-      assetId: req.body.asset_id,
-      assetImageId: req.body.asset_image_id,
-      locationAssetId: req.body.location_asset_id,
-    });
-    if (!scene) return res.status(404).json({ error: 'Scene not found' });
-    res.json({ scene, plan: getEpisodePlan(req.params.planId) });
+    try {
+      const plan = getEpisodePlan(req.params.planId);
+      if (!plan) return res.status(404).json({ error: 'Episode plan not found' });
+      const scene = attachPlanSceneAssets(req.params.planId, req.params.sceneId, {
+        assetId: req.body.asset_id,
+        assetImageId: req.body.asset_image_id,
+        locationAssetId: req.body.location_asset_id,
+      });
+      if (!scene) return res.status(404).json({ error: 'Scene not found' });
+      res.json({ scene, plan: getEpisodePlan(req.params.planId) });
+    } catch (err) {
+      res.status(errorStatus(err)).json({ error: err.message });
+    }
   });
 
   /**
@@ -683,7 +701,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       preferences: req.body.preferences,
       targetDurationSec: req.body.target_duration_sec,
       catalogSelection: req.body.catalog_selection,
-      status: req.body.status,
+      // status: tylko acceptEpisodePlan / produkcja — nie przez PUT
     });
     res.json(plan);
   });
@@ -780,7 +798,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   router.post('/episode-plans/:id/accept', (req, res) => {
     try {
       const plan = acceptEpisodePlan(req.params.id);
-      const autoProduce = req.body?.start_production !== false;
+      const autoProduce = req.body?.start_production === true;
       if (autoProduce) {
         enqueueEpisodeProduction(plan.id, videoEngine, outputDir, resolveRequestTenantId(req));
       }
@@ -826,6 +844,59 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     const run = getProductionRun(req.params.id);
     if (!run) return res.status(404).json({ error: 'Production run not found' });
     res.json(run);
+  });
+
+  router.post('/production-runs/:id/resume', async (req, res) => {
+    try {
+      const run = getProductionRun(req.params.id);
+      if (!run) return res.status(404).json({ error: 'Production run not found' });
+      if (run.status !== 'partial' && run.status !== 'failed') {
+        return res.status(400).json({ error: 'Resume dostępne tylko dla runów partial lub failed.' });
+      }
+      await resumeProductionFromPartial(
+        req.params.id,
+        videoEngine,
+        outputDir,
+        resolveRequestTenantId(req),
+      );
+      res.status(202).json({
+        message: 'Wznowiono produkcję.',
+        production_run_id: req.params.id,
+      });
+    } catch (err) {
+      res.status(errorStatus(err)).json({ error: err.message });
+    }
+  });
+
+  router.get('/production-runs/:id/export.zip', (req, res) => {
+    const run = getProductionRun(req.params.id);
+    if (!run) return res.status(404).json({ error: 'Production run not found' });
+    if (run.status !== 'completed' && run.status !== 'partial') {
+      return res.status(400).json({ error: 'Paczka dostępna po zakończeniu produkcji.' });
+    }
+    const exportPublic = run.export_dir || '';
+    const exportAbs = exportPublic.startsWith('/output/')
+      ? path.join(outputDir, exportPublic.replace(/^\/output\/?/, ''))
+      : path.join(outputDir, exportPublic.replace(/^\//, ''));
+    if (!fs.existsSync(exportAbs)) {
+      return res.status(404).json({ error: 'Katalog eksportu nie istnieje.' });
+    }
+    const files = fs.readdirSync(exportAbs).filter((f) => !f.startsWith('.'));
+    if (files.length === 0) {
+      return res.status(404).json({ error: 'Brak plików w paczce.' });
+    }
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="episode-export-${run.id.slice(0, 8)}.zip"`);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.on('error', (err) => {
+      console.error('[export.zip]', err);
+      if (!res.headersSent) res.status(500).json({ error: 'Błąd tworzenia ZIP' });
+    });
+    archive.pipe(res);
+    for (const file of files) {
+      archive.file(path.join(exportAbs, file), { name: file });
+    }
+    archive.finalize();
   });
 
   router.post('/episode-plans/:id/assist', async (req, res) => {

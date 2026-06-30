@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import AssetCard from '../components/AssetCard.jsx';
 import RuleEditor from '../components/RuleEditor.jsx';
@@ -163,8 +164,6 @@ export default function Settings() {
 
   const tabs = [
     { id: 'rules', label: 'Księga Praw' },
-    { id: 'characters', label: 'Postacie' },
-    { id: 'backgrounds', label: 'Tła' },
   ];
 
   return (
@@ -172,9 +171,15 @@ export default function Settings() {
       <header>
         <h1 className="text-3xl font-bold">Baza Wiedzy</h1>
         <p className="mt-2 text-zinc-400">
-          Tutaj uczysz AI Reżysera — dodawaj postacie, tła i reguły produkcji.
+          Reguły produkcji dla Reżysera. Postacie, lokacje i zdjęcia dodajesz w{' '}
+          <Link to="/catalog" className="text-amber-400 hover:underline">Katalogu głównym</Link>.
         </p>
       </header>
+
+      <p className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
+        Assety (postacie, tła, rekwizyty) → <Link to="/catalog" className="font-semibold underline">Katalog</Link>.
+        Stary import z tej strony synchronizuje się przy starcie backendu; nie edytuj tu postaci.
+      </p>
 
       {error && <p className="rounded-lg bg-red-950 p-3 text-red-300">{error}</p>}
       {message && <p className="rounded-lg bg-emerald-950 p-3 text-emerald-300">{message}</p>}

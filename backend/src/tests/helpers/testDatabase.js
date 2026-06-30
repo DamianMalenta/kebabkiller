@@ -13,6 +13,10 @@ export function createTestDatabase() {
 export function destroyTestDatabase(dir) {
   closeDatabase();
   if (dir && fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
+    try {
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch {
+      /* Windows file lock — best effort */
+    }
   }
 }

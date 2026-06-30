@@ -177,7 +177,12 @@ export function getToolDefinitions(allowedNames) {
     acceptEpisodePlan: {
       name: 'acceptEpisodePlan',
       description: 'Accept episode plan after storyboard review',
-      parameters: { type: 'object', properties: {} },
+      parameters: {
+        type: 'object',
+        properties: {
+          start_production: { type: 'boolean', description: 'If true, start GPU production after accept' },
+        },
+      },
     },
     proposeProjectChange: {
       name: 'proposeProjectChange',
