@@ -20,6 +20,7 @@ import {
   replacePlanScenes,
   acceptEpisodePlan,
   setSceneStartFrame,
+  setSceneCompositeOverride,
   normalizePlanSceneInput,
 } from '../db/episodeModels.js';
 import { buildStartFrameAsset } from '../video/compositeStartFrame.js';
@@ -169,6 +170,9 @@ describe('łańcuch ciągłości w produkcji (mock engine)', () => {
       { descriptionPl: 'Scena 3', durationSec: 2, assetId: char.id, assetImageId: asset.images[0].id },
     ]);
     acceptEpisodePlan(plan.id);
+    for (const scene of getEpisodePlan(plan.id).scenes) {
+      setSceneCompositeOverride(scene.id, { frame_confirmed: true });
+    }
     return plan;
   }
 

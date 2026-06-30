@@ -234,6 +234,11 @@ CREATE TABLE IF NOT EXISTS production_runs (
 
 CREATE INDEX IF NOT EXISTS idx_production_runs_episode ON production_runs(episode_plan_id);
 
+-- Co najwyżej jeden aktywny run (pending/running) na plan odcinka — restart-safe lock.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_production_runs_one_active_per_plan
+  ON production_runs(episode_plan_id)
+  WHERE status IN ('pending', 'running');
+
 CREATE TABLE IF NOT EXISTS production_clips (
   id TEXT PRIMARY KEY,
   production_run_id TEXT NOT NULL,
@@ -328,3 +333,27 @@ CREATE TABLE IF NOT EXISTS director_side_messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_director_side_messages_thread ON director_side_messages(thread_id);
+
+-- Darkroom (Kinowa Ciemnia): surowe kadry z pizzerii → audyt AI → akceptacja użytkownika
+
+CREATE TABLE IF NOT EXISTS scene_assets (
+  id TEXT PRIMARY KEY,
+  episode_plan_id TEXT NOT NULL,
+  raw_image_path TEXT NOT NULL,
+  staged_image_path TEXT,
+  status TEXT NOT NULL DEFAULT 'PENDING_AI_AUDIT' CHECK(status IN (
+    'PENDING_AI_AUDIT',
+    'PENDING_USER_APPROVAL',
+    'APPROVED',
+    'REJECTED'
+  )),
+  ai_proposed_prompt TEXT,
+  user_override_prompt TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (episode_plan_id) REFERENCES episode_plans(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_scene_assets_episode_plan ON scene_assets(episode_plan_id);
+CREATE INDEX IF NOT EXISTS idx_scene_assets_episode_plan_sort ON scene_assets(episode_plan_id, sort_order);

@@ -4,8 +4,10 @@ import { api } from './api/client.js';
 import Settings from './pages/Settings.jsx';
 import Catalog from './pages/Catalog.jsx';
 import Projects from './pages/Projects.jsx';
-import DirectorsDesk from './pages/DirectorsDesk.jsx';
+import StudioDashboard from './pages/StudioDashboard.jsx';
 import SystemAgent from './pages/SystemAgent.jsx';
+import DarkroomModule from './features/Darkroom/DarkroomModule.jsx';
+import DarkroomRedirect from './pages/DarkroomRedirect.jsx';
 import { MobileQuickNav } from './components/MobileNightWelcome.jsx';
 
 const navClass = ({ isActive }) =>
@@ -13,7 +15,7 @@ const navClass = ({ isActive }) =>
     isActive ? 'bg-amber-500 text-zinc-950 font-semibold' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
   }`;
 
-function DirectorsDeskRedirect() {
+function StudioRedirect() {
   const navigate = useNavigate();
   const [error, setError] = useState('');
 
@@ -27,7 +29,7 @@ function DirectorsDeskRedirect() {
   }, [navigate]);
 
   if (error) return <p className="text-red-400">{error}</p>;
-  return <p className="text-zinc-400">Otwieram Stół Reżyserski…</p>;
+  return <p className="text-zinc-400">Otwieram Studio…</p>;
 }
 
 export default function App() {
@@ -37,14 +39,15 @@ export default function App() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:py-4">
           <div className="min-w-0">
             <p className="truncate text-base font-bold tracking-tight text-amber-400 md:text-lg">Kebabkiller Studio V2</p>
-            <p className="hidden text-xs text-zinc-500 sm:block">Director's Desk · Katalog</p>
+            <p className="hidden text-xs text-zinc-500 sm:block">Studio · Katalog</p>
           </div>
           <div className="hidden flex-wrap gap-2 md:flex">
             <NavLink to="/catalog" className={navClass}>Katalog</NavLink>
             <NavLink to="/projects" className={navClass}>Seriale</NavLink>
-            <NavLink to="/desk" className={navClass}>Reżyseria</NavLink>
+            <NavLink to="/desk" className={navClass}>Studio</NavLink>
             <NavLink to="/settings" className={navClass}>Baza Wiedzy</NavLink>
             <NavLink to="/system-agent" className={navClass}>AI-Inżynier</NavLink>
+            <NavLink to="/darkroom" className={navClass}>Ciemnia</NavLink>
           </div>
         </div>
       </nav>
@@ -54,10 +57,12 @@ export default function App() {
           <Route path="/" element={<Navigate to="/projects" replace />} />
           <Route path="/catalog" element={<Catalog />} />
           <Route path="/projects" element={<Projects />} />
-          <Route path="/desk/:projectId" element={<DirectorsDesk />} />
-          <Route path="/desk" element={<DirectorsDeskRedirect />} />
+          <Route path="/desk/:projectId/darkroom/:episodePlanId/*" element={<DarkroomModule />} />
+          <Route path="/desk/:projectId" element={<StudioDashboard />} />
+          <Route path="/desk" element={<StudioRedirect />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/system-agent" element={<SystemAgent />} />
+          <Route path="/darkroom/*" element={<DarkroomRedirect />} />
         </Routes>
       </main>
 

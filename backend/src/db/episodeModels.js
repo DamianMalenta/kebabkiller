@@ -581,6 +581,34 @@ export function validateEpisodePlan(episodePlanId) {
   return { ok: errors.length === 0, errors, warnings, status, totalDurationSec: totalDuration };
 }
 
+function isSceneFrameConfirmed(scene) {
+  const overrides = parseJsonField(scene.ai_overrides_json, {}) || {};
+  return overrides.composite?.frame_confirmed === true;
+}
+
+/**
+ * Twardy gate przed produkcją GPU — Klatka Zero musi być zapisana per scena.
+ * Nie da się obejść przez curl ani agenta (wołane z enqueue / produce / accept+produce).
+ */
+export function assertPlanFramesConfirmedForProduction(episodePlanId) {
+  const plan = getEpisodePlan(episodePlanId);
+  if (!plan) {
+    throw new Error('Plan odcinka nie istnieje.');
+  }
+  if (!plan.scenes.length) {
+    throw new Error('Plan nie ma scen do renderu.');
+  }
+  const missing = plan.scenes
+    .filter((s) => !isSceneFrameConfirmed(s))
+    .map((s) => s.sort_order + 1);
+  if (missing.length > 0) {
+    throw new Error(
+      `Klatka Zero nie zatwierdzona dla scen: ${missing.join(', ')}. Zapisz kadr w panelu Tożsamość.`,
+    );
+  }
+  return plan;
+}
+
 export function acceptEpisodePlan(episodePlanId) {
   const validation = validateEpisodePlan(episodePlanId);
   if (!validation.ok) {

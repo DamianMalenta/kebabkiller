@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   getEpisodePlan,
   updateEpisodePlan,
+  assertPlanFramesConfirmedForProduction,
 } from '../db/episodeModels.js';
 import { parseJsonField } from '../utils/json.js';
 import {
@@ -13,6 +14,8 @@ import {
   formatClipCode,
   getLatestProductionRun,
   getProductionRun,
+  getActiveProductionRun,
+  getActiveProductionCount,
   listProductionClips,
 } from '../db/productionModels.js';
 import { buildEpisodeVisualProfile, buildSceneDirectorPlan } from '../ai/productionDirector.js';
@@ -28,13 +31,9 @@ import {
 import { DEFAULT_TENANT_ID, enterTenant } from '../tenant/tenantContext.js';
 
 const CONTINUITY_FRAME_COUNT = 6;
-
-const activeProductions = new Map();
 const MAX_CLIP_RETRIES = 3;
 
-export function getActiveProductionCount() {
-  return activeProductions.size;
-}
+export { getActiveProductionCount };
 
 /**
  * Wyznacza punkt wznowienia produkcji względem TOŻSAMOŚCI sceny (plan_scene_id),
@@ -276,7 +275,11 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir,
   // Context Injection: worker ustawia tenant_id w AsyncLocalStorage na samym
   // starcie obsługi joba (tenant_id przyniesiony w payloadzie dispatchu).
   enterTenant(tenantId);
-  if (activeProductions.has(episodePlanId)) return getLatestProductionRun(episodePlanId);
+
+  assertPlanFramesConfirmedForProduction(episodePlanId);
+
+  const activeRun = getActiveProductionRun(episodePlanId);
+  if (activeRun) return activeRun;
 
   const plan = getEpisodePlan(episodePlanId);
   if (!plan) throw new Error('Plan odcinka nie istnieje.');
@@ -285,18 +288,22 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir,
   }
   if (!plan.scenes.length) throw new Error('Plan nie ma scen do renderu.');
 
-  activeProductions.set(episodePlanId, true);
-
   const visualProfile = buildEpisodeVisualProfile(plan);
   const exportDir = resolveExportDir(outputDir, plan.code);
   fs.mkdirSync(exportDir, { recursive: true });
 
-  const run = createProductionRun({
-    episodePlanId,
-    exportDir,
-    visualProfile,
-    clipsTotal: plan.scenes.length,
-  });
+  let run;
+  try {
+    run = createProductionRun({
+      episodePlanId,
+      exportDir,
+      visualProfile,
+      clipsTotal: plan.scenes.length,
+    });
+  } catch (err) {
+    if (err.code === 'PRODUCTION_ALREADY_ACTIVE') return err.existingRun;
+    throw err;
+  }
 
   updateEpisodePlan(episodePlanId, { status: 'w_produkcji' });
   updateProductionRun(run.id, { status: 'running' });
@@ -388,12 +395,11 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir,
     });
     updateEpisodePlan(episodePlanId, { status: 'zaakceptowany' });
     throw err;
-  } finally {
-    activeProductions.delete(episodePlanId);
   }
 }
 
 export function enqueueEpisodeProduction(episodePlanId, engine, outputDir, tenantId = DEFAULT_TENANT_ID) {
+  assertPlanFramesConfirmedForProduction(episodePlanId);
   // "dispatchTakeJob": tenant_id jest częścią payloadu joba (a nie globalnym
   // lookupem). Worker (poniżej) ustawia go w AsyncLocalStorage na starcie.
   const job = { episodePlanId, engine, outputDir, tenantId };
@@ -418,13 +424,11 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
   
   const plan = getEpisodePlan(existingRun.episode_plan_id);
   if (!plan) throw new Error('Plan odcinka nie istnieje.');
-  
-  // Atomic check-and-set: use set() return value to verify we were the first
-  const wasAlreadyActive = activeProductions.has(plan.id);
-  if (wasAlreadyActive) {
-    return existingRun;
+
+  const otherActive = getActiveProductionRun(plan.id);
+  if (otherActive && otherActive.id !== productionRunId) {
+    return otherActive;
   }
-  activeProductions.set(plan.id, true);
   
   const visualProfile = existingRun.visual_profile;
   const exportDir = existingRun.export_dir;
@@ -439,7 +443,6 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
     // No failed clips found, mark as completed
     updateProductionRun(productionRunId, { status: 'completed', progress: 100 });
     updateEpisodePlan(plan.id, { status: 'gotowy' });
-    activeProductions.delete(plan.id);
     return getProductionRun(productionRunId);
   }
 
@@ -548,7 +551,5 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
     });
     updateEpisodePlan(plan.id, { status: 'zaakceptowany' });
     throw err;
-  } finally {
-    activeProductions.delete(plan.id);
   }
 }

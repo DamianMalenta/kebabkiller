@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import KlatkaZeroPanel from './KlatkaZeroPanel.jsx';
-import { SceneContinuityRow } from './ContinuityPicker.jsx';
+import KlatkaZeroPanel from '../../components/KlatkaZeroPanel.jsx';
+import { SceneContinuityRow } from '../../components/ContinuityPicker.jsx';
 import { SceneCard } from './directorDesk/ChatWidgets.jsx';
 
 const TABS = [

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { api } from '../../api/client.js';
 import SeriesBrainSidebar from '../components/directorDesk/SeriesBrainSidebar.jsx';
 import ChatCenter from '../components/directorDesk/ChatCenter.jsx';
 import SceneWorkbench from '../components/SceneWorkbench.jsx';
 import PlanReadinessPanel from '../components/directorDesk/PlanReadinessPanel.jsx';
 import ProductionPanel from '../components/directorDesk/ProductionPanel.jsx';
+import DarkroomDeskEntry from '../../features/Darkroom/DarkroomDeskEntry.jsx';
+import { deskPath, readEpisodePlanId, rememberDeskContext } from '../../lib/deskRoutes.js';
 
 const SUGGESTIONS_BY_STEP = {
   series_start: ['Kebabkiller Poczatki, klimat realistyczny z humorem', 'Zmień nazwę serialu na: '],
@@ -39,7 +41,7 @@ export default function DirectorsDesk() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const episodePlanId = searchParams.get('episode') || null;
+  const episodePlanId = readEpisodePlanId(searchParams);
 
   const [state, setState] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -85,10 +87,16 @@ export default function DirectorsDesk() {
   }, [refresh]);
 
   useEffect(() => {
+    if (projectId && episodePlanId) {
+      rememberDeskContext(projectId, episodePlanId);
+    }
+  }, [projectId, episodePlanId]);
+
+  useEffect(() => {
     if (episodePlanId || !episodes.length) return;
     const drafts = episodes.filter((e) => e.status === 'szkic' || e.status === 'gotowy_do_akceptacji');
     if (drafts.length === 1) {
-      navigate(`/desk/${projectId}?episode=${drafts[0].id}`, { replace: true });
+      navigate(deskPath(projectId, drafts[0].id), { replace: true });
     }
   }, [episodePlanId, episodes, navigate, projectId]);
 
@@ -148,7 +156,7 @@ export default function DirectorsDesk() {
       const newEpisodeId = extractCreatedEpisodeId(result.tool_results);
       if (newEpisodeId && newEpisodeId !== episodePlanId) {
         api.projects.episodes(projectId).then(setEpisodes).catch(() => {});
-        navigate(`/desk/${projectId}?episode=${newEpisodeId}`);
+        navigate(deskPath(projectId, newEpisodeId));
         setTimeout(() => workbenchRef.current?.scrollIntoView({ behavior: 'smooth' }), 300);
         return;
       }
@@ -165,6 +173,10 @@ export default function DirectorsDesk() {
 
   const planStatus = state?.brain?.episode?.status || null;
   const episodeLogline = state?.brain?.episode?.logline || '';
+  const activePlan = state?.brain?.episode || episodes.find((e) => e.id === episodePlanId) || null;
+  const episodeLabel = activePlan
+    ? `${activePlan.code || 'Plan'}${activePlan.title ? ` — ${activePlan.title}` : ''}`
+    : null;
 
   if (loading && !state) {
     return <p className="text-zinc-400">Ładowanie stołu reżyserskiego…</p>;
@@ -187,7 +199,7 @@ export default function DirectorsDesk() {
               {episodes.map((ep) => (
                 <Link
                   key={ep.id}
-                  to={`/desk/${projectId}?episode=${ep.id}`}
+                  to={deskPath(projectId, ep.id)}
                   className={`rounded-lg px-2 py-1.5 text-xs font-semibold transition ${
                     episodePlanId === ep.id
                       ? 'bg-amber-500 text-zinc-950'
@@ -217,6 +229,11 @@ export default function DirectorsDesk() {
 
       {episodePlanId && (
         <>
+          <DarkroomDeskEntry
+            projectId={projectId}
+            episodePlanId={episodePlanId}
+            episodeLabel={episodeLabel}
+          />
           <PlanReadinessPanel
             episodePlanId={episodePlanId}
             planStatus={planStatus}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../../api/client.js';
+import { api } from '../../../api/client.js';
 import CostGuardBanner from './CostGuardBanner.jsx';
 
 function sceneFrameConfirmed(scene) {

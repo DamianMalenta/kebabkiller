@@ -10,6 +10,7 @@ import {
   createEpisodePlan,
   upsertPlanScene,
   acceptEpisodePlan,
+  setSceneCompositeOverride,
 } from '../db/episodeModels.js';
 import { createProject } from '../db/models.js';
 import { linkEpisodeToProject } from '../db/directorDeskModels.js';
@@ -121,5 +122,39 @@ describe('PUT /episode-plans/:id status guard', () => {
     const res = await request('PUT', `/api/episode-plans/${plan.id}`, { status: 'szkic' });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('zaakceptowany');
+  });
+});
+
+describe('POST /episode-plans/:id/produce — Klatka Zero gate', () => {
+  test('400 gdy brak frame_confirmed', async () => {
+    const plan = createEpisodePlan({ code: 'KZ1', title: 'KZ', logline: 'Test klatka zero gate' });
+    upsertPlanScene(plan.id, {
+      sortOrder: 0,
+      descriptionPl: 'scena bez kadru',
+      durationSec: 4,
+      assetId,
+      locationAssetId: sceneAssetId,
+    });
+    acceptEpisodePlan(plan.id);
+
+    const res = await request('POST', `/api/episode-plans/${plan.id}/produce`);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Klatka Zero/i);
+  });
+
+  test('202 gdy frame_confirmed zapisany', async () => {
+    const plan = createEpisodePlan({ code: 'KZ2', title: 'KZ ok', logline: 'Test klatka zero ok' });
+    const scene = upsertPlanScene(plan.id, {
+      sortOrder: 0,
+      descriptionPl: 'scena z kadrem',
+      durationSec: 4,
+      assetId,
+      locationAssetId: sceneAssetId,
+    });
+    setSceneCompositeOverride(scene.id, { frame_confirmed: true });
+    acceptEpisodePlan(plan.id);
+
+    const res = await request('POST', `/api/episode-plans/${plan.id}/produce`);
+    expect(res.status).toBe(202);
   });
 });

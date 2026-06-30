@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../../api/client.js';
+import { api } from '../../../api/client.js';
 
 export function SceneCard({ scene }) {
   const layers = scene.layers || scene.collage_hint?.map((path, i) => ({ path, label: `Warstwa ${i + 1}` })) || [];

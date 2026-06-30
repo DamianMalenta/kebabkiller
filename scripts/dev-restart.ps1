@@ -1,4 +1,4 @@
-# Restart kebabkiller_studio2 — tylko :4005 / :5174 (nie dotyka macius/Symbiont)
+# Restart kebabkiller_studio2 - tylko :4005 / :5174 (nie dotyka macius/Symbiont)
 $ErrorActionPreference = 'SilentlyContinue'
 . "$PSScriptRoot\dev-common.ps1"
 
@@ -10,7 +10,7 @@ Write-Host ''
 Write-Host '=== RESTART STUDIO2 DEV ===' -ForegroundColor Cyan
 Write-Host "  Root: $($paths.Studio2Root)"
 Write-Host "  Porty: backend $backendPort, frontend $frontendPort"
-Write-Host "  Macius (:8787/:4001/:5173) — bez zmian"
+Write-Host '  Macius (:8787/:4001/:5173) - bez zmian'
 Write-Host ''
 
 Write-Host "  1/4 Zatrzymywanie portow $backendPort, $frontendPort..."
@@ -45,8 +45,8 @@ if ($ready) {
 }
 
 Write-Host ''
-Write-Host "  Frontend: http://127.0.0.1:$frontendPort/"
-Write-Host "  Backend:  http://127.0.0.1:$backendPort/api/health"
+Write-Host ('  Frontend: http://127.0.0.1:{0}/' -f $frontendPort)
+Write-Host ('  Backend:  http://127.0.0.1:{0}/api/health' -f $backendPort)
 Write-Host ''
 
 & (Join-Path $PSScriptRoot 'dev-status.ps1')

@@ -67,6 +67,7 @@ import {
   deletePlanDeliverable,
   validateEpisodePlan,
   acceptEpisodePlan,
+  assertPlanFramesConfirmedForProduction,
   FROZEN_PLAN_STATUSES,
 } from '../db/episodeModels.js';
 import { hydrateRow } from '../utils/json.js';
@@ -88,6 +89,7 @@ import { buildProjectBrain, setAssetImageMetadata } from '../db/directorDeskMode
 import { buildDeterministicAssetMetadata } from '../ai/directorDesk/assetMetadata.js';
 import { buildStartFrameAsset, resolveCompositeConfig } from '../video/compositeStartFrame.js';
 import { createSystemAgentRouter } from '../ai/systemAgent/router.js';
+import { createDarkroomRouter } from './darkroomRoutes.js';
 
 function primaryImagePath(asset) {
   if (!asset?.images?.length) return null;
@@ -173,6 +175,9 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
 
   // AI-Inżynier (Faza E) — osobny moduł, własna bramka tokenem.
   router.use('/system-agent', createSystemAgentRouter());
+
+  // Darkroom (Kinowa Ciemnia) — wsadowy zrzut surowych kadrów.
+  router.use('/darkroom', createDarkroomRouter({ uploadsDir }));
 
   router.get('/health', (_req, res) => {
     res.json({
@@ -797,8 +802,11 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
 
   router.post('/episode-plans/:id/accept', (req, res) => {
     try {
-      const plan = acceptEpisodePlan(req.params.id);
       const autoProduce = req.body?.start_production === true;
+      if (autoProduce) {
+        assertPlanFramesConfirmedForProduction(req.params.id);
+      }
+      const plan = acceptEpisodePlan(req.params.id);
       if (autoProduce) {
         enqueueEpisodeProduction(plan.id, videoEngine, outputDir, resolveRequestTenantId(req));
       }
@@ -818,6 +826,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       if (!FROZEN_PLAN_STATUSES.has(plan.status)) {
         return res.status(400).json({ error: 'Plan musi być zaakceptowany przed produkcją.' });
       }
+      assertPlanFramesConfirmedForProduction(req.params.id);
       enqueueEpisodeProduction(plan.id, videoEngine, outputDir, resolveRequestTenantId(req));
       res.status(202).json({
         message: 'Produkcja uruchomiona.',

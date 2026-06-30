@@ -115,7 +115,12 @@ export const api = {
   },
 
   episodePlans: {
+    list: (projectId) => request(`/projects/${projectId}/episode-plans`),
     get: (id) => request(`/episode-plans/${id}`),
+    create: (body) =>
+      request('/episode-plans', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id, body) =>
+      request(`/episode-plans/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     validate: (id) => request(`/episode-plans/${id}/validate`),
     accept: (id, { startProduction = false } = {}) =>
       request(`/episode-plans/${id}/accept`, {
@@ -199,12 +204,51 @@ export const api = {
     update: (id, body) => request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
     episodes: (projectId) => request(`/projects/${projectId}/episode-plans`),
+    /** Tworzy plan odcinka i wiąże z projektem (istniejący director-desk / agentTools). */
+    createEpisodePlan: (projectId, { title, logline }) => {
+      const code = `E${String(Date.now()).slice(-6)}`;
+      return request(`/director-desk/projects/${projectId}/chat`, {
+        method: 'POST',
+        body: JSON.stringify({
+          message: `Utwórz odcinek „${title}”`,
+          confirm_action: {
+            summary: `Nowy odcinek: ${title}`,
+            action: {
+              tool: 'createEpisodePlan',
+              args: { code, title, logline: logline || '' },
+            },
+          },
+        }),
+      });
+    },
   },
 
   episodes: {
     get: (id) => request(`/episodes/${id}`),
     update: (id, body) => request(`/episodes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id) => request(`/episodes/${id}`, { method: 'DELETE' }),
+  },
+
+  // Kinowa Ciemnia — surowe zdjęcia → audyt AI → akceptacja użytkownika.
+  darkroom: {
+    uploadBatch: (episodePlanId, formData) => {
+      if (!formData.has('episode_plan_id')) {
+        formData.append('episode_plan_id', episodePlanId);
+      }
+      return request('/darkroom/upload-batch', { method: 'POST', body: formData });
+    },
+    runAudit: (episodePlanId) =>
+      request(`/darkroom/episode-plans/${episodePlanId}/audit`, { method: 'POST' }),
+    getAssets: (episodePlanId) =>
+      request(`/darkroom/episode-plans/${episodePlanId}/assets`),
+    reviewAsset: (assetId, status, userOverridePrompt) =>
+      request(`/darkroom/assets/${assetId}/review`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status,
+          user_override_prompt: userOverridePrompt,
+        }),
+      }),
   },
 
   /** @deprecated Legacy job queue — use episodePlans.produce + ProductionPanel */

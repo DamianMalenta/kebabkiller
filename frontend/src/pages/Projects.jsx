@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client.js';
+import { deskPath } from '../lib/deskRoutes.js';
 import ProjectEditor from '../components/ProjectEditor.jsx';
 
 export default function Projects() {
@@ -214,7 +215,7 @@ export default function Projects() {
                     >
                       <button
                         type="button"
-                        onClick={() => navigate(`/desk/${selectedProject.id}?episode=${ep.id}`)}
+                        onClick={() => navigate(deskPath(selectedProject.id, ep.id))}
                         className="min-w-0 flex-1 text-left transition hover:opacity-90"
                       >
                         <p className="font-bold text-amber-500">{ep.code}</p>

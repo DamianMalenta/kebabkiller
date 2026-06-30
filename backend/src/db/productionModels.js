@@ -30,19 +30,49 @@ export function getLatestProductionRun(episodePlanId) {
   return hydrateProductionRun(row);
 }
 
+/** Aktywny run (pending/running) — restart-safe lock per plan odcinka. */
+export function getActiveProductionRun(episodePlanId) {
+  const row = getDb().prepare(`
+    SELECT * FROM production_runs
+    WHERE episode_plan_id = ? AND status IN ('pending', 'running')
+    ORDER BY created_at DESC LIMIT 1
+  `).get(episodePlanId);
+  return hydrateProductionRun(row);
+}
+
+export function getActiveProductionCount() {
+  const row = getDb().prepare(`
+    SELECT COUNT(*) AS n FROM production_runs WHERE status IN ('pending', 'running')
+  `).get();
+  return row?.n ?? 0;
+}
+
 export function createProductionRun({ episodePlanId, exportDir, visualProfile, clipsTotal }) {
   const id = uuidv4();
-  getDb().prepare(`
-    INSERT INTO production_runs (
-      id, episode_plan_id, status, export_dir, visual_profile_json, clips_total, progress
-    ) VALUES (?, ?, 'pending', ?, ?, ?, 0)
-  `).run(
-    id,
-    episodePlanId,
-    exportDir,
-    visualProfile ? JSON.stringify(visualProfile) : null,
-    clipsTotal ?? 0,
-  );
+  try {
+    getDb().prepare(`
+      INSERT INTO production_runs (
+        id, episode_plan_id, status, export_dir, visual_profile_json, clips_total, progress
+      ) VALUES (?, ?, 'pending', ?, ?, ?, 0)
+    `).run(
+      id,
+      episodePlanId,
+      exportDir,
+      visualProfile ? JSON.stringify(visualProfile) : null,
+      clipsTotal ?? 0,
+    );
+  } catch (err) {
+    if (String(err.message || err).includes('UNIQUE constraint failed')) {
+      const active = getActiveProductionRun(episodePlanId);
+      if (active) {
+        const lockErr = new Error('Produkcja tego odcinka jest już w toku.');
+        lockErr.code = 'PRODUCTION_ALREADY_ACTIVE';
+        lockErr.existingRun = active;
+        throw lockErr;
+      }
+    }
+    throw err;
+  }
   return getProductionRun(id);
 }
 

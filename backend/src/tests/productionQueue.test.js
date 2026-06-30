@@ -11,6 +11,7 @@ import {
   getEpisodePlan,
   replacePlanScenes,
   acceptEpisodePlan,
+  setSceneCompositeOverride,
 } from '../db/episodeModels.js';
 import { createMockEngine } from '../video/mockEngine.js';
 import { processEpisodeProduction } from '../video/productionQueue.js';
@@ -31,6 +32,12 @@ afterEach(() => {
   if (fs.existsSync(outputDir)) fs.rmSync(outputDir, { recursive: true, force: true });
 });
 
+function confirmAllSceneFrames(planId) {
+  for (const scene of getEpisodePlan(planId).scenes) {
+    setSceneCompositeOverride(scene.id, { frame_confirmed: true });
+  }
+}
+
 describe('productionQueue', () => {
   test('renders episode package with manifest and clips', async () => {
     const char = createAsset({ type: 'character', name: 'Hero', descriptionPl: 'Kebab', canonEn: 'Wrap' });
@@ -47,6 +54,7 @@ describe('productionQueue', () => {
       { descriptionPl: 'Scena E', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id, locationAssetId: loc.id },
     ]);
     acceptEpisodePlan(plan.id);
+    confirmAllSceneFrames(plan.id);
 
     const engine = createMockEngine(outputDir);
     const run = await processEpisodeProduction(plan.id, engine, outputDir);
@@ -80,6 +88,7 @@ describe('productionQueue', () => {
       { descriptionPl: 'Scena C', durationSec: 4, assetId: char.id, assetImageId: asset.images[0].id, locationAssetId: loc.id },
     ]);
     acceptEpisodePlan(plan.id);
+    confirmAllSceneFrames(plan.id);
 
     let renderCount = 0;
     const flakyEngine = {

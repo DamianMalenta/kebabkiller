@@ -224,6 +224,31 @@ export function initDatabase(dbPath) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
     'CREATE INDEX IF NOT EXISTS idx_system_agent_repairs_status ON system_agent_repairs(status)',
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_production_runs_one_active_per_plan
+      ON production_runs(episode_plan_id)
+      WHERE status IN ('pending', 'running')`,
+    // Darkroom (Kinowa Ciemnia): surowe kadry per plan odcinka (episode_plans).
+    'DROP TABLE IF EXISTS scene_assets',
+    `CREATE TABLE scene_assets (
+      id TEXT PRIMARY KEY,
+      episode_plan_id TEXT NOT NULL,
+      raw_image_path TEXT NOT NULL,
+      staged_image_path TEXT,
+      status TEXT NOT NULL DEFAULT 'PENDING_AI_AUDIT' CHECK(status IN (
+        'PENDING_AI_AUDIT',
+        'PENDING_USER_APPROVAL',
+        'APPROVED',
+        'REJECTED'
+      )),
+      ai_proposed_prompt TEXT,
+      user_override_prompt TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (episode_plan_id) REFERENCES episode_plans(id) ON DELETE CASCADE
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_scene_assets_episode_plan ON scene_assets(episode_plan_id)',
+    'CREATE INDEX IF NOT EXISTS idx_scene_assets_episode_plan_sort ON scene_assets(episode_plan_id, sort_order)',
   ];
 
   for (const sql of migrations) {

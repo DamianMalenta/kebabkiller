@@ -1,6 +1,6 @@
 # HANDOFF AKTUALNY — stan na teraz
 
-**Ostatnia aktualizacja:** 2026-06-30 (Tor Twórcy — Wave 0–4: ProductionPanel, PlanReadiness, recovery, jeden Katalog, resume API)
+**Ostatnia aktualizacja:** 2026-06-30 (P0: Klatka Zero gate backend + lock produkcji w SQLite; Wave 3 ≠ done)
 **Poprzednia sesja właściciela:** #21 (Faza E). Po niej: PR #13–#17, potem PR #20–#22 (ciągłość / snapshot).
 
 ---
@@ -30,8 +30,9 @@ Nie dotykać `gema-0`.
 - **Faza E** ✅ (sesja #21): AI-Inżynier MVP — osobny moduł `backend/src/ai/systemAgent/` + `/api/system-agent/*` (bramka tokenem `SYSTEM_AGENT_TOKEN`), pętla diagnoza read-only → propose → apply (checkpoint git + bramka testów + auto-rollback) → [Cofnij] + Dziennik Napraw, panel UI „AI-Inżynier". Render-path NIETKNIĘTY.
 - **Devin PRs #13–#16** (cross-cutting): refactor shared utils (`backend/src/utils/`), security hardening (helmet, rate limiting, path traversal), error handling, +90 unit testów.
 - **Devin PRs #20–#22** (ciągłość): `scene_snapshots` + `snapshotStore.freezeSnapshot` + `validateTakeAgainstSnapshot`; fix superseded snapshot (#21); `resolveResumePoint` po tożsamości sceny (#21); `tenantContext.js` + guard `checkTenantScope.mjs` (#22). Audyt: `SNAPSHOT_CONTINUITY_AUDIT.md`.
-- **Testy:** `npm test --prefix backend` = **239 pass**; `vite build` OK.
-- **Tor Twórcy (Wave 0–4)** ✅: `ProductionPanel`, `PlanReadinessPanel`, `CostGuardBanner`, recovery stuck runs, DELETE asset 409, resume + ZIP export, jeden Katalog, mobile Reżyseria, intent fabuła→plan, walidacja lokacji per scena.
+- **Testy:** `npm test --prefix backend` = **257 pass** (3 skipped); `vite build` OK.
+- **Tor Twórcy Wave 0–2 + 4 (UI/API):** ✅ ProductionPanel, PlanReadiness, recovery, Katalog, mobile, resume API, ZIP.
+- **Tor Twórcy Wave 3:** ❌ **NIE DONE** — brak ComfyUI-Minimal deployment + smoke WEBM na GPU. Backend P0 (2026-06-30): `assertPlanFramesConfirmedForProduction` na produce/accept+produce; lock produkcji w DB (`idx_production_runs_one_active_per_plan`), bez `activeProductions` Map.
 
 ---
 
