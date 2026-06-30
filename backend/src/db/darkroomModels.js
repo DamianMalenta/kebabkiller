@@ -15,7 +15,7 @@ function assertValidStatus(status) {
   }
 }
 
-function nextSortOrder(episodePlanId) {
+export function nextSortOrder(episodePlanId) {
   const row = getDb().prepare(`
     SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order
     FROM scene_assets
@@ -40,10 +40,58 @@ export function listSceneAssetsPendingAiAudit(episodePlanId) {
   `).all(episodePlanId);
 }
 
-export function runAiAuditBatchForEpisodePlan(episodePlanId, aiProposedPrompt) {
+export function listApprovedSceneAssetsByEpisodePlan(episodePlanId) {
+  return getDb().prepare(`
+    SELECT * FROM scene_assets
+    WHERE episode_plan_id = ? AND status = 'APPROVED'
+    ORDER BY sort_order ASC, created_at ASC
+  `).all(episodePlanId);
+}
+
+export function getApprovedSceneAssetForSortOrder(episodePlanId, sortOrder) {
+  return getDb().prepare(`
+    SELECT * FROM scene_assets
+    WHERE episode_plan_id = ? AND status = 'APPROVED' AND sort_order = ?
+    ORDER BY created_at ASC
+    LIMIT 1
+  `).get(episodePlanId, sortOrder) ?? null;
+}
+
+export function episodeHasApprovedDarkroomAssets(episodePlanId) {
+  const row = getDb().prepare(`
+    SELECT COUNT(*) AS n FROM scene_assets
+    WHERE episode_plan_id = ? AND status = 'APPROVED'
+  `).get(episodePlanId);
+  return Number(row?.n ?? 0) > 0;
+}
+
+/** Scena bez własnego kadru Ciemni — dziedziczy last_frame z poprzedniego klipu (sort_order > 0). */
+export function sceneInheritsDarkroomContinuity(episodePlanId, sceneSortOrder) {
+  return sceneSortOrder > 0
+    && episodeHasApprovedDarkroomAssets(episodePlanId)
+    && !getApprovedSceneAssetForSortOrder(episodePlanId, sceneSortOrder);
+}
+
+/**
+ * @param {string} episodePlanId
+ * @param {{ id: string, aiProposedPrompt: string }[]} audits — jeden prompt na asset
+ */
+export function runAiAuditBatchForEpisodePlan(episodePlanId, audits) {
   const pending = listSceneAssetsPendingAiAudit(episodePlanId);
   if (pending.length === 0) {
     return { updated: [], count: 0 };
+  }
+
+  if (!Array.isArray(audits) || audits.length !== pending.length) {
+    throw new Error('Audyt wymaga promptu dla każdego assetu oczekującego na AI.');
+  }
+
+  const auditMap = new Map(audits.map((entry) => [entry.id, entry.aiProposedPrompt]));
+  for (const row of pending) {
+    const prompt = auditMap.get(row.id);
+    if (!prompt?.trim()) {
+      throw new Error(`Brak ai_proposed_prompt dla assetu ${row.id}.`);
+    }
   }
 
   const db = getDb();
@@ -58,7 +106,7 @@ export function runAiAuditBatchForEpisodePlan(episodePlanId, aiProposedPrompt) {
   db.exec('BEGIN IMMEDIATE');
   try {
     for (const row of pending) {
-      update.run(aiProposedPrompt, row.id);
+      update.run(auditMap.get(row.id), row.id);
     }
     db.exec('COMMIT');
   } catch (err) {

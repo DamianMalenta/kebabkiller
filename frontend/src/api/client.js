@@ -122,6 +122,12 @@ export const api = {
     update: (id, body) =>
       request(`/episode-plans/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     validate: (id) => request(`/episode-plans/${id}/validate`),
+    productionGate: (id) => request(`/episode-plans/${id}/production-gate`),
+    upsertScene: (planId, body) =>
+      request(`/episode-plans/${planId}/scenes`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
     accept: (id, { startProduction = false } = {}) =>
       request(`/episode-plans/${id}/accept`, {
         method: 'POST',
@@ -143,6 +149,11 @@ export const api = {
       request(`/episode-plans/${planId}/scenes/${sceneId}/assets`, {
         method: 'PUT',
         body: JSON.stringify(body),
+      }),
+    setStartFrameSource: (planId, sceneId, startFrameSource) =>
+      request(`/episode-plans/${planId}/scenes/${sceneId}/start-frame-source`, {
+        method: 'PUT',
+        body: JSON.stringify({ start_frame_source: startFrameSource }),
       }),
   },
 
@@ -204,23 +215,12 @@ export const api = {
     update: (id, body) => request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
     episodes: (projectId) => request(`/projects/${projectId}/episode-plans`),
-    /** Tworzy plan odcinka i wiąże z projektem (istniejący director-desk / agentTools). */
-    createEpisodePlan: (projectId, { title, logline }) => {
-      const code = `E${String(Date.now()).slice(-6)}`;
-      return request(`/director-desk/projects/${projectId}/chat`, {
+    /** Tworzy plan odcinka i wiąże z projektem (tor Studio Dashboard). */
+    createEpisodePlan: (projectId, { title, logline }) =>
+      request(`/projects/${projectId}/episode-plans`, {
         method: 'POST',
-        body: JSON.stringify({
-          message: `Utwórz odcinek „${title}”`,
-          confirm_action: {
-            summary: `Nowy odcinek: ${title}`,
-            action: {
-              tool: 'createEpisodePlan',
-              args: { code, title, logline: logline || '' },
-            },
-          },
-        }),
-      });
-    },
+        body: JSON.stringify({ title, logline }),
+      }),
   },
 
   episodes: {
@@ -237,8 +237,11 @@ export const api = {
       }
       return request('/darkroom/upload-batch', { method: 'POST', body: formData });
     },
-    runAudit: (episodePlanId) =>
-      request(`/darkroom/episode-plans/${episodePlanId}/audit`, { method: 'POST' }),
+    runAudit: (episodePlanId, body = {}) =>
+      request(`/darkroom/episode-plans/${episodePlanId}/audit`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
     getAssets: (episodePlanId) =>
       request(`/darkroom/episode-plans/${episodePlanId}/assets`),
     reviewAsset: (assetId, status, userOverridePrompt) =>

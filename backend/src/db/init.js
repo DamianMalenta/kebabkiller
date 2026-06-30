@@ -135,11 +135,14 @@ export function initDatabase(dbPath) {
     // Filar 3 (silnik ciągłości): wybrany kadr kontynuacji (klatka z poprzedniego
     // klipu) jako start tej sceny. Nadpisuje kompozyt. Nullable, BEZ backfillu.
     'ALTER TABLE plan_scenes ADD COLUMN start_frame_path TEXT',
+    "ALTER TABLE plan_scenes ADD COLUMN start_frame_source TEXT CHECK(start_frame_source IS NULL OR start_frame_source IN ('darkroom', 'previous_scene'))",
     // Filar 3: wyekstrahowane klatki-kandydaci danego klipu (do Pickera).
     'ALTER TABLE production_clips ADD COLUMN frames_json TEXT',
     // Snapshot SSOT: Take (klip) zapisuje snapshot_id+version, wobec których renderował.
     'ALTER TABLE production_clips ADD COLUMN snapshot_id TEXT',
     'ALTER TABLE production_clips ADD COLUMN snapshot_version INTEGER',
+    // Montaż odcinka: połączony plik wideo ze wszystkich klipów (FFmpeg concat).
+    'ALTER TABLE production_runs ADD COLUMN final_episode_path TEXT',
     // Snapshot SSOT: niemutowalny, content-addressed stan startowy sceny (append-only).
     `CREATE TABLE IF NOT EXISTS scene_snapshots (
       id TEXT PRIMARY KEY,
@@ -228,8 +231,7 @@ export function initDatabase(dbPath) {
       ON production_runs(episode_plan_id)
       WHERE status IN ('pending', 'running')`,
     // Darkroom (Kinowa Ciemnia): surowe kadry per plan odcinka (episode_plans).
-    'DROP TABLE IF EXISTS scene_assets',
-    `CREATE TABLE scene_assets (
+    `CREATE TABLE IF NOT EXISTS scene_assets (
       id TEXT PRIMARY KEY,
       episode_plan_id TEXT NOT NULL,
       raw_image_path TEXT NOT NULL,

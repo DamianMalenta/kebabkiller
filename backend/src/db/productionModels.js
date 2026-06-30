@@ -81,6 +81,7 @@ export function updateProductionRun(id, fields) {
     status: fields.status,
     export_dir: fields.exportDir,
     manifest_path: fields.manifestPath,
+    final_episode_path: fields.finalEpisodePath,
     visual_profile_json: fields.visualProfile !== undefined
       ? JSON.stringify(fields.visualProfile)
       : undefined,
@@ -136,6 +137,7 @@ export function createProductionClip({
 export function updateProductionClip(id, fields) {
   const allowed = {
     status: fields.status,
+    user_prompt: fields.userPrompt,
     director_json: fields.directorJson !== undefined
       ? JSON.stringify(fields.directorJson)
       : undefined,

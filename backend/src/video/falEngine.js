@@ -268,7 +268,7 @@ export function createFalEngine(outputDir, config = {}) {
   return {
     name: 'fal',
 
-    async render({ jobId, userPrompt, directorJson, renderStrategy, onProgress, outputPath: outputPathOverride }) {
+    async render({ jobId, userPrompt, directorJson, renderStrategy, onProgress, outputPath: outputPathOverride, processedAssets: injectedAssets }) {
       console.log(`[fal.ai] Starting render for job ${jobId}`);
       emitProgress(onProgress, 5, 'Przygotowanie klatki startowej…');
 
@@ -276,9 +276,15 @@ export function createFalEngine(outputDir, config = {}) {
       const { endpoint, modelKey } = resolveModelEndpoint(directorJson);
       console.log(`[fal.ai] Model: ${modelKey} → ${endpoint}`);
 
-      // 2. Build start frame (composite: BG + character)
-      emitProgress(onProgress, 10, 'Składanie klatki startowej (postać + tło)…');
-      const startFrame = await buildStartFrameAsset({
+      // 2. Start frame (Ciemnia → injectedAssets; inaczej kolaż 2D)
+      emitProgress(
+        onProgress,
+        10,
+        injectedAssets?.startFrame?.source === 'darkroom'
+          ? 'Klatka startowa z Kinowej Ciemni…'
+          : 'Składanie klatki startowej (postać + tło)…',
+      );
+      const startFrame = injectedAssets?.startFrame ?? await buildStartFrameAsset({
         characterRef: directorJson?.character_ref,
         backgroundRef: directorJson?.background_ref,
         uploadsDir,

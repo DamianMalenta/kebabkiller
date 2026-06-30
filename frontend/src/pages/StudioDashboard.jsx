@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { darkroomPath } from '../lib/deskRoutes.js';
+import { FinalEpisodeDownloadLink, finalEpisodePathFromRun } from '../features/Darkroom/DarkroomProductionPanel.jsx';
 
 const STATUS_LABELS = {
   szkic: 'Szkic',
@@ -116,7 +117,21 @@ export default function StudioDashboard() {
 
   const loadEpisodes = useCallback(async () => {
     const list = await api.episodePlans.list(projectId);
-    setEpisodes(list || []);
+    const enriched = await Promise.all(
+      (list || []).map(async (ep) => {
+        try {
+          const prod = await api.episodePlans.production(ep.id);
+          return {
+            ...ep,
+            productionRun: prod.production ?? null,
+            finalEpisodePath: finalEpisodePathFromRun(prod.production),
+          };
+        } catch {
+          return { ...ep, productionRun: null, finalEpisodePath: null };
+        }
+      }),
+    );
+    setEpisodes(enriched);
   }, [projectId]);
 
   const refresh = useCallback(async () => {
@@ -225,13 +240,18 @@ export default function StudioDashboard() {
                   </span>
                 </td>
                 <td className="px-4 py-4 text-right">
-                  <button
-                    type="button"
-                    onClick={() => navigate(darkroomPath(projectId, ep.id))}
-                    className="rounded-lg border-2 border-zinc-600 bg-zinc-900 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-zinc-100 hover:border-zinc-400 hover:bg-zinc-800"
-                  >
-                    Wejdź do Kinowej Ciemni
-                  </button>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {(ep.productionRun?.status === 'completed' || ep.status === 'gotowy') && ep.finalEpisodePath && (
+                      <FinalEpisodeDownloadLink href={ep.finalEpisodePath} />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate(darkroomPath(projectId, ep.id, 'scenes'))}
+                      className="rounded-lg border-2 border-zinc-600 bg-zinc-900 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-zinc-100 hover:border-zinc-400 hover:bg-zinc-800"
+                    >
+                      Wejdź do Kinowej Ciemni
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

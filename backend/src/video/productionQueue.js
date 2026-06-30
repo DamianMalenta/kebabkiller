@@ -23,12 +23,20 @@ import { enrichDirectorForRender } from '../ai/directorDesk/workflowBuilder.js';
 import { getDirectorProject } from '../db/directorDeskModels.js';
 import { getAsset } from '../db/episodeModels.js';
 import { extractClipFrames, pickLastFrame } from './frameExtractor.js';
+import { stitchEpisodeClips } from './montageEngine.js';
 import { freezeSnapshot } from './snapshotStore.js';
 import {
   getLatestSceneSnapshot,
   validateTakeAgainstSnapshot,
 } from '../db/snapshotModels.js';
 import { DEFAULT_TENANT_ID, enterTenant } from '../tenant/tenantContext.js';
+import { episodeHasApprovedDarkroomAssets } from '../db/darkroomModels.js';
+import { resolveDarkroomSceneInput } from './darkroomProduction.js';
+import {
+  START_FRAME_SOURCE,
+  resolveSceneStartFrameSource,
+  planUsesExplicitStartFrameSources,
+} from './startFrameSource.js';
 
 const CONTINUITY_FRAME_COUNT = 6;
 const MAX_CLIP_RETRIES = 3;
@@ -121,7 +129,7 @@ function promoteFrameToNextSnapshot({ tenantId, run, nextScene, lastFrameAbs, ou
   });
 }
 
-function buildManifest(plan, visualProfile, clips) {
+function buildManifest(plan, visualProfile, clips, finalEpisodeFile = null) {
   return {
     episode: plan.code,
     title: plan.title,
@@ -130,6 +138,7 @@ function buildManifest(plan, visualProfile, clips) {
     resolution: visualProfile.resolution,
     preferences: plan.preferences,
     catalog_used: visualProfile.catalog_used,
+    final_episode: finalEpisodeFile,
     clips: clips.map((clip) => {
       const scene = plan.scenes.find((s) => s.id === clip.plan_scene_id);
       const locationAsset = scene?.location_asset_id ? getAsset(scene.location_asset_id) : null;
@@ -151,18 +160,24 @@ function buildManifest(plan, visualProfile, clips) {
 }
 
 function buildReadme(plan, manifest) {
-  return [
+  const lines = [
     `${plan.code} — paczka montażowa Kebabkiller Studio`,
     '',
     `Odcinek: ${plan.title || plan.code}`,
     `Cel: ~${plan.target_duration_sec}s · ${manifest.clips.length} klipów`,
     `Format: ${manifest.resolution.width}x${manifest.resolution.height} · ${manifest.fps} fps · WEBM`,
+  ];
+  if (manifest.final_episode) {
+    lines.push('', `Gotowy odcinek (FFmpeg concat): ${manifest.final_episode}`);
+  }
+  lines.push(
     '',
     'Kolejność importu (montaż zewnętrzny):',
     ...manifest.clips.map((c, i) => `${i + 1}. ${c.file} — ${c.scene_pl?.slice(0, 60) || ''}`),
     '',
     'Szczegóły: E01_manifest.json',
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 
 function parseSceneOverrides(scene) {
@@ -190,26 +205,144 @@ function enrichDirectorForProduction(directorJson, plan, scene) {
   return enrichedDirector;
 }
 
-async function renderClip(tenantId, clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, onClipProgress) {
+/** Absolutny katalog eksportu — run może trzymać publiczną ścieżkę `/output/...`. */
+function resolveExportDirAbs(outputDir, exportDir) {
+  if (!exportDir) return null;
+  if (path.isAbsolute(exportDir) && fs.existsSync(exportDir)) return exportDir;
+  return toAbsoluteOutputPath(outputDir, exportDir) || exportDir;
+}
+
+function collectCompletedClipPaths(outputDir, clips, expectedCount) {
+  const sorted = [...clips]
+    .filter((c) => c.status === 'completed' && c.output_path)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  if (sorted.length !== expectedCount) {
+    throw new Error(
+      `Montaż: oczekiwano ${expectedCount} ukończonych klipów, znaleziono ${sorted.length}.`,
+    );
+  }
+
+  return sorted.map((clip) => {
+    const abs = toAbsoluteOutputPath(outputDir, clip.output_path);
+    if (!abs) {
+      throw new Error(`Montaż: brak pliku klipu ${clip.clip_code} na dysku.`);
+    }
+    return abs;
+  });
+}
+
+/**
+ * Po renderze wszystkich scen: sklej klipy FFmpeg-em, zapisz manifest i README.
+ */
+async function finalizeProductionPackage({ plan, visualProfile, runId, outputDir, exportDir }) {
+  const exportDirAbs = resolveExportDirAbs(outputDir, exportDir);
+  const hydratedClips = listProductionClips(runId);
+  const clipPaths = collectCompletedClipPaths(outputDir, hydratedClips, plan.scenes.length);
+
+  const finalEpisodeAbs = path.join(exportDirAbs, `${plan.code}_full.webm`);
+  await stitchEpisodeClips(clipPaths, finalEpisodeAbs);
+  const finalEpisodePublic = toPublicOutputPath(outputDir, finalEpisodeAbs);
+  const finalEpisodeFile = path.basename(finalEpisodeAbs);
+
+  const manifest = buildManifest(plan, visualProfile, hydratedClips, finalEpisodeFile);
+  const manifestAbs = path.join(exportDirAbs, `${plan.code}_manifest.json`);
+  const readmePath = path.join(exportDirAbs, `${plan.code}_README.txt`);
+  fs.writeFileSync(manifestAbs, JSON.stringify(manifest, null, 2));
+  fs.writeFileSync(readmePath, buildReadme(plan, manifest));
+
+  return {
+    hydratedClips,
+    finalEpisodePublic,
+    manifestPublic: toPublicOutputPath(outputDir, manifestAbs),
+    exportDirPublic: toPublicOutputPath(outputDir, exportDirAbs),
+  };
+}
+
+async function renderClip(tenantId, clip, scene, plan, visualProfile, engine, outputDir, exportDir, uploadsDir, startFrameOverride, startSnapshot, onClipProgress) {
   updateProductionClip(clip.id, { status: 'directing', progress: 10 });
 
   let directorJson = await buildSceneDirectorPlan(plan, scene, visualProfile);
-  directorJson = enrichDirectorForProduction(directorJson, plan, scene);
-  // Silnik ciągłości (Filar 3): wstrzyknięcie kadru kontynuacji (absolutna ścieżka).
-  // Robione TUTAJ (warstwa produkcji), nie w deterministycznym buildSceneDirectorPlan,
-  // żeby nie naruszyć strażnika determinizmu payloadu GPU.
-  if (startFrameOverride) {
-    directorJson = { ...directorJson, start_frame_path: startFrameOverride, continuity_mode: 'last_frame' };
+  let userPrompt = clip.user_prompt;
+  let processedAssets;
+  let usedDarkroom = false;
+
+  const source = resolveSceneStartFrameSource(scene);
+  const explicitPlan = planUsesExplicitStartFrameSources(plan)
+    || episodeHasApprovedDarkroomAssets(plan.id);
+
+  if (explicitPlan && !source) {
+    throw new Error(
+      `Scena ${scene.sort_order + 1}: brak jawnego źródła klatki startowej (start_frame_source).`,
+    );
   }
-  updateProductionClip(clip.id, { directorJson, status: 'rendering', progress: 25 });
+
+  if (source === START_FRAME_SOURCE.DARKROOM) {
+    if (!uploadsDir) {
+      throw new Error(
+        `Scena ${scene.sort_order + 1}: źródło darkroom wymaga katalogu uploads (Kinowa Ciemnia).`,
+      );
+    }
+    const darkroom = await resolveDarkroomSceneInput({
+      episodePlanId: plan.id,
+      sceneSortOrder: scene.sort_order,
+      uploadsDir,
+    });
+    if (!darkroom) {
+      throw new Error(
+        `Scena ${scene.sort_order + 1}: brak zatwierdzonego zdjęcia z Kinowej Ciemni.`,
+      );
+    }
+    usedDarkroom = true;
+    userPrompt = darkroom.motionPrompt;
+    processedAssets = darkroom.processedAssets;
+    directorJson = {
+      ...directorJson,
+      positive_prompt: darkroom.motionPrompt,
+      continuity_mode: 'darkroom',
+      darkroom_asset_id: darkroom.sceneAsset.id,
+      character_ref: null,
+      background_ref: null,
+    };
+  } else if (source === START_FRAME_SOURCE.PREVIOUS_SCENE) {
+    if (!startFrameOverride) {
+      throw new Error(
+        `Scena ${scene.sort_order + 1}: źródło previous_scene wymaga klatki z poprzedniego klipu `
+        + '(ekstrakcja FFmpeg) — brak startFrameOverride.',
+      );
+    }
+    directorJson = enrichDirectorForProduction(directorJson, plan, scene);
+    directorJson = {
+      ...directorJson,
+      start_frame_path: startFrameOverride,
+      continuity_mode: 'last_frame',
+    };
+  } else if (startFrameOverride) {
+    directorJson = enrichDirectorForProduction(directorJson, plan, scene);
+    directorJson = {
+      ...directorJson,
+      start_frame_path: startFrameOverride,
+      continuity_mode: 'last_frame',
+    };
+  } else {
+    directorJson = enrichDirectorForProduction(directorJson, plan, scene);
+  }
+
+  updateProductionClip(clip.id, {
+    userPrompt,
+    directorJson,
+    status: 'rendering',
+    progress: 25,
+  });
 
   const ext = engine.name === 'mock' ? '.webm' : '.webm';
   const outputPath = path.join(exportDir, `${clip.clip_code}${ext}`);
 
   const result = await engine.render({
     jobId: clip.clip_code,
-    userPrompt: clip.user_prompt,
+    userPrompt,
     directorJson,
+    processedAssets,
     renderStrategy: 'native_i2v',
     outputPath,
     onProgress: (progress) => {
@@ -243,7 +376,8 @@ async function renderClip(tenantId, clip, scene, plan, visualProfile, engine, ou
   // Take = render walidowany wobec niemutowalnego Snapshotu (start sceny). Jeśli
   // snapshot zniknął albo został wyparty nowszą wersją w trakcie renderu → odrzucamy
   // Take (retry/fail), zamiast cicho montować klip ze stanu, którego już nie ma.
-  if (startSnapshot) {
+  // Ciemnia z własnym kadrem pomija snapshot; ciągłość last_frame — waliduj Take.
+  if (startSnapshot && !usedDarkroom) {
     // Pobieramy NAJNOWSZY snapshot sceny (nie po PK), aby wykryć, czy w trakcie
     // renderu został wyparty nowszą wersją — inaczej porównywalibyśmy wiersz z
     // samym sobą i guard supersesji/wersji nigdy by nie zadziałał.
@@ -271,7 +405,7 @@ async function renderClip(tenantId, clip, scene, plan, visualProfile, engine, ou
   return { publicPath, lastFramePublic: pickLastFrame(publicFrames)?.path || null, lastFrameAbs };
 }
 
-export async function processEpisodeProduction(episodePlanId, engine, outputDir, tenantId = DEFAULT_TENANT_ID) {
+export async function processEpisodeProduction(episodePlanId, engine, outputDir, tenantId = DEFAULT_TENANT_ID, uploadsDir = null) {
   // Context Injection: worker ustawia tenant_id w AsyncLocalStorage na samym
   // starcie obsługi joba (tenant_id przyniesiony w payloadzie dispatchu).
   enterTenant(tenantId);
@@ -337,7 +471,7 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir,
       let retryCount = 0;
       while (retryCount < MAX_CLIP_RETRIES) {
         try {
-          const rendered = await renderClip(tenantId, clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, (c, p) => {
+          const rendered = await renderClip(tenantId, clip, scene, plan, visualProfile, engine, outputDir, exportDir, uploadsDir, startFrameOverride, startSnapshot, (c, p) => {
             const runProgress = Math.round(((completed + p / 100) / plan.scenes.length) * 100);
             updateProductionRun(run.id, { progress: runProgress });
           });
@@ -369,19 +503,20 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir,
       }
     }
 
-    const hydratedClips = listProductionClips(run.id);
-
-    const manifest = buildManifest(plan, visualProfile, hydratedClips);
-    const manifestAbs = path.join(exportDir, `${plan.code}_manifest.json`);
-    const readmePath = path.join(exportDir, `${plan.code}_README.txt`);
-    fs.writeFileSync(manifestAbs, JSON.stringify(manifest, null, 2));
-    fs.writeFileSync(readmePath, buildReadme(plan, manifest));
+    const finalized = await finalizeProductionPackage({
+      plan,
+      visualProfile,
+      runId: run.id,
+      outputDir,
+      exportDir,
+    });
 
     updateProductionRun(run.id, {
       status: 'completed',
       progress: 100,
-      manifestPath: toPublicOutputPath(outputDir, manifestAbs),
-      exportDir: toPublicOutputPath(outputDir, exportDir),
+      manifestPath: finalized.manifestPublic,
+      finalEpisodePath: finalized.finalEpisodePublic,
+      exportDir: finalized.exportDirPublic,
       completedAt: new Date().toISOString(),
     });
     updateEpisodePlan(episodePlanId, { status: 'gotowy' });
@@ -398,13 +533,11 @@ export async function processEpisodeProduction(episodePlanId, engine, outputDir,
   }
 }
 
-export function enqueueEpisodeProduction(episodePlanId, engine, outputDir, tenantId = DEFAULT_TENANT_ID) {
+export function enqueueEpisodeProduction(episodePlanId, engine, outputDir, tenantId = DEFAULT_TENANT_ID, uploadsDir = null) {
   assertPlanFramesConfirmedForProduction(episodePlanId);
-  // "dispatchTakeJob": tenant_id jest częścią payloadu joba (a nie globalnym
-  // lookupem). Worker (poniżej) ustawia go w AsyncLocalStorage na starcie.
-  const job = { episodePlanId, engine, outputDir, tenantId };
+  const job = { episodePlanId, engine, outputDir, tenantId, uploadsDir };
   setImmediate(() => {
-    processEpisodeProduction(job.episodePlanId, job.engine, job.outputDir, job.tenantId).catch((err) => {
+    processEpisodeProduction(job.episodePlanId, job.engine, job.outputDir, job.tenantId, job.uploadsDir).catch((err) => {
       console.error(`[ProductionQueue] Episode ${job.episodePlanId} production failed:`, err.message);
     });
   });
@@ -413,7 +546,7 @@ export function enqueueEpisodeProduction(episodePlanId, engine, outputDir, tenan
 /**
  * Resume production from a partial run - continues from first failed clip
  */
-export async function resumeProductionFromPartial(productionRunId, engine, outputDir, tenantId = DEFAULT_TENANT_ID) {
+export async function resumeProductionFromPartial(productionRunId, engine, outputDir, tenantId = DEFAULT_TENANT_ID, uploadsDir = null) {
   // Context Injection: ustaw tenant_id w AsyncLocalStorage na starcie joba.
   enterTenant(tenantId);
   const existingRun = getProductionRun(productionRunId);
@@ -495,7 +628,7 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
       let retryCount = 0;
       while (retryCount < MAX_CLIP_RETRIES) {
         try {
-          const rendered = await renderClip(tenantId, clip, scene, plan, visualProfile, engine, outputDir, exportDir, startFrameOverride, startSnapshot, (c, p) => {
+          const rendered = await renderClip(tenantId, clip, scene, plan, visualProfile, engine, outputDir, exportDir, uploadsDir, startFrameOverride, startSnapshot, (c, p) => {
             const runProgress = Math.round(((completed + p / 100) / plan.scenes.length) * 100);
             updateProductionRun(productionRunId, { progress: runProgress });
           });
@@ -525,19 +658,21 @@ export async function resumeProductionFromPartial(productionRunId, engine, outpu
         }
       }
     }
-    
-    const hydratedClips = listProductionClips(productionRunId);
-    const manifest = buildManifest(plan, visualProfile, hydratedClips);
-    const manifestAbs = path.join(exportDir, `${plan.code}_manifest.json`);
-    const readmePath = path.join(exportDir, `${plan.code}_README.txt`);
-    fs.writeFileSync(manifestAbs, JSON.stringify(manifest, null, 2));
-    fs.writeFileSync(readmePath, buildReadme(plan, manifest));
-    
+
+    const finalized = await finalizeProductionPackage({
+      plan,
+      visualProfile,
+      runId: productionRunId,
+      outputDir,
+      exportDir,
+    });
+
     updateProductionRun(productionRunId, {
       status: 'completed',
       progress: 100,
-      manifestPath: toPublicOutputPath(outputDir, manifestAbs),
-      exportDir: toPublicOutputPath(outputDir, exportDir),
+      manifestPath: finalized.manifestPublic,
+      finalEpisodePath: finalized.finalEpisodePublic,
+      exportDir: finalized.exportDirPublic,
       completedAt: new Date().toISOString(),
     });
     updateEpisodePlan(plan.id, { status: 'gotowy' });

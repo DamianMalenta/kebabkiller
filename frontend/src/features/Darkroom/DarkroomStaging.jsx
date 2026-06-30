@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
+import { darkroomPath } from '../../lib/deskRoutes.js';
 
 const PENDING = 'PENDING_USER_APPROVAL';
 
-export default function DarkroomStaging({ episodePlanId }) {
+export default function DarkroomStaging({ episodePlanId, projectId }) {
   const [queue, setQueue] = useState([]);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(true);
@@ -42,7 +44,7 @@ export default function DarkroomStaging({ episodePlanId }) {
     setError('');
     try {
       await api.darkroom.reviewAsset(current.id, status, prompt);
-      setQueue((prev) => prev.slice(1));
+      await loadQueue();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -56,10 +58,23 @@ export default function DarkroomStaging({ episodePlanId }) {
 
   if (queue.length === 0) {
     return (
-      <div className="mx-auto max-w-3xl border-4 border-emerald-600 bg-emerald-950/40 px-8 py-20 text-center">
-        <p className="text-3xl font-black uppercase tracking-wider text-emerald-400">
-          Matryca zatwierdzona. Gotowe do renderu.
-        </p>
+      <div className="mx-auto max-w-3xl space-y-6 text-center">
+        <div className="border border-zinc-800 bg-zinc-950/60 px-8 py-10">
+          <p className="text-lg font-bold uppercase tracking-wider text-zinc-300">
+            Poczekalnia pusta
+          </p>
+          <p className="mt-2 text-sm text-zinc-500">
+            Brak kadrów oczekujących na zatwierdzenie. Sprawdź sceny i bramkę produkcji GPU.
+          </p>
+          {projectId && (
+            <Link
+              to={darkroomPath(projectId, episodePlanId, 'scenes')}
+              className="mt-4 inline-block rounded border border-amber-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-amber-400 hover:bg-amber-950/40"
+            >
+              Przejdź do scen
+            </Link>
+          )}
+        </div>
       </div>
     );
   }

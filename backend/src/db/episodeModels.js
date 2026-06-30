@@ -2,6 +2,18 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from './init.js';
 import { secondsToFrames, WAN_FRAME_MIN, WAN_FRAME_MAX } from '../video/wanConfig.js';
 import { parseJsonField, hydrateRow } from '../utils/json.js';
+import {
+  episodeHasApprovedDarkroomAssets,
+  getApprovedSceneAssetForSortOrder,
+  listSceneAssetsByEpisodePlan,
+} from './darkroomModels.js';
+import {
+  START_FRAME_SOURCE,
+  isValidStartFrameSource,
+  assertStartFrameSourceForScene,
+  planUsesExplicitStartFrameSources,
+} from '../video/startFrameSource.js';
+import { resolveDarkroomMotionPrompt } from '../video/darkroomProduction.js';
 
 const PLAN_STATUSES = new Set([
   'szkic',
@@ -320,6 +332,11 @@ export function normalizePlanSceneInput(scene) {
     assetImageId: scene.assetImageId ?? scene.asset_image_id ?? null,
     locationAssetId: scene.locationAssetId ?? scene.location_asset_id ?? null,
     startFramePath: scene.startFramePath ?? scene.start_frame_path ?? null,
+    startFrameSource: Object.prototype.hasOwnProperty.call(scene, 'startFrameSource')
+      ? scene.startFrameSource
+      : (Object.prototype.hasOwnProperty.call(scene, 'start_frame_source')
+        ? scene.start_frame_source
+        : undefined),
   };
 }
 
@@ -329,12 +346,15 @@ export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true, en
   const id = normalized.id || uuidv4();
   const existing = getDb().prepare('SELECT id FROM plan_scenes WHERE id = ?').get(id);
 
+  let startFrameSource = normalized.startFrameSource;
+
   if (existing) {
     getDb().prepare(`
       UPDATE plan_scenes
       SET sort_order = ?, description_pl = ?, duration_sec = ?,
           asset_id = ?, asset_image_id = ?, location_asset_id = ?,
           start_frame_path = ?,
+          start_frame_source = COALESCE(?, start_frame_source),
           updated_at = datetime('now')
       WHERE id = ?
     `).run(
@@ -345,12 +365,16 @@ export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true, en
       normalized.assetImageId,
       normalized.locationAssetId,
       normalized.startFramePath,
+      startFrameSource ?? null,
       id,
     );
   } else {
     getDb().prepare(`
-      INSERT INTO plan_scenes (id, episode_plan_id, sort_order, description_pl, duration_sec, asset_id, asset_image_id, location_asset_id, start_frame_path)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO plan_scenes (
+        id, episode_plan_id, sort_order, description_pl, duration_sec,
+        asset_id, asset_image_id, location_asset_id, start_frame_path, start_frame_source
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       episodePlanId,
@@ -361,6 +385,7 @@ export function upsertPlanScene(episodePlanId, scene, { refreshStatus = true, en
       normalized.assetImageId,
       normalized.locationAssetId,
       normalized.startFramePath,
+      startFrameSource ?? null,
     );
   }
 
@@ -428,6 +453,81 @@ export function setSceneStartFrame(sceneId, framePath) {
     UPDATE plan_scenes SET start_frame_path = ?, updated_at = datetime('now') WHERE id = ?
   `).run(framePath || null, sceneId);
   return getDb().prepare('SELECT * FROM plan_scenes WHERE id = ?').get(sceneId);
+}
+
+/**
+ * Jawne źródło klatki startowej: 'darkroom' | 'previous_scene'.
+ * Scena 1 (sort_order 0) może mieć wyłącznie 'darkroom'.
+ */
+export function setSceneStartFrameSource(sceneId, source) {
+  const scene = getDb().prepare('SELECT * FROM plan_scenes WHERE id = ?').get(sceneId);
+  if (!scene) return null;
+  if (!isValidStartFrameSource(source)) {
+    throw new Error(`Nieprawidłowe start_frame_source. Dozwolone: darkroom, previous_scene.`);
+  }
+  assertStartFrameSourceForScene(scene, source);
+
+  getDb().prepare(`
+    UPDATE plan_scenes SET start_frame_source = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(source, sceneId);
+
+  return getDb().prepare('SELECT * FROM plan_scenes WHERE id = ?').get(sceneId);
+}
+
+/**
+ * Uzupełnia plan_scenes pod liczbę kadrów w Ciemni (min. 1 scena).
+ * Wywoływane przy uploadzie / wejściu w Ciemnię — tor Darkroom bez ręcznego API scen.
+ */
+export function ensurePlanScenesForDarkroom(episodePlanId) {
+  const plan = getEpisodePlan(episodePlanId);
+  if (!plan) return null;
+
+  const assets = listSceneAssetsByEpisodePlan(episodePlanId);
+  const maxAssetOrder = assets.length > 0
+    ? Math.max(...assets.map((a) => a.sort_order))
+    : -1;
+  const sceneCount = Math.max(1, maxAssetOrder + 1);
+  const existingOrders = new Set((plan.scenes || []).map((s) => s.sort_order));
+
+  for (let order = 0; order < sceneCount; order += 1) {
+    if (existingOrders.has(order)) continue;
+    upsertPlanScene(episodePlanId, {
+      sortOrder: order,
+      descriptionPl: plan.logline?.trim() || `Scena ${order + 1}`,
+      durationSec: 4,
+    });
+  }
+
+  let refreshed = getEpisodePlan(episodePlanId);
+  for (const scene of refreshed.scenes || []) {
+    const hasAsset = assets.some((a) => a.sort_order === scene.sort_order);
+    if (scene.sort_order === 0) {
+      if (scene.start_frame_source !== START_FRAME_SOURCE.DARKROOM) {
+        setSceneStartFrameSource(scene.id, START_FRAME_SOURCE.DARKROOM);
+      }
+    } else if (hasAsset && scene.start_frame_source !== START_FRAME_SOURCE.DARKROOM) {
+      setSceneStartFrameSource(scene.id, START_FRAME_SOURCE.DARKROOM);
+    } else if (!hasAsset && !isValidStartFrameSource(scene.start_frame_source)) {
+      setSceneStartFrameSource(scene.id, START_FRAME_SOURCE.PREVIOUS_SCENE);
+    }
+  }
+
+  return getEpisodePlan(episodePlanId);
+}
+
+/** Scena 1 zawsze darkroom — wywoływane przy wejściu w Kinową Ciemnię. */
+export function ensureSceneOneDarkroom(episodePlanId) {
+  ensurePlanScenesForDarkroom(episodePlanId);
+  const plan = getEpisodePlan(episodePlanId);
+  if (!plan?.scenes?.length) return plan;
+  const anchor = plan.scenes.reduce(
+    (min, scene) => (scene.sort_order < min.sort_order ? scene : min),
+    plan.scenes[0],
+  );
+  if (anchor.start_frame_source === START_FRAME_SOURCE.DARKROOM) return plan;
+  return setSceneStartFrameSource(anchor.id, START_FRAME_SOURCE.DARKROOM)
+    ? getEpisodePlan(episodePlanId)
+    : plan;
 }
 
 export function deletePlanScene(sceneId) {
@@ -546,16 +646,36 @@ export function validateEpisodePlan(episodePlanId) {
     errors.push(`Otwarte braki materiałów: ${openDeliverables.length}.`);
   }
 
+  const sceneAssets = listSceneAssetsByEpisodePlan(episodePlanId);
+  const inDarkroomTor = episodeHasApprovedDarkroomAssets(episodePlanId)
+    || sceneAssets.length > 0
+    || plan.scenes.some((s) => s.start_frame_source === START_FRAME_SOURCE.PREVIOUS_SCENE);
+
   let totalDuration = 0;
   for (const scene of plan.scenes) {
     if (!scene.description_pl?.trim()) {
       errors.push(`Scena #${scene.sort_order + 1}: brak opisu.`);
     }
-    if (!scene.asset_id && !scene.asset_image_id) {
-      errors.push(`Scena #${scene.sort_order + 1}: brak przypisanego assetu / zdjęcia.`);
+    const darkroomClip = getApprovedSceneAssetForSortOrder(episodePlanId, scene.sort_order);
+    const usesContinuity = scene.start_frame_source === START_FRAME_SOURCE.PREVIOUS_SCENE;
+    const usesDarkroomSource = scene.start_frame_source === START_FRAME_SOURCE.DARKROOM
+      || (inDarkroomTor && scene.sort_order === 0);
+    const skipCatalogAssets = Boolean(darkroomClip) || usesContinuity || usesDarkroomSource;
+    if (!skipCatalogAssets) {
+      if (!scene.asset_id && !scene.asset_image_id) {
+        errors.push(`Scena #${scene.sort_order + 1}: brak przypisanego assetu / zdjęcia.`);
+      }
+      if (!scene.location_asset_id) {
+        errors.push(`Scena #${scene.sort_order + 1}: brak lokacji.`);
+      }
     }
-    if (!scene.location_asset_id) {
-      errors.push(`Scena #${scene.sort_order + 1}: brak lokacji.`);
+    if (inDarkroomTor) {
+      if (usesDarkroomSource && !darkroomClip) {
+        errors.push(`Scena #${scene.sort_order + 1}: brak zatwierdzonego zdjęcia z Kinowej Ciemni.`);
+      }
+      if (scene.sort_order > 0 && !isValidStartFrameSource(scene.start_frame_source)) {
+        errors.push(`Scena #${scene.sort_order + 1}: wybierz źródło klatki (Darkroom lub ciągłość).`);
+      }
     }
     const dur = Number(scene.duration_sec);
     if (!Number.isFinite(dur) || dur < 2 || dur > 10) {
@@ -587,8 +707,9 @@ function isSceneFrameConfirmed(scene) {
 }
 
 /**
- * Twardy gate przed produkcją GPU — Klatka Zero musi być zapisana per scena.
- * Nie da się obejść przez curl ani agenta (wołane z enqueue / produce / accept+produce).
+ * Twardy gate przed produkcją GPU.
+ * Tryb jawny (Ciemnia / start_frame_source): walidacja per flaga sceny — zero zgadywania.
+ * Tryb legacy (Klatka Zero): composite.frame_confirmed per scena.
  */
 export function assertPlanFramesConfirmedForProduction(episodePlanId) {
   const plan = getEpisodePlan(episodePlanId);
@@ -598,6 +719,44 @@ export function assertPlanFramesConfirmedForProduction(episodePlanId) {
   if (!plan.scenes.length) {
     throw new Error('Plan nie ma scen do renderu.');
   }
+
+  const usesExplicitSources = planUsesExplicitStartFrameSources(plan)
+    || episodeHasApprovedDarkroomAssets(episodePlanId);
+
+  if (usesExplicitSources) {
+    for (const scene of plan.scenes) {
+      const label = scene.sort_order + 1;
+      const source = scene.start_frame_source;
+
+      if (scene.sort_order === 0) {
+        if (source !== START_FRAME_SOURCE.DARKROOM) {
+          throw new Error(
+            'Scena 1: źródło klatki musi być „Nowe zdjęcie (Darkroom)".',
+          );
+        }
+      } else if (!isValidStartFrameSource(source)) {
+        throw new Error(
+          `Scena ${label}: wybierz źródło klatki startowej (Darkroom lub ciągłość z poprzedniej sceny).`,
+        );
+      }
+
+      if (source === START_FRAME_SOURCE.DARKROOM) {
+        const asset = getApprovedSceneAssetForSortOrder(episodePlanId, scene.sort_order);
+        if (!asset) {
+          throw new Error(
+            `Scena ${label}: brak zatwierdzonego zdjęcia z Kinowej Ciemni.`,
+          );
+        }
+        if (!resolveDarkroomMotionPrompt(asset)) {
+          throw new Error(
+            `Scena ${label}: zatwierdzony kadr bez promptu ruchu — uzupełnij w Poczekalni.`,
+          );
+        }
+      }
+    }
+    return plan;
+  }
+
   const missing = plan.scenes
     .filter((s) => !isSceneFrameConfirmed(s))
     .map((s) => s.sort_order + 1);
@@ -610,6 +769,7 @@ export function assertPlanFramesConfirmedForProduction(episodePlanId) {
 }
 
 export function acceptEpisodePlan(episodePlanId) {
+  refreshEpisodePlanStatus(episodePlanId);
   const validation = validateEpisodePlan(episodePlanId);
   if (!validation.ok) {
     throw new Error(validation.errors.join(' '));

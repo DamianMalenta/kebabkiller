@@ -569,7 +569,7 @@ export function createRunComfyEngine(outputDir, config) {
 
   return {
     name: 'runcomfy',
-    async render({ jobId, userPrompt, directorJson, renderStrategy, onProgress, outputPath: outputPathOverride }) {
+    async render({ jobId, userPrompt, directorJson, renderStrategy, onProgress, outputPath: outputPathOverride, processedAssets: injectedAssets }) {
       console.log(`[RunComfyEngine] Starting render for job ${jobId}`);
         emitProgress(onProgress, 2, 'Przygotowanie zlecenia RunComfy…');
       
@@ -578,9 +578,15 @@ export function createRunComfyEngine(outputDir, config) {
         const isReady = await checkAndWakeCluster((p) => emitProgress(onProgress, p));
         if (!isReady) throw new Error("Chmura GPU nie odpowiada po fazie budzenia.");
 
-        // Krok 2: Klatka startowa 9:16 (tło + postać → węzeł 59)
-        emitProgress(onProgress, 10, 'Składanie klatki startowej (postać + tło)…');
-        const startFrame = await buildStartFrameAsset({
+        // Krok 2: Klatka startowa 9:16 (Ciemnia → injectedAssets; inaczej kolaż 2D)
+        emitProgress(
+          onProgress,
+          10,
+          injectedAssets?.startFrame?.source === 'darkroom'
+            ? 'Klatka startowa z Kinowej Ciemni…'
+            : 'Składanie klatki startowej (postać + tło)…',
+        );
+        const startFrame = injectedAssets?.startFrame ?? await buildStartFrameAsset({
           characterRef: directorJson?.character_ref,
           backgroundRef: directorJson?.background_ref,
           uploadsDir,
@@ -588,7 +594,7 @@ export function createRunComfyEngine(outputDir, config) {
           height: WAN_QUALITY.height,
           startFrameOverride: directorJson?.start_frame_path,
         });
-        const processedAssets = { startFrame };
+        const processedAssets = injectedAssets?.startFrame ? injectedAssets : { startFrame };
 
         // Krok 3: Emisja Payloadu JSON (Build & Submit)
         emitProgress(onProgress, 20, 'Wysyłanie workflow na RunComfy…');

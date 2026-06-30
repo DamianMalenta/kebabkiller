@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, test, expect, beforeAll, afterAll } from '@jest/globals';
+import { jest, describe, test, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
 import request from 'supertest';
 import { createTestDatabase, destroyTestDatabase } from './helpers/testDatabase.js';
 import { createApp } from '../app.js';
@@ -15,6 +15,10 @@ let dbDir;
 let uploadsDir;
 let outputDir;
 let episodePlanId;
+let prevGroqKey;
+
+const MOCK_MOTION_PROMPT =
+  'Slow push-in with warm rim light and drifting smoke particles across the frame.';
 
 beforeAll(async () => {
   ({ dir: dbDir } = createTestDatabase());
@@ -35,9 +39,24 @@ beforeAll(async () => {
     logline: 'Darkroom test',
   });
   episodePlanId = plan.id;
+  prevGroqKey = process.env.GROQ_API_KEY;
+  process.env.GROQ_API_KEY = 'test-groq-key';
+});
+
+beforeEach(() => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: MOCK_MOTION_PROMPT } }],
+        }),
+    }),
+  );
 });
 
 afterAll(() => {
+  process.env.GROQ_API_KEY = prevGroqKey;
   destroyTestDatabase(dbDir);
   for (const dir of [uploadsDir, outputDir]) {
     if (dir && fs.existsSync(dir)) {
@@ -104,10 +123,36 @@ describe('POST /api/darkroom/episode-plans/:episode_plan_id/audit', () => {
     expect(res.body.scene_assets).toHaveLength(2);
     for (const asset of res.body.scene_assets) {
       expect(asset.status).toBe('PENDING_USER_APPROVAL');
-      expect(asset.ai_proposed_prompt).toBe(
-        'Cinematic dark lighting, 8k resolution, remove human hand, realistic textures',
-      );
+      expect(asset.ai_proposed_prompt).toBe(MOCK_MOTION_PROMPT);
     }
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  test('przekazuje director_hint do Groq per asset', async () => {
+    const plan = createEpisodePlan({
+      code: `HNT${Date.now()}`,
+      title: 'Hint odcinek',
+      logline: 'Hint',
+    });
+
+    const uploadRes = await uploadTwoImages(plan.id);
+    expect(uploadRes.status).toBe(201);
+
+    const assets = uploadRes.body.scene_assets.map((asset) => ({
+      id: asset.id,
+      director_hint: 'kamera powoli odjeżdża, w tle płonie ogień',
+    }));
+
+    const res = await agent
+      .post(`/api/darkroom/episode-plans/${plan.id}/audit`)
+      .send({ assets });
+
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(2);
+
+    const fetchBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(fetchBody.messages[0].content).toContain('kamera powoli odjeżdża');
+    expect(fetchBody.messages[0].content).toContain('Przetłumacz to na profesjonalny, kinowy angielski');
   });
 
   test('zwraca count 0 gdy brak assetów do audytu', async () => {
@@ -210,5 +255,12 @@ describe('PUT /api/darkroom/assets/:asset_id/review', () => {
       .send({ status: 'APPROVED' });
 
     expect(res.status).toBe(404);
+  });
+
+  test('GET production-gate zwraca ok:false gdy brak zatwierdzonych kadrów', async () => {
+    const res = await agent.get(`/api/episode-plans/${episodePlanId}/production-gate`);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.errors?.length).toBeGreaterThan(0);
   });
 });

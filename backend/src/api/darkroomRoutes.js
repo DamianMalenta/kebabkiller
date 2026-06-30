@@ -2,13 +2,15 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
-import { getEpisodePlan } from '../db/episodeModels.js';
+import { getEpisodePlan, ensureSceneOneDarkroom } from '../db/episodeModels.js';
 import {
   createSceneAssetsBatch,
   listSceneAssetsByEpisodePlan,
   reviewSceneAsset,
+  nextSortOrder,
 } from '../db/darkroomModels.js';
-import { runAuditForEpisodePlan } from '../services/visionAiMockService.js';
+import { START_FRAME_SOURCE } from '../video/startFrameSource.js';
+import { runAuditForEpisodePlan } from '../services/darkroomAiService.js';
 
 const ALLOWED_RAW_MIMES = new Set([
   'image/jpeg',
@@ -43,17 +45,23 @@ export function createDarkroomRouter({ uploadsDir }) {
     },
   });
 
-  router.post('/episode-plans/:episode_plan_id/audit', (req, res) => {
+  router.post('/episode-plans/:episode_plan_id/audit', async (req, res) => {
     try {
       const episodePlanId = req.params.episode_plan_id;
-      const result = runAuditForEpisodePlan(episodePlanId);
+      const { director_hint: directorHint, assets } = req.body || {};
+      const result = await runAuditForEpisodePlan(episodePlanId, {
+        director_hint: directorHint,
+        assets,
+      });
       res.json({
         episode_plan_id: episodePlanId,
         count: result.count,
         scene_assets: result.updated,
       });
     } catch (err) {
-      const status = err.message === 'Plan odcinka nie istnieje.' ? 404 : 400;
+      let status = 400;
+      if (err.message === 'Plan odcinka nie istnieje.') status = 404;
+      else if (err.message.includes('GROQ_API_KEY')) status = 503;
       res.status(status).json({ error: err.message });
     }
   });
@@ -61,14 +69,17 @@ export function createDarkroomRouter({ uploadsDir }) {
   router.get('/episode-plans/:episode_plan_id/assets', (req, res) => {
     try {
       const episodePlanId = req.params.episode_plan_id;
-      if (!getEpisodePlan(episodePlanId)) {
+      const plan = getEpisodePlan(episodePlanId);
+      if (!plan) {
         return res.status(404).json({ error: 'Plan odcinka nie istnieje.' });
       }
+      ensureSceneOneDarkroom(episodePlanId);
       const sceneAssets = listSceneAssetsByEpisodePlan(episodePlanId);
       res.json({
         episode_plan_id: episodePlanId,
         count: sceneAssets.length,
         scene_assets: sceneAssets,
+        plan: getEpisodePlan(episodePlanId),
       });
     } catch (err) {
       res.status(400).json({ error: err.message });
@@ -102,9 +113,23 @@ export function createDarkroomRouter({ uploadsDir }) {
         return res.status(404).json({ error: 'Plan odcinka nie istnieje.' });
       }
 
+      ensureSceneOneDarkroom(episodePlanId);
+      const plan = getEpisodePlan(episodePlanId);
+
       const files = req.files || [];
       if (files.length === 0) {
         return res.status(400).json({ error: 'Wymagana co najmniej jedna grafika w polu images.' });
+      }
+
+      const baseOrder = nextSortOrder(episodePlanId);
+      for (let i = 0; i < files.length; i += 1) {
+        const targetOrder = baseOrder + i;
+        const planScene = plan.scenes.find((s) => s.sort_order === targetOrder);
+        if (planScene?.start_frame_source === START_FRAME_SOURCE.PREVIOUS_SCENE) {
+          return res.status(400).json({
+            error: `Scena ${targetOrder + 1}: ciągłość z poprzedniej sceny — wgrywanie zdjęcia zablokowane.`,
+          });
+        }
       }
 
       const items = files.map((file) => ({

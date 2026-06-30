@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { describe, test, expect, beforeEach, afterEach } from '@jest/globals';
 import { initDatabase, closeDatabase } from '../db/init.js';
 import {
@@ -19,6 +20,17 @@ import { getLatestProductionRun } from '../db/productionModels.js';
 
 let dbPath;
 let outputDir;
+
+function hasFfmpeg() {
+  try {
+    execFileSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const FFMPEG = hasFfmpeg();
 
 beforeEach(() => {
   dbPath = path.join(os.tmpdir(), `kk-queue-${Date.now()}.db`);
@@ -39,7 +51,7 @@ function confirmAllSceneFrames(planId) {
 }
 
 describe('productionQueue', () => {
-  test('renders episode package with manifest and clips', async () => {
+  (FFMPEG ? test : test.skip)('renders episode package with manifest, clips and stitched episode', async () => {
     const char = createAsset({ type: 'character', name: 'Hero', descriptionPl: 'Kebab', canonEn: 'Wrap' });
     const loc = createAsset({ type: 'location', name: 'Piec', descriptionPl: 'Kuchnia', canonEn: 'Oven' });
     addAssetImage(char.id, { path: '/uploads/h.jpg', isPrimary: true });
@@ -72,6 +84,9 @@ describe('productionQueue', () => {
     expect(manifest.episode).toBe('E03');
     expect(manifest.clips).toHaveLength(5);
 
+    expect(fs.existsSync(path.join(exportDir, 'E03_full.webm'))).toBe(true);
+    expect(manifest.final_episode).toBe('E03_full.webm');
+    expect(getLatestProductionRun(plan.id).final_episode_path).toMatch(/E03_full\.webm$/);
     expect(getLatestProductionRun(plan.id).status).toBe('completed');
   }, 30000);
 

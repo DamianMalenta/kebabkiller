@@ -54,6 +54,8 @@ import {
   setSceneCompositeOverride,
   attachPlanSceneAssets,
   setSceneStartFrame,
+  setSceneStartFrameSource,
+  ensureSceneOneDarkroom,
   listEpisodePlans,
   getEpisodePlan,
   createEpisodePlan,
@@ -85,7 +87,7 @@ import {
   handleSideThreadMessage,
   closeSideThreadAndMerge,
 } from '../ai/directorDesk/agentServer.js';
-import { buildProjectBrain, setAssetImageMetadata } from '../db/directorDeskModels.js';
+import { buildProjectBrain, setAssetImageMetadata, linkEpisodeToProject } from '../db/directorDeskModels.js';
 import { buildDeterministicAssetMetadata } from '../ai/directorDesk/assetMetadata.js';
 import { buildStartFrameAsset, resolveCompositeConfig } from '../video/compositeStartFrame.js';
 import { createSystemAgentRouter } from '../ai/systemAgent/router.js';
@@ -399,6 +401,36 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     res.json(listEpisodePlans(req.params.projectId));
   });
 
+  /** Tor Studio Dashboard — tworzenie odcinka bez kreatora Reżyserii (wizard series_start). */
+  router.post('/projects/:projectId/episode-plans', (req, res) => {
+    try {
+      const project = getProject(req.params.projectId);
+      if (!project) return res.status(404).json({ error: 'Project not found' });
+
+      const title = req.body?.title?.trim?.() || req.body?.title || '';
+      const logline = req.body?.logline?.trim?.() || req.body?.logline || '';
+      if (!title) {
+        return res.status(400).json({ error: 'Tytuł odcinka jest wymagany.' });
+      }
+
+      const code = (req.body?.code?.trim?.() || req.body?.code)
+        || `E${String(Date.now()).slice(-6)}`;
+
+      const plan = createEpisodePlan({
+        code,
+        title,
+        logline,
+        preferences: req.body?.preferences,
+        targetDurationSec: req.body?.target_duration_sec ?? req.body?.targetDurationSec,
+        catalogSelection: req.body?.catalog_selection ?? req.body?.catalogSelection,
+      });
+      const linked = linkEpisodeToProject(plan.id, project.id);
+      res.status(201).json(linked);
+    } catch (err) {
+      res.status(errorStatus(err)).json({ error: err.message });
+    }
+  });
+
   // Legacy: tworzenie odcinka starym flow (tabela `episodes`) jest wycofane.
   // Odcinki powstają wyłącznie przez kreator w Director's Desk (episode_plans).
   // GET tego path nadal zwraca listę episode_plans (poniżej / wyżej).
@@ -603,6 +635,25 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
   });
 
   /**
+   * Jawne źródło klatki startowej per scena: 'darkroom' | 'previous_scene'.
+   * Scena 1 może mieć wyłącznie 'darkroom'.
+   */
+  router.put('/episode-plans/:planId/scenes/:sceneId/start-frame-source', (req, res) => {
+    try {
+      const plan = getEpisodePlan(req.params.planId);
+      if (!plan) return res.status(404).json({ error: 'Episode plan not found' });
+      const scene = plan.scenes.find((s) => s.id === req.params.sceneId);
+      if (!scene) return res.status(404).json({ error: 'Scene not found' });
+
+      const source = req.body.start_frame_source ?? req.body.startFrameSource;
+      const updated = setSceneStartFrameSource(req.params.sceneId, source);
+      res.json({ scene: updated, plan: getEpisodePlan(req.params.planId) });
+    } catch (err) {
+      res.status(errorStatus(err)).json({ error: err.message });
+    }
+  });
+
+  /**
    * Faza C — PODGLĄD KOLAŻU Klatki Zero (0 zł, ZERO GPU).
    * Składa @char (wycinek) na @loc (tło) z kaskadą composite: scena → asset → fallback.
    * Źródła: compose (domyślne) / upload gotowej klatki / klatka z biblioteki.
@@ -800,6 +851,18 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
     res.json(validateEpisodePlan(req.params.id));
   });
 
+  /** Twardy gate GPU — to samo co przed produce/accept+produce. */
+  router.get('/episode-plans/:id/production-gate', (req, res) => {
+    const plan = getEpisodePlan(req.params.id);
+    if (!plan) return res.status(404).json({ error: 'Episode plan not found' });
+    try {
+      assertPlanFramesConfirmedForProduction(req.params.id);
+      res.json({ ok: true, errors: [] });
+    } catch (err) {
+      res.json({ ok: false, errors: [err.message] });
+    }
+  });
+
   router.post('/episode-plans/:id/accept', (req, res) => {
     try {
       const autoProduce = req.body?.start_production === true;
@@ -808,7 +871,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
       }
       const plan = acceptEpisodePlan(req.params.id);
       if (autoProduce) {
-        enqueueEpisodeProduction(plan.id, videoEngine, outputDir, resolveRequestTenantId(req));
+        enqueueEpisodeProduction(plan.id, videoEngine, outputDir, resolveRequestTenantId(req), uploadsDir);
       }
       res.json({
         ...plan,
@@ -827,7 +890,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
         return res.status(400).json({ error: 'Plan musi być zaakceptowany przed produkcją.' });
       }
       assertPlanFramesConfirmedForProduction(req.params.id);
-      enqueueEpisodeProduction(plan.id, videoEngine, outputDir, resolveRequestTenantId(req));
+      enqueueEpisodeProduction(plan.id, videoEngine, outputDir, resolveRequestTenantId(req), uploadsDir);
       res.status(202).json({
         message: 'Produkcja uruchomiona.',
         plan_id: plan.id,
@@ -867,6 +930,7 @@ export function createApiRouter({ videoEngine, uploadsDir, outputDir }) {
         videoEngine,
         outputDir,
         resolveRequestTenantId(req),
+        uploadsDir,
       );
       res.status(202).json({
         message: 'Wznowiono produkcję.',

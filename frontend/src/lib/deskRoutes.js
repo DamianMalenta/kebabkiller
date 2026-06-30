@@ -13,7 +13,10 @@ export function deskPath(projectId, episodePlanId = null) {
 
 export function darkroomPath(projectId, episodePlanId, view = 'upload') {
   const base = `/desk/${projectId}/darkroom/${episodePlanId}`;
-  return view === 'staging' ? `${base}/staging` : base;
+  if (view === 'staging') return `${base}/staging`;
+  if (view === 'scenes') return `${base}/scenes`;
+  if (view === 'upload') return `${base}/upload`;
+  return base;
 }
 
 export function rememberDeskContext(projectId, episodePlanId) {

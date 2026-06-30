@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link, Route, Routes, useParams } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import { darkroomPath, deskPath, rememberDeskContext } from '../../lib/deskRoutes.js';
 import DarkroomUpload from './DarkroomUpload.jsx';
 import DarkroomStaging from './DarkroomStaging.jsx';
+import DarkroomSceneManager from './DarkroomSceneManager.jsx';
 
 function DarkroomHeader({ projectId, episodePlanId, plan }) {
   const label = plan ? `${plan.code}${plan.title ? ` — ${plan.title}` : ''}` : episodePlanId.slice(0, 8);
@@ -14,7 +15,7 @@ function DarkroomHeader({ projectId, episodePlanId, plan }) {
         to={deskPath(projectId, episodePlanId)}
         className="inline-block text-sm text-zinc-500 hover:text-zinc-300"
       >
-        ← Wróć do Reżyserii
+        ← Wróć do Studia
       </Link>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
@@ -22,7 +23,14 @@ function DarkroomHeader({ projectId, episodePlanId, plan }) {
           <h1 className="text-lg font-bold text-zinc-200">{label}</h1>
           <p className="font-mono text-xs text-zinc-600">episode_plan_id: {episodePlanId}</p>
         </div>
-        <div className="flex gap-3 text-sm">
+        <nav className="flex gap-3 text-sm">
+          <Link
+            to={darkroomPath(projectId, episodePlanId, 'scenes')}
+            className="text-zinc-500 hover:text-zinc-300"
+          >
+            Sceny
+          </Link>
+          <span className="text-zinc-700">/</span>
           <Link
             to={darkroomPath(projectId, episodePlanId, 'upload')}
             className="text-zinc-500 hover:text-zinc-300"
@@ -36,7 +44,7 @@ function DarkroomHeader({ projectId, episodePlanId, plan }) {
           >
             Poczekalnia
           </Link>
-        </div>
+        </nav>
       </div>
     </div>
   );
@@ -77,13 +85,18 @@ export default function DarkroomModule() {
         </p>
       )}
       <Routes>
+        <Route index element={<Navigate to="scenes" replace />} />
         <Route
-          index
+          path="scenes"
+          element={<DarkroomSceneManager projectId={projectId} episodePlanId={episodePlanId} />}
+        />
+        <Route
+          path="upload"
           element={<DarkroomUpload projectId={projectId} episodePlanId={episodePlanId} />}
         />
         <Route
           path="staging"
-          element={<DarkroomStaging episodePlanId={episodePlanId} />}
+          element={<DarkroomStaging episodePlanId={episodePlanId} projectId={projectId} />}
         />
       </Routes>
     </div>
